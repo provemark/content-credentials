@@ -1,0 +1,21 @@
+# Keep the installed package small: exclude everything a consumer doesn't need
+# at runtime from the dist archive (Composer/Packagist). The library itself is
+# just src/, config/, composer.json, LICENSE and README.md.
+/.github            export-ignore
+/bin                export-ignore
+/certs              export-ignore
+/docs               export-ignore
+/out                export-ignore
+/service            export-ignore
+/specs              export-ignore
+/tests              export-ignore
+/.env.example       export-ignore
+/.gitattributes     export-ignore
+/.gitignore         export-ignore
+/CHANGELOG.md       export-ignore
+/NOTES.md           export-ignore
+/deptrac.yaml       export-ignore
+/docker-compose.yml export-ignore
+/phpstan.neon       export-ignore
+/phpunit.xml        export-ignore
+/pint.json          export-ignore
