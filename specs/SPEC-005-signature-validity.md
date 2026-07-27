@@ -2,9 +2,9 @@
 
 | Field      | Value                                   |
 |------------|-----------------------------------------|
-| Status     | draft                                   |
+| Status     | approved                                |
 | Author     | Maurice van Loon (maintainer)           |
-| Approved   | — (pending maintainer approval)         |
+| Approved   | Maurice van Loon — 2026-07-27           |
 | Supersedes | —                                       |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -133,19 +133,24 @@ string), map via `ValidationState::tryFrom()` (null on absent/unknown), and pass
 it into the `ManifestReport`. `isSignatureValid()` returns
 `in_array($state, [ValidationState::Valid, ValidationState::Trusted], true)`.
 
-## Open questions
+## Decisions (resolved at approval, 2026-07-27)
 
-- **Q1 — enum vs. raw string.** Model the state as a `ValidationState` enum
-  (proposed; `tryFrom` yields `null` for absent/unknown), or expose the raw
-  string? Proposed: enum, with `validationState(): ?ValidationState`.
-- **Q2 — behaviour on absent/unknown state.** Return `false` from
-  `isSignatureValid()` and `null` from `validationState()` (proposed,
-  conservative), rather than deriving a verdict from the `validation_results`
-  success/failure codes. Confirm.
-- **Q3 — align `isTrusted()`?** Keep SPEC-003's `isTrusted()` as "no
-  `signingCredential.untrusted` code" (proposed), or redefine it as
-  `validationState() === Trusted`? They agree for the test certs; a redefinition
-  is a behaviour change to SPEC-003. Proposed: leave as-is for now; revisit.
+The draft's open questions were resolved as proposed; recorded here so the
+approved spec is self-contained.
+
+- **D1 — enum.** Model the state as a `ValidationState` enum
+  (`Invalid`/`Valid`/`Trusted`); `validationState(): ?ValidationState`, with
+  `ValidationState::tryFrom()` yielding `null` for an absent/unknown value.
+- **D2 — absent/unknown state.** `validationState()` returns `null` and
+  `isSignatureValid()` returns `false` — the reader never claims validity it
+  cannot confirm, and does not fall back to deriving a verdict from the
+  `validation_results` success/failure code lists.
+- **D3 — `isTrusted()` unchanged.** Keep SPEC-003's `isTrusted()` as "no
+  `signingCredential.untrusted` code". No redefinition in terms of
+  `validation_state` for now (would be a SPEC-003 behaviour change); may be
+  revisited later.
+
+No open questions remain.
 
 ## Traceability
 
