@@ -190,6 +190,9 @@ final readonly class Manifest
 
     /** Just the assertions array (maps to /v1/sign `extra_assertions` later). */
     public function assertions(): array;
+
+    /** Added by the SPEC-002 amendment (see below). */
+    public function mediaType(): MediaType;
 }
 ```
 
@@ -276,3 +279,11 @@ Implemented 2026-07-27. All tests live in
 | D1 | includes / omits claim_generator_info | `ManifestBuilder::withClaimGenerator()`, `Manifest::toArray()` |
 | D2 | normalises mime case and strips parameters | `MediaType::fromMimeType()` |
 | D4 | exposes assertions() matching the toArray assertions | `Manifest::assertions()` |
+
+## Amendments
+
+- **2026-07-27 (via SPEC-002):** added `Manifest::mediaType(): MediaType`, a
+  read-only accessor (no behavior change). `Manifest` now stores the `MediaType`
+  internally and derives the `format` string from it. Test: `exposes the
+  manifest media type` (`tests/Unit/Manifest/ManifestBuilderTest.php`, group
+  `SPEC-002`). Source: `src/Core/Manifest/Manifest.php`.

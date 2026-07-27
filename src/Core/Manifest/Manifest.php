@@ -19,10 +19,16 @@ final readonly class Manifest
      * @param  list<ClaimGeneratorShape>  $claimGeneratorInfo
      */
     public function __construct(
-        private string $format,
+        private MediaType $mediaType,
         private array $assertions,
         private array $claimGeneratorInfo = [],
     ) {}
+
+    /** The asset format this manifest is built for (SPEC-001 amendment via SPEC-002). */
+    public function mediaType(): MediaType
+    {
+        return $this->mediaType;
+    }
 
     /**
      * The JSON-ready manifest definition. `claim_generator_info` is omitted
@@ -38,14 +44,14 @@ final readonly class Manifest
     {
         if ($this->claimGeneratorInfo === []) {
             return [
-                'format' => $this->format,
+                'format' => $this->mediaType->value,
                 'assertions' => $this->assertions,
             ];
         }
 
         return [
             'claim_generator_info' => $this->claimGeneratorInfo,
-            'format' => $this->format,
+            'format' => $this->mediaType->value,
             'assertions' => $this->assertions,
         ];
     }

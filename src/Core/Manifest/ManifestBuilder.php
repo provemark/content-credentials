@@ -79,7 +79,7 @@ final class ManifestBuilder
             ],
         ]];
 
-        return new Manifest($this->mediaType->value, $assertions, $this->claimGeneratorInfo());
+        return new Manifest($this->mediaType, $assertions, $this->claimGeneratorInfo());
     }
 
     /**

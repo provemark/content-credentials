@@ -191,3 +191,12 @@ it('exposes assertions() matching the toArray assertions', function () {
 
     expect($manifest->assertions())->toBe($manifest->toArray()['assertions']);
 })->group('SPEC-001');
+
+// SPEC-001 amendment (approved via SPEC-002): Manifest exposes its media type.
+it('exposes the manifest media type', function () {
+    $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Jpeg)
+        ->withSoftwareAgent('X')
+        ->build();
+
+    expect($manifest->mediaType())->toBe(MediaType::Jpeg);
+})->group('SPEC-002');

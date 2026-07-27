@@ -2,7 +2,7 @@
 
 | Field      | Value                                   |
 |------------|-----------------------------------------|
-| Status     | approved                                |
+| Status     | implemented                             |
 | Author     | Maurice van Loon (maintainer)           |
 | Approved   | Maurice van Loon — 2026-07-27           |
 | Supersedes | —                                       |
@@ -253,15 +253,20 @@ No open questions remain.
 
 ## Traceability
 
-Filled when status becomes `implemented`. Every acceptance criterion maps to at
-least one test; every source file maps back to this spec.
+Implemented 2026-07-27. Tests in `tests/Unit/Signing/SigningServiceSignerTest.php`
+(+ the amendment test in `tests/Unit/Manifest/ManifestBuilderTest.php`), tagged
+`->group('SPEC-002')` (16 tests). `composer check` green: Pint + PHPStan level
+max + Pest + Deptrac (Core → PSR interfaces only, 0 violations). New runtime
+deps recorded in `docs/adr/ADR-0001-psr18-http-client.md`.
 
-| Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
-|----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
+| Criterion | Test (`it …`) | Source (file / symbol) |
+|-----------|---------------|------------------------|
+| AC1 | signs a PNG AI manifest against the service | `SigningServiceSigner::sign()`, `SignedAsset` |
+| AC2 | maps the manifest and asset into the request body; omits creator_name when the manifest has no claim generator (D1) | `SigningServiceSigner::buildPayload()/creatorName()` |
+| AC3 | throws SigningFailedException on a non-2xx response; the signing failure carries the status and service error message | `SigningServiceSigner::sign()/extractError()`, `Exception\SigningFailedException` |
+| AC4 | wraps a PSR-18 transport failure | `SigningServiceSigner::sign()` (catch `ClientExceptionInterface`), `Exception\SigningTransportException` |
+| AC5 | rejects a malformed 2xx body | `SigningServiceSigner::decodeSignedContent()`, `Exception\SigningResponseException` |
+| AC6 | rejects an asset/manifest media-type mismatch before any HTTP call; media-type mismatch error implements the Core exception interface | `SigningServiceSigner::sign()` (pre-flight), `Exception\MediaTypeMismatchException`, `Manifest::mediaType()` |
+| AC7 | never leaks the API key in failure messages | `SigningServiceSigner` (failure messages exclude the key) |
+| D5 | normalises a trailing slash in the base URL | `SigningServiceSigner::endpoint()` |
+| D3 (amendment) | exposes the manifest media type | `Manifest::mediaType()` |
