@@ -2,9 +2,9 @@
 
 | Field      | Value                                   |
 |------------|-----------------------------------------|
-| Status     | draft                                   |
+| Status     | approved                                |
 | Author     | Maurice van Loon (maintainer)           |
-| Approved   | — (pending maintainer approval)         |
+| Approved   | Maurice van Loon — 2026-07-27           |
 | Supersedes | —                                       |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -192,25 +192,28 @@ Auto-discovery (composer.json):
 }
 ```
 
-## Open questions
+## Decisions (resolved at approval, 2026-07-27)
 
-- **Q1 — PSR-18 resolution.** Container-or-discovery via `php-http/discovery`
-  (proposed; best DX with Laravel's Guzzle), or require the app to bind
-  `ClientInterface` + factories explicitly (no new dep)? Proposed: discovery,
-  with container override (AC5).
-- **Q2 — facade thickness.** Thin proxy (`sign`/`read`) for v1 (proposed), or add
-  a convenience `signAiImage(...)` combining `ManifestBuilder` + signer?
-- **Q3 — config keys / env names.** `service.base_url` ←
+The draft's open questions were resolved as proposed; recorded here so the
+approved spec is self-contained.
+
+- **D1 — PSR-18 resolution.** Container-or-discovery via `php-http/discovery`
+  (best DX with Laravel's bundled Guzzle); a container-bound `ClientInterface`
+  and PSR-17 factories always win over discovery (AC5). New runtime dep →
+  ADR-0002.
+- **D2 — facade thickness.** Thin proxy (`sign` / `read`) for v1; a convenience
+  `signAiImage(...)` combining `ManifestBuilder` + signer is deferred.
+- **D3 — config keys / env names.** `service.base_url` ←
   `CONTENTAUTH_SERVICE_URL`, `service.api_key` ← `CONTENTAUTH_API_KEY` (matches
-  `.env.example`). Confirm.
-- **Q4 — test harness.** `orchestra/testbench` (proposed, idiomatic) vs. a bare
-  `illuminate/container` + `illuminate/config` bootstrap to keep require-dev
-  lighter?
-- **Q5 — jobs / artisan.** Defer queued signing jobs and artisan commands to a
-  later spec (proposed).
-- **Q6 — when to fail on missing config.** At resolve time when building
-  `SigningServiceConfig` with a blank `api_key` (proposed), vs. lazily at first
-  HTTP call.
+  `.env.example`).
+- **D4 — test harness.** `orchestra/testbench` (require-dev), the idiomatic
+  Laravel package harness.
+- **D5 — jobs / artisan.** Deferred to a later spec.
+- **D6 — when to fail on missing config.** At resolve time, when building
+  `SigningServiceConfig` with a blank `api_key`
+  (`MissingConfigurationException`, AC6).
+
+No open questions remain.
 
 ## Traceability
 
