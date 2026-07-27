@@ -1,7 +1,7 @@
 # Content Credentials
 
 [![CI](https://github.com/provemark/content-credentials/actions/workflows/ci.yml/badge.svg)](https://github.com/provemark/content-credentials/actions/workflows/ci.yml)
-[![Latest Version](https://img.shields.io/packagist/v/contentcredentials/content-credentials)](https://packagist.org/packages/contentcredentials/content-credentials)
+[![Latest Version](https://img.shields.io/packagist/v/provemark/content-credentials)](https://packagist.org/packages/provemark/content-credentials)
 [![PHP Version](https://img.shields.io/badge/php-%5E8.3-777bb4)](composer.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -37,7 +37,7 @@ next to your app.
 ## Installation
 
 ```bash
-composer require contentcredentials/content-credentials
+composer require provemark/content-credentials
 ```
 
 ### Installing from GitHub (before Packagist)
@@ -56,14 +56,12 @@ repository by adding a VCS repository to your project's `composer.json`:
 Then require it by tag (or by branch):
 
 ```bash
-composer require contentcredentials/content-credentials:^0.1
-# or the main branch:  composer require contentcredentials/content-credentials:dev-main
+composer require provemark/content-credentials:^0.1
+# or the main branch:  composer require provemark/content-credentials:dev-main
 ```
 
-The repository is currently **private**, so Composer needs credentials — a
-GitHub token with `repo` scope (e.g. via `composer config --global --auth
-github-oauth.github.com <token>`). Composer reads the package name and
-`extra.laravel` auto-discovery from the repository's own `composer.json`.
+Composer reads the package name and `extra.laravel` auto-discovery from the
+repository's own `composer.json`.
 
 In **Laravel** the service provider and `ContentCredentials` facade are
 registered automatically (package auto-discovery). Publish the config if you

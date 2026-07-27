@@ -1,5 +1,5 @@
 {
-    "name": "contentcredentials/content-credentials",
+    "name": "provemark/content-credentials",
     "description": "PHP library for C2PA Content Credentials: build, sign, read and verify manifests, with machine-readable marking of AI-generated content (EU AI Act, Article 50).",
     "type": "library",
     "license": "MIT",
