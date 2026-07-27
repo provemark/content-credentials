@@ -2,7 +2,7 @@
 
 | Field      | Value                                   |
 |------------|-----------------------------------------|
-| Status     | approved                                |
+| Status     | implemented                             |
 | Author     | Maurice van Loon (maintainer)           |
 | Approved   | Maurice van Loon — 2026-07-27           |
 | Supersedes | —                                       |
@@ -261,14 +261,18 @@ No open questions remain.
 
 ## Traceability
 
-Filled when status becomes `implemented`. Every acceptance criterion maps to at
-least one test; every source file maps back to this spec.
+Implemented 2026-07-27. All tests live in
+`tests/Unit/Manifest/ManifestBuilderTest.php`, tagged `->group('SPEC-001')`
+(20 tests, `composer check` green: Pint + PHPStan level max + Pest + Deptrac).
 
-| Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
-|----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
+| Criterion | Test (`it …`) | Source (file / symbol) |
+|-----------|---------------|------------------------|
+| AC1 | builds the AI-generated marking for PNG | `ManifestBuilder::build()`, `Manifest::toArray()`, `DigitalSourceType`, `SoftwareAgent` |
+| AC2 | supports JPEG and omits an unset software-agent version | `MediaType::Jpeg`, `SoftwareAgent::toArray()` |
+| AC3 | rejects an unsupported media type; unsupported-type exception implements the Core exception interface; names the offending type in the error | `MediaType::fromMimeType()`, `Exception\UnsupportedMediaTypeException`, `Support\ContentCredentialsException` |
+| AC4 | rejects an empty or whitespace software-agent name at build(); requires a software agent before build() | `ManifestBuilder::build()`, `Exception\InvalidSoftwareAgentException` |
+| AC5 | is immutable: with* returns a new, independent instance | `ManifestBuilder::forAiGeneratedImage()/withSoftwareAgent()/withClaimGenerator()` |
+| AC6 | always emits the fixed trainedAlgorithmicMedia URI | `DigitalSourceType::TrainedAlgorithmicMedia`, `ManifestBuilder::build()` |
+| D1 | includes / omits claim_generator_info | `ManifestBuilder::withClaimGenerator()`, `Manifest::toArray()` |
+| D2 | normalises mime case and strips parameters | `MediaType::fromMimeType()` |
+| D4 | exposes assertions() matching the toArray assertions | `Manifest::assertions()` |
