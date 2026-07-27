@@ -9,10 +9,13 @@ use ContentCredentials\Core\Reading\SigningServiceReader;
 use ContentCredentials\Core\Signing\SignerInterface;
 use ContentCredentials\Core\Signing\SigningServiceConfig;
 use ContentCredentials\Core\Signing\SigningServiceSigner;
+use ContentCredentials\Laravel\Console\ReadCommand;
+use ContentCredentials\Laravel\Console\SignCommand;
 use ContentCredentials\Laravel\Exception\MissingConfigurationException;
 use Http\Discovery\Psr17FactoryDiscovery;
 use Http\Discovery\Psr18ClientDiscovery;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
+use Illuminate\Contracts\Console\Kernel as ConsoleKernel;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\ServiceProvider;
 use Psr\Http\Client\ClientInterface;
@@ -69,6 +72,16 @@ final class ContentCredentialsServiceProvider extends ServiceProvider
         $this->publishes([
             $this->configPath() => config_path('content-credentials.php'),
         ], 'content-credentials-config');
+
+        // Register the artisan commands when a console kernel is available. The
+        // bound() check is safe on any container (unlike runningInConsole(),
+        // which the bare test harness does not implement).
+        if ($this->app->bound(ConsoleKernel::class)) {
+            $this->commands([
+                SignCommand::class,
+                ReadCommand::class,
+            ]);
+        }
     }
 
     private function configPath(): string

@@ -1,0 +1,94 @@
+<?php
+
+declare(strict_types=1);
+
+namespace ContentCredentials\Laravel\Console;
+
+use ContentCredentials\Core\Manifest\Exception\UnsupportedMediaTypeException;
+use ContentCredentials\Core\Manifest\ManifestBuilder;
+use ContentCredentials\Core\Signing\Asset;
+use ContentCredentials\Core\Signing\SignerInterface;
+use ContentCredentials\Core\Support\ContentCredentialsException;
+use Illuminate\Console\Command;
+
+final class SignCommand extends Command
+{
+    use InfersMediaType;
+
+    protected $signature = 'content-credentials:sign
+        {input : Path to the source image (.png/.jpg/.jpeg)}
+        {output : Path to write the signed image}
+        {--agent= : Software agent name (required)}
+        {--agent-version= : Software agent version}
+        {--claim-generator= : Claim generator name}
+        {--claim-generator-version= : Claim generator version}';
+
+    protected $description = 'Sign an image as AI-generated (EU AI Act Art. 50) via the signing service.';
+
+    public function handle(SignerInterface $signer): int
+    {
+        $input = $this->argument('input');
+        $output = $this->argument('output');
+        if (! is_string($input) || ! is_string($output)) {
+            $this->error('input and output paths are required.');
+
+            return self::FAILURE;
+        }
+
+        try {
+            $mediaType = $this->mediaTypeFromPath($input);
+        } catch (UnsupportedMediaTypeException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+
+        if (! is_file($input)) {
+            $this->error("Input file not found: {$input}");
+
+            return self::FAILURE;
+        }
+
+        $agent = $this->stringOption('agent');
+        if ($agent === null) {
+            $this->error('The --agent option is required.');
+
+            return self::FAILURE;
+        }
+
+        $bytes = file_get_contents($input);
+        if ($bytes === false) {
+            $this->error("Cannot read input file: {$input}");
+
+            return self::FAILURE;
+        }
+
+        $builder = ManifestBuilder::forAiGeneratedImage($mediaType)
+            ->withSoftwareAgent($agent, $this->stringOption('agent-version'));
+
+        $claimGenerator = $this->stringOption('claim-generator');
+        if ($claimGenerator !== null) {
+            $builder = $builder->withClaimGenerator($claimGenerator, $this->stringOption('claim-generator-version'));
+        }
+
+        try {
+            $signed = $signer->sign(new Asset($bytes, $mediaType), $builder->build());
+        } catch (ContentCredentialsException $e) {
+            $this->error('Signing failed: '.$e->getMessage());
+
+            return self::FAILURE;
+        }
+
+        file_put_contents($output, $signed->bytes);
+        $this->info(sprintf('Signed %s -> %s (%d bytes)', $input, $output, strlen($signed->bytes)));
+
+        return self::SUCCESS;
+    }
+
+    private function stringOption(string $name): ?string
+    {
+        $value = $this->option($name);
+
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+}

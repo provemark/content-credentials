@@ -2,7 +2,7 @@
 
 | Field      | Value                                   |
 |------------|-----------------------------------------|
-| Status     | approved                                |
+| Status     | implemented                             |
 | Author     | Maurice van Loon (maintainer)           |
 | Approved   | Maurice van Loon — 2026-07-27           |
 | Supersedes | —                                       |
@@ -204,11 +204,23 @@ No open questions remain.
 Filled when status becomes `implemented`. Every acceptance criterion maps to at
 least one test; every source file maps back to this spec.
 
-| Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
-|----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
+Implemented 2026-07-27. Tests in
+`tests/Unit/Laravel/JobsAndCommandsTest.php`, tagged `->group('SPEC-006')`
+(6 tests). `composer check` green (Pint + PHPStan level max + Pest + Deptrac).
+Added `illuminate/console` to require-dev (the commands extend
+`Illuminate\Console\Command`; the host Laravel app provides it at runtime, like
+`illuminate/support`). Console auto-registration (provider `boot()`) and queue
+dispatch are framework integration verified manually/e2e, not in the bare
+harness (D5). The bare `Illuminate\Console\Command` execution needs container
+methods (`runningUnitTests()`), provided by a test-only `Container` subclass;
+the `Application`-typing of `Command::setLaravel()` is covered by the annotated
+PHPStan ignore in `phpstan.neon`.
+
+| Criterion | Test (`it …`) | Source (file / symbol) |
+|-----------|---------------|------------------------|
+| AC1 | sign command signs a file | `Console\SignCommand`, `Console\InfersMediaType` |
+| AC2 | sign command rejects an unsupported extension | `Console\SignCommand`, `Console\InfersMediaType`, `Manifest\Exception\UnsupportedMediaTypeException` |
+| AC3 | read command reports a credential | `Console\ReadCommand` |
+| AC4 | SignAssetJob signs the source and writes the destination | `Jobs\SignAssetJob::handle()`, `Events\AssetSigned` |
+| AC5 | SignAssetJob is a bounded, retrying queue job | `Jobs\SignAssetJob` (`ShouldQueue`, `$tries`, `backoff()`) |
+| AC6 | SignAssetJob lets a signing failure propagate and leaves no output | `Jobs\SignAssetJob::handle()` |
