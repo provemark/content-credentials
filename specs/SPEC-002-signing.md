@@ -2,9 +2,9 @@
 
 | Field      | Value                                   |
 |------------|-----------------------------------------|
-| Status     | draft                                   |
+| Status     | approved                                |
 | Author     | Maurice van Loon (maintainer)           |
-| Approved   | — (pending maintainer approval)         |
+| Approved   | Maurice van Loon — 2026-07-27           |
 | Supersedes | —                                       |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -67,17 +67,20 @@ recorded in SPEC-001.
 
 ## Dependencies & amendments (require maintainer sign-off with this spec)
 
+Approved with this spec on 2026-07-27 (see D3/D4 below).
+
 - **New runtime dependencies** (interfaces only): `psr/http-client` (PSR-18),
   `psr/http-factory` (PSR-17), `psr/http-message` (PSR-7). Per CLAUDE.md a new
   runtime dependency needs an **ADR** — this spec calls for
   `docs/adr/ADR-0001-psr18-http-client.md`, authored with the implementation.
   No concrete client (Guzzle/Symfony) is required by Core; it is injected.
 - **require-dev** for tests: a PSR-17 implementation and a mockable PSR-18
-  client (proposed `nyholm/psr7` + `php-http/mock-client`) — see Open questions.
-- **Proposed amendment to SPEC-001** (approved): add a read-only accessor
+  client (`nyholm/psr7` + `php-http/mock-client`) — see D4.
+- **Amendment to SPEC-001** (approved): add a read-only accessor
   `Manifest::mediaType(): MediaType` (no behavior change) so the signer can
   assert asset/manifest format agreement (AC6) without re-parsing `toArray()`.
-  Presented as a diff for approval:
+  To be applied during SPEC-002 implementation (with its own test and a pointer
+  recorded in SPEC-001). The diff:
 
   ```diff
    final readonly class Manifest
@@ -222,26 +225,31 @@ Request body shape sent to `/v1/sign` (primer §3):
 }
 ```
 
-## Open questions
+## Decisions (resolved at approval, 2026-07-27)
 
-- **Q1 — `creator_name` mapping.** Map from `Manifest`'s claim generator: send
-  `creator_name` = claim-generator **name** when set, omit it otherwise (service
-  supplies its default); drop the version on the wire (the service composes its
-  own `claim_generator_info`). Confirm.
-- **Q2 — media-type agreement (AC6).** Enforce `Asset.mediaType ===
-  Manifest.mediaType` with a pre-flight typed error, vs. letting the asset
-  silently drive `mime_type`. Proposed: enforce. Confirm.
-- **Q3 — SPEC-001 amendment.** Add `Manifest::mediaType(): MediaType`
-  (read-only) to support Q2/AC6. Proposed: yes. Confirm.
-- **Q4 — test doubles / ADR.** `nyholm/psr7` + `php-http/mock-client` in
-  require-dev; `docs/adr/ADR-0001-psr18-http-client.md` recording the PSR-18
-  choice. Confirm the packages.
-- **Q5 — base URL joining & trailing slash.** Normalise `baseUrl` (strip
-  trailing `/`) and append `/v1/sign`, mirroring the spike. Confirm.
-- **Q6 — response `manifest_url`.** Our service returns `null`; ignore it in v1
-  (don't surface). Confirm.
-- **Q7 — no retries/timeout policy in Core.** Single attempt; timeouts and
-  retries are the injected client's concern (and a later spec). Confirm.
+The draft's open questions were resolved as proposed; recorded here so the
+approved spec is self-contained.
+
+- **D1 — `creator_name` mapping.** Send `creator_name` = the manifest's
+  claim-generator **name** when set; omit it otherwise (the service supplies its
+  default). Drop the version on the wire — the service composes its own
+  `claim_generator_info`.
+- **D2 — media-type agreement.** Enforce `Asset.mediaType ===
+  Manifest.mediaType` with a pre-flight typed error before any HTTP call (AC6);
+  the asset does not silently drive `mime_type`.
+- **D3 — SPEC-001 amendment.** Add read-only `Manifest::mediaType(): MediaType`
+  (no behavior change), applied during SPEC-002 implementation with its own
+  test and a back-pointer recorded in SPEC-001.
+- **D4 — test doubles & ADR.** require-dev: `nyholm/psr7` +
+  `php-http/mock-client`. Author `docs/adr/ADR-0001-psr18-http-client.md`
+  recording the PSR-18 dependency decision, with the implementation.
+- **D5 — base URL joining.** Normalise `baseUrl` (strip a trailing `/`) and
+  append `/v1/sign`, mirroring the spike.
+- **D6 — response `manifest_url`.** Ignored in v1 (our service returns `null`).
+- **D7 — no retries/timeout policy in Core.** Single attempt; timeouts and
+  retries are the injected client's concern (and a later spec).
+
+No open questions remain.
 
 ## Traceability
 
