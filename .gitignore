@@ -25,3 +25,6 @@ tools/
 # --- Editors / OS ---
 .idea/
 .DS_Store
+
+# Local project instructions (not published)
+CLAUDE.md
