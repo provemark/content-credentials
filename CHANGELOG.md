@@ -32,4 +32,4 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[0.1.0]: https://github.com/OWNER/content-credentials/releases/tag/v0.1.0
+[0.1.0]: https://github.com/provemark/content-credentials/releases/tag/v0.1.0

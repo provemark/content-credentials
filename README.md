@@ -43,21 +43,22 @@ repository by adding a VCS repository to your project's `composer.json`:
 ```json
 {
     "repositories": [
-        { "type": "vcs", "url": "https://github.com/OWNER/content-credentials" }
+        { "type": "vcs", "url": "https://github.com/provemark/content-credentials" }
     ]
 }
 ```
 
-Then require it by branch (or by tag once releases exist):
+Then require it by tag (or by branch):
 
 ```bash
-composer require contentcredentials/content-credentials:dev-main
-# or, once tagged:  composer require contentcredentials/content-credentials:^0.1
+composer require contentcredentials/content-credentials:^0.1
+# or the main branch:  composer require contentcredentials/content-credentials:dev-main
 ```
 
-Replace `OWNER` with the repository owner. Everything else below works
-identically; Composer reads the package name and `extra.laravel` auto-discovery
-from the repository's own `composer.json`.
+The repository is currently **private**, so Composer needs credentials — a
+GitHub token with `repo` scope (e.g. via `composer config --global --auth
+github-oauth.github.com <token>`). Composer reads the package name and
+`extra.laravel` auto-discovery from the repository's own `composer.json`.
 
 In **Laravel** the service provider and `ContentCredentials` facade are
 registered automatically (package auto-discovery). Publish the config if you

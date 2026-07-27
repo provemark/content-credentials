@@ -17,6 +17,11 @@
             "name": "Maurice van Loon"
         }
     ],
+    "homepage": "https://github.com/provemark/content-credentials",
+    "support": {
+        "issues": "https://github.com/provemark/content-credentials/issues",
+        "source": "https://github.com/provemark/content-credentials"
+    },
     "require": {
         "php": "^8.3",
         "php-http/discovery": "^1.20",
@@ -61,6 +66,9 @@
         "guzzlehttp/guzzle": "A PSR-18 client + PSR-17 factories for the signing client outside Laravel (any PSR-18/PSR-17 implementation works)."
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.1-dev"
+        },
         "laravel": {
             "providers": [
                 "ContentCredentials\\Laravel\\ContentCredentialsServiceProvider"
