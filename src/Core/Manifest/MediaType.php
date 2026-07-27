@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Core\Manifest;
+namespace Provemark\ContentCredentials\Core\Manifest;
 
-use ContentCredentials\Core\Manifest\Exception\UnsupportedMediaTypeException;
+use Provemark\ContentCredentials\Core\Manifest\Exception\UnsupportedMediaTypeException;
 
 /** Supported asset formats for v1 (PNG and JPEG only — SPEC-001). */
 enum MediaType: string

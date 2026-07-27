@@ -50,7 +50,7 @@ interfaces. Note `final`, `readonly`, `strict_types=1` intentions. Show the
 shape a caller sees.>
 
 ```php
-// namespace ContentCredentials\...;
+// namespace Provemark\ContentCredentials\...;
 ```
 
 ## Open questions

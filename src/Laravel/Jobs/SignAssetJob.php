@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Laravel\Jobs;
+namespace Provemark\ContentCredentials\Laravel\Jobs;
 
-use ContentCredentials\Core\Manifest\ManifestBuilder;
-use ContentCredentials\Core\Manifest\MediaType;
-use ContentCredentials\Core\Signing\Asset;
-use ContentCredentials\Core\Signing\SignerInterface;
-use ContentCredentials\Laravel\Events\AssetSigned;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Core\Signing\SignerInterface;
+use Provemark\ContentCredentials\Laravel\Events\AssetSigned;
 
 /**
  * Queued signing of a local file: reads the source, builds the AI-generated

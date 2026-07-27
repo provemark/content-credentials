@@ -40,7 +40,7 @@ manifest, correct by construction, with the invariants enforced and tested.
 
 **In scope**
 
-- A **fluent, immutable** builder under `ContentCredentials\Core\Manifest` that
+- A **fluent, immutable** builder under `Provemark\ContentCredentials\Core\Manifest` that
   produces an immutable `Manifest` value object representing a **claim-v2
   manifest definition** for an **AI-generated image**.
 - The manifest carries **exactly one** assertion: a `c2pa.actions.v2` assertion
@@ -135,7 +135,7 @@ Illustrative only — not binding. All files `declare(strict_types=1)`; public
 API `final` with interfaces; value objects `readonly`; PHPStan level max.
 
 ```php
-namespace ContentCredentials\Core\Manifest;
+namespace Provemark\ContentCredentials\Core\Manifest;
 
 /** Supported asset formats for v1 (PNG, JPEG only). */
 enum MediaType: string
@@ -143,7 +143,7 @@ enum MediaType: string
     case Png  = 'image/png';
     case Jpeg = 'image/jpeg';
 
-    /** @throws \ContentCredentials\Core\Manifest\Exception\UnsupportedMediaTypeException */
+    /** @throws \Provemark\ContentCredentials\Core\Manifest\Exception\UnsupportedMediaTypeException */
     public static function fromMimeType(string $mime): self;
 }
 
@@ -172,7 +172,7 @@ final class ManifestBuilder
     public function withSoftwareAgent(string $name, ?string $version = null): self;
     public function withClaimGenerator(string $name, ?string $version = null): self;
 
-    /** @throws \ContentCredentials\Core\Manifest\Exception\InvalidSoftwareAgentException */
+    /** @throws \Provemark\ContentCredentials\Core\Manifest\Exception\InvalidSoftwareAgentException */
     public function build(): Manifest;
 }
 
@@ -197,16 +197,16 @@ final readonly class Manifest
 ```
 
 ```php
-namespace ContentCredentials\Core\Support;
+namespace Provemark\ContentCredentials\Core\Support;
 
 /** Marker interface: every exception this library throws implements it. */
 interface ContentCredentialsException extends \Throwable {}
 ```
 
 ```php
-namespace ContentCredentials\Core\Manifest\Exception;
+namespace Provemark\ContentCredentials\Core\Manifest\Exception;
 
-use ContentCredentials\Core\Support\ContentCredentialsException;
+use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 
 final class UnsupportedMediaTypeException
     extends \InvalidArgumentException

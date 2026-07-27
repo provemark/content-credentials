@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Core\Signing\Exception;
+namespace Provemark\ContentCredentials\Core\Signing\Exception;
 
-use ContentCredentials\Core\Support\ContentCredentialsException;
+use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 
 /** The signing service returned a non-2xx response. */
 final class SigningFailedException extends \RuntimeException implements ContentCredentialsException {}

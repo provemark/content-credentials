@@ -2,24 +2,24 @@
 
 declare(strict_types=1);
 
-use ContentCredentials\Core\Manifest\Manifest;
-use ContentCredentials\Core\Manifest\ManifestBuilder;
-use ContentCredentials\Core\Manifest\MediaType;
-use ContentCredentials\Core\Reading\ReaderInterface;
-use ContentCredentials\Core\Reading\SigningServiceReader;
-use ContentCredentials\Core\Signing\Asset;
-use ContentCredentials\Core\Signing\SignedAsset;
-use ContentCredentials\Core\Signing\SignerInterface;
-use ContentCredentials\Core\Signing\SigningServiceConfig;
-use ContentCredentials\Core\Signing\SigningServiceSigner;
-use ContentCredentials\Laravel\ContentCredentials;
-use ContentCredentials\Laravel\ContentCredentialsServiceProvider;
-use ContentCredentials\Laravel\Exception\MissingConfigurationException;
 use Http\Mock\Client as MockClient;
 use Illuminate\Config\Repository;
 use Illuminate\Container\Container;
 use Illuminate\Support\Facades\Facade;
 use Nyholm\Psr7\Response;
+use Provemark\ContentCredentials\Core\Manifest\Manifest;
+use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
+use Provemark\ContentCredentials\Core\Reading\SigningServiceReader;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Core\Signing\SignedAsset;
+use Provemark\ContentCredentials\Core\Signing\SignerInterface;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceSigner;
+use Provemark\ContentCredentials\Laravel\ContentCredentials;
+use Provemark\ContentCredentials\Laravel\ContentCredentialsServiceProvider;
+use Provemark\ContentCredentials\Laravel\Exception\MissingConfigurationException;
 use Psr\Http\Client\ClientInterface;
 
 /**

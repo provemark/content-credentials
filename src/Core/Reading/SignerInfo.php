@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Core\Reading;
+namespace Provemark\ContentCredentials\Core\Reading;
 
 /** Who signed the active manifest, from the c2pa-rs `signature_info`. */
 final readonly class SignerInfo

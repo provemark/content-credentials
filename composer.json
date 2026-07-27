@@ -45,12 +45,12 @@
     },
     "autoload": {
         "psr-4": {
-            "ContentCredentials\\": "src/"
+            "Provemark\\ContentCredentials\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "ContentCredentials\\Tests\\": "tests/"
+            "Provemark\\ContentCredentials\\Tests\\": "tests/"
         }
     },
     "config": {
@@ -71,10 +71,10 @@
         },
         "laravel": {
             "providers": [
-                "ContentCredentials\\Laravel\\ContentCredentialsServiceProvider"
+                "Provemark\\ContentCredentials\\Laravel\\ContentCredentialsServiceProvider"
             ],
             "aliases": {
-                "ContentCredentials": "ContentCredentials\\Laravel\\ContentCredentials"
+                "ContentCredentials": "Provemark\\ContentCredentials\\Laravel\\ContentCredentials"
             }
         }
     },

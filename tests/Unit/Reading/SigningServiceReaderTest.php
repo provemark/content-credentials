@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-use ContentCredentials\Core\Manifest\MediaType;
-use ContentCredentials\Core\Reading\Exception\ReadFailedException;
-use ContentCredentials\Core\Reading\Exception\ReadResponseException;
-use ContentCredentials\Core\Reading\Exception\ReadTransportException;
-use ContentCredentials\Core\Reading\ManifestReport;
-use ContentCredentials\Core\Reading\SigningServiceReader;
-use ContentCredentials\Core\Reading\ValidationState;
-use ContentCredentials\Core\Signing\Asset;
-use ContentCredentials\Core\Signing\SigningServiceConfig;
-use ContentCredentials\Core\Support\ContentCredentialsException;
 use Http\Client\Exception as HttpClientException;
 use Http\Mock\Client as MockClient;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\Response;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Reading\Exception\ReadFailedException;
+use Provemark\ContentCredentials\Core\Reading\Exception\ReadResponseException;
+use Provemark\ContentCredentials\Core\Reading\Exception\ReadTransportException;
+use Provemark\ContentCredentials\Core\Reading\ManifestReport;
+use Provemark\ContentCredentials\Core\Reading\SigningServiceReader;
+use Provemark\ContentCredentials\Core\Reading\ValidationState;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
+use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Message\RequestInterface;
 

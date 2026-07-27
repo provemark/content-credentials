@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Core\Manifest;
+namespace Provemark\ContentCredentials\Core\Manifest;
 
 /**
  * Immutable claim-v2 manifest definition. Core emits arrays only; serialization

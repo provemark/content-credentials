@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Core\Reading;
+namespace Provemark\ContentCredentials\Core\Reading;
 
-use ContentCredentials\Core\Signing\Asset;
-use ContentCredentials\Core\Support\ContentCredentialsException;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 
 /**
  * Reads the C2PA manifest from an asset and reports what it carries.

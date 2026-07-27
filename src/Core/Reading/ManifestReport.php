@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Core\Reading;
+namespace Provemark\ContentCredentials\Core\Reading;
 
-use ContentCredentials\Core\Manifest\DigitalSourceType;
+use Provemark\ContentCredentials\Core\Manifest\DigitalSourceType;
 
 /**
  * Immutable view over the active manifest of a c2pa-rs manifest store, answering

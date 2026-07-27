@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Core\Reading;
+namespace Provemark\ContentCredentials\Core\Reading;
 
-use ContentCredentials\Core\Reading\Exception\ReadFailedException;
-use ContentCredentials\Core\Reading\Exception\ReadResponseException;
-use ContentCredentials\Core\Reading\Exception\ReadTransportException;
-use ContentCredentials\Core\Signing\Asset;
-use ContentCredentials\Core\Signing\SigningServiceConfig;
+use Provemark\ContentCredentials\Core\Reading\Exception\ReadFailedException;
+use Provemark\ContentCredentials\Core\Reading\Exception\ReadResponseException;
+use Provemark\ContentCredentials\Core\Reading\Exception\ReadTransportException;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;

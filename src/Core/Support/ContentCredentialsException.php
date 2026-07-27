@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Core\Support;
+namespace Provemark\ContentCredentials\Core\Support;
 
 /**
  * Marker interface implemented by every exception this library throws, so

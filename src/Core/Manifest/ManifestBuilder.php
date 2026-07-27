@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Core\Manifest;
+namespace Provemark\ContentCredentials\Core\Manifest;
 
-use ContentCredentials\Core\Manifest\Exception\InvalidSoftwareAgentException;
+use Provemark\ContentCredentials\Core\Manifest\Exception\InvalidSoftwareAgentException;
 
 /**
  * Fluent, immutable builder for a claim-v2 manifest that marks an image as

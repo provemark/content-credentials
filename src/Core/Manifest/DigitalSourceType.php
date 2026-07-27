@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Core\Manifest;
+namespace Provemark\ContentCredentials\Core\Manifest;
 
 /**
  * IPTC DigitalSourceType values. SPEC-001 emits only trainedAlgorithmicMedia

@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-use ContentCredentials\Core\Manifest\Manifest;
-use ContentCredentials\Core\Manifest\ManifestBuilder;
-use ContentCredentials\Core\Manifest\MediaType;
-use ContentCredentials\Core\Signing\Asset;
-use ContentCredentials\Core\Signing\Exception\MediaTypeMismatchException;
-use ContentCredentials\Core\Signing\Exception\SigningFailedException;
-use ContentCredentials\Core\Signing\Exception\SigningResponseException;
-use ContentCredentials\Core\Signing\Exception\SigningTransportException;
-use ContentCredentials\Core\Signing\SignedAsset;
-use ContentCredentials\Core\Signing\SigningServiceConfig;
-use ContentCredentials\Core\Signing\SigningServiceSigner;
-use ContentCredentials\Core\Support\ContentCredentialsException;
 use Http\Client\Exception as HttpClientException;
 use Http\Mock\Client as MockClient;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\Response;
+use Provemark\ContentCredentials\Core\Manifest\Manifest;
+use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Core\Signing\Exception\MediaTypeMismatchException;
+use Provemark\ContentCredentials\Core\Signing\Exception\SigningFailedException;
+use Provemark\ContentCredentials\Core\Signing\Exception\SigningResponseException;
+use Provemark\ContentCredentials\Core\Signing\Exception\SigningTransportException;
+use Provemark\ContentCredentials\Core\Signing\SignedAsset;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceSigner;
+use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Message\RequestInterface;
 

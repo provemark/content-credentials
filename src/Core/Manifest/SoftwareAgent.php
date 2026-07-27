@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Core\Manifest;
+namespace Provemark\ContentCredentials\Core\Manifest;
 
 /**
  * The tool that produced the content, recorded on the c2pa.created action.

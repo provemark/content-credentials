@@ -13,9 +13,9 @@ of **AI-generated content** required by the **EU AI Act, Article 50** — a
 
 It ships as two pieces:
 
-- a **framework-agnostic Core** (`ContentCredentials\Core\*`) that builds
+- a **framework-agnostic Core** (`Provemark\ContentCredentials\Core\*`) that builds
   manifests and talks to a signing service over HTTP (PSR-18), and
-- an optional **Laravel integration** (`ContentCredentials\Laravel\*`) — a
+- an optional **Laravel integration** (`Provemark\ContentCredentials\Laravel\*`) — a
   service provider + facade that wires everything from config.
 
 The private key never lives in PHP: signing is delegated to a small **Node
@@ -40,28 +40,11 @@ next to your app.
 composer require provemark/content-credentials
 ```
 
-### Installing from GitHub (before Packagist)
-
-Until this package is published on Packagist, install it straight from the Git
-repository by adding a VCS repository to your project's `composer.json`:
-
-```json
-{
-    "repositories": [
-        { "type": "vcs", "url": "https://github.com/provemark/content-credentials" }
-    ]
-}
-```
-
-Then require it by tag (or by branch):
+For the latest unreleased changes, require the `main` branch:
 
 ```bash
-composer require provemark/content-credentials:^0.1
-# or the main branch:  composer require provemark/content-credentials:dev-main
+composer require provemark/content-credentials:dev-main
 ```
-
-Composer reads the package name and `extra.laravel` auto-discovery from the
-repository's own `composer.json`.
 
 In **Laravel** the service provider and `ContentCredentials` facade are
 registered automatically (package auto-discovery). Publish the config if you
@@ -81,10 +64,10 @@ CONTENTAUTH_API_KEY=your-shared-secret
 ## Quick start (Laravel)
 
 ```php
-use ContentCredentials\Core\Manifest\ManifestBuilder;
-use ContentCredentials\Core\Manifest\MediaType;
-use ContentCredentials\Core\Signing\Asset;
-use ContentCredentials\Laravel\ContentCredentials;
+use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Laravel\ContentCredentials;
 
 $bytes = file_get_contents('image.png');
 
@@ -112,11 +95,11 @@ Core depends only on PSR interfaces — inject any PSR-18 client and PSR-17
 factories:
 
 ```php
-use ContentCredentials\Core\Manifest\ManifestBuilder;
-use ContentCredentials\Core\Manifest\MediaType;
-use ContentCredentials\Core\Signing\Asset;
-use ContentCredentials\Core\Signing\SigningServiceConfig;
-use ContentCredentials\Core\Signing\SigningServiceSigner;
+use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceSigner;
 use GuzzleHttp\Client;                       // any PSR-18 client
 use Nyholm\Psr7\Factory\Psr17Factory;        // any PSR-17 factory
 

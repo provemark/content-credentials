@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use ContentCredentials\Core\Manifest\Exception\InvalidSoftwareAgentException;
-use ContentCredentials\Core\Manifest\Exception\UnsupportedMediaTypeException;
-use ContentCredentials\Core\Manifest\ManifestBuilder;
-use ContentCredentials\Core\Manifest\MediaType;
-use ContentCredentials\Core\Support\ContentCredentialsException;
+use Provemark\ContentCredentials\Core\Manifest\Exception\InvalidSoftwareAgentException;
+use Provemark\ContentCredentials\Core\Manifest\Exception\UnsupportedMediaTypeException;
+use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 
 /**
  * SPEC-001 — Core manifest builder (AI-generated image).

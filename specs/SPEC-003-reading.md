@@ -38,7 +38,7 @@ trust-list verifier and is complementary, not replaced.
 
 **In scope**
 
-- `ContentCredentials\Core\Reading\ReaderInterface`:
+- `Provemark\ContentCredentials\Core\Reading\ReaderInterface`:
   `read(Asset $asset): ManifestReport`.
 - `SigningServiceReader implements ReaderInterface` — PSR-18 client POSTing to
   `{baseUrl}/v1/read` with `Authorization: Bearer <apiKey>` and
@@ -69,11 +69,11 @@ trust-list verifier and is complementary, not replaced.
 
 ## Reuse & dependencies
 
-- Reuses the SPEC-002 value objects `ContentCredentials\Core\Signing\Asset`
+- Reuses the SPEC-002 value objects `Provemark\ContentCredentials\Core\Signing\Asset`
   (bytes + `MediaType`) and `SigningServiceConfig` (base URL + API key) — same
   service and auth. Whether these should move to a shared Core location is
   Open Q1 (no relocation proposed for v1).
-- Reuses `ContentCredentials\Core\Manifest\DigitalSourceType` for the AI marking
+- Reuses `Provemark\ContentCredentials\Core\Manifest\DigitalSourceType` for the AI marking
   URI, and the PSR-18/PSR-17 deps already added in SPEC-002 (no new deps, no new
   ADR). Test doubles: the existing `nyholm/psr7` + `php-http/mock-client`.
 
@@ -178,10 +178,10 @@ Illustrative only. `declare(strict_types=1)`; `final` + interfaces; value object
 `readonly`; PHPStan level max. Lives in `src/Core/Reading` (Core layer).
 
 ```php
-namespace ContentCredentials\Core\Reading;
+namespace Provemark\ContentCredentials\Core\Reading;
 
-use ContentCredentials\Core\Signing\Asset;              // reused (Open Q1)
-use ContentCredentials\Core\Support\ContentCredentialsException;
+use Provemark\ContentCredentials\Core\Signing\Asset;              // reused (Open Q1)
+use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 
 interface ReaderInterface
 {
@@ -222,9 +222,9 @@ final readonly class ManifestReport
 ```
 
 ```php
-namespace ContentCredentials\Core\Reading\Exception;
+namespace Provemark\ContentCredentials\Core\Reading\Exception;
 
-use ContentCredentials\Core\Support\ContentCredentialsException;
+use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 
 final class ReadFailedException    extends \RuntimeException implements ContentCredentialsException {}
 final class ReadTransportException extends \RuntimeException implements ContentCredentialsException {}

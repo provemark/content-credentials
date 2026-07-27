@@ -108,7 +108,7 @@ Illustrative only. `declare(strict_types=1)`; `final`; value objects `readonly`;
 PHPStan level max.
 
 ```php
-namespace ContentCredentials\Core\Reading;
+namespace Provemark\ContentCredentials\Core\Reading;
 
 enum ValidationState: string
 {

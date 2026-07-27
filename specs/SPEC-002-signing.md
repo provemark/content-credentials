@@ -36,7 +36,7 @@ recorded in SPEC-001.
 
 **In scope**
 
-- `ContentCredentials\Core\Signing\SignerInterface`:
+- `Provemark\ContentCredentials\Core\Signing\SignerInterface`:
   `sign(Asset $asset, Manifest $manifest): SignedAsset`.
 - `SigningServiceSigner implements SignerInterface` — a PSR-18 client that POSTs
   to `{baseUrl}/v1/sign` with `Authorization: Bearer <apiKey>` and
@@ -156,11 +156,11 @@ interfaces; value objects `readonly`; PHPStan level max. Lives in
 `src/Core/Signing` (Core layer — no Laravel/illuminate).
 
 ```php
-namespace ContentCredentials\Core\Signing;
+namespace Provemark\ContentCredentials\Core\Signing;
 
-use ContentCredentials\Core\Manifest\Manifest;
-use ContentCredentials\Core\Manifest\MediaType;
-use ContentCredentials\Core\Support\ContentCredentialsException;
+use Provemark\ContentCredentials\Core\Manifest\Manifest;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 use Psr\Http\Client\ClientInterface;              // PSR-18
 use Psr\Http\Message\RequestFactoryInterface;     // PSR-17
 use Psr\Http\Message\StreamFactoryInterface;      // PSR-17
@@ -200,9 +200,9 @@ final class SigningServiceSigner implements SignerInterface
 ```
 
 ```php
-namespace ContentCredentials\Core\Signing\Exception;
+namespace Provemark\ContentCredentials\Core\Signing\Exception;
 
-use ContentCredentials\Core\Support\ContentCredentialsException;
+use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 
 /** Service returned a non-2xx response. */
 final class SigningFailedException extends \RuntimeException implements ContentCredentialsException {}

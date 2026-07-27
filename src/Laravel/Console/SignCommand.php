@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Laravel\Console;
+namespace Provemark\ContentCredentials\Laravel\Console;
 
-use ContentCredentials\Core\Manifest\Exception\UnsupportedMediaTypeException;
-use ContentCredentials\Core\Manifest\ManifestBuilder;
-use ContentCredentials\Core\Signing\Asset;
-use ContentCredentials\Core\Signing\SignerInterface;
-use ContentCredentials\Core\Support\ContentCredentialsException;
 use Illuminate\Console\Command;
+use Provemark\ContentCredentials\Core\Manifest\Exception\UnsupportedMediaTypeException;
+use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Core\Signing\SignerInterface;
+use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 
 final class SignCommand extends Command
 {

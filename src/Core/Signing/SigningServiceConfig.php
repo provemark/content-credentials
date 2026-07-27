@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Core\Signing;
+namespace Provemark\ContentCredentials\Core\Signing;
 
 /**
  * Configuration for the signing service client.

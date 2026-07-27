@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-07-27
+
+### Changed
+
+- **BREAKING — root namespace** is now `Provemark\ContentCredentials\` (was
+  `ContentCredentials\`), matching the Composer vendor / GitHub org and avoiding
+  collisions with the generic "content credentials" term. Update imports, e.g.
+  `use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;`. The package
+  name (`provemark/content-credentials`), the `ContentCredentials` facade
+  class/alias, the public API and all behaviour are otherwise unchanged.
+
 ## [0.1.0] - 2026-07-27
 
 Initial release — a spec-driven rebuild of a proven end-to-end signing-chain
@@ -38,4 +49,5 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
+[0.2.0]: https://github.com/provemark/content-credentials/releases/tag/v0.2.0
 [0.1.0]: https://github.com/provemark/content-credentials/releases/tag/v0.1.0

@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-use ContentCredentials\Core\Manifest\Manifest;
-use ContentCredentials\Core\Manifest\MediaType;
-use ContentCredentials\Core\Reading\ManifestReport;
-use ContentCredentials\Core\Reading\ReaderInterface;
-use ContentCredentials\Core\Reading\SignerInfo;
-use ContentCredentials\Core\Reading\ValidationState;
-use ContentCredentials\Core\Signing\Asset;
-use ContentCredentials\Core\Signing\Exception\SigningTransportException;
-use ContentCredentials\Core\Signing\SignedAsset;
-use ContentCredentials\Core\Signing\SignerInterface;
-use ContentCredentials\Laravel\Console\ReadCommand;
-use ContentCredentials\Laravel\Console\SignCommand;
-use ContentCredentials\Laravel\Jobs\SignAssetJob;
 use Illuminate\Console\Command;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Provemark\ContentCredentials\Core\Manifest\Manifest;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Reading\ManifestReport;
+use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
+use Provemark\ContentCredentials\Core\Reading\SignerInfo;
+use Provemark\ContentCredentials\Core\Reading\ValidationState;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Core\Signing\Exception\SigningTransportException;
+use Provemark\ContentCredentials\Core\Signing\SignedAsset;
+use Provemark\ContentCredentials\Core\Signing\SignerInterface;
+use Provemark\ContentCredentials\Laravel\Console\ReadCommand;
+use Provemark\ContentCredentials\Laravel\Console\SignCommand;
+use Provemark\ContentCredentials\Laravel\Jobs\SignAssetJob;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 

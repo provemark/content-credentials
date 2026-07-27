@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Laravel\Console;
+namespace Provemark\ContentCredentials\Laravel\Console;
 
-use ContentCredentials\Core\Manifest\Exception\UnsupportedMediaTypeException;
-use ContentCredentials\Core\Reading\ReaderInterface;
-use ContentCredentials\Core\Signing\Asset;
 use Illuminate\Console\Command;
+use Provemark\ContentCredentials\Core\Manifest\Exception\UnsupportedMediaTypeException;
+use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
+use Provemark\ContentCredentials\Core\Signing\Asset;
 
 final class ReadCommand extends Command
 {

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Core\Signing;
+namespace Provemark\ContentCredentials\Core\Signing;
 
-use ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
 
 /**
  * The signed asset returned by the service. `bytes` are the exact signed file

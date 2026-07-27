@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Core\Signing;
+namespace Provemark\ContentCredentials\Core\Signing;
 
-use ContentCredentials\Core\Manifest\Manifest;
-use ContentCredentials\Core\Support\ContentCredentialsException;
+use Provemark\ContentCredentials\Core\Manifest\Manifest;
+use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 
 /**
  * Signs an asset with a manifest, returning the signed asset bytes.

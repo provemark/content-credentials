@@ -29,7 +29,7 @@ layer and the first real test of the architecture boundary.
 
 **In scope**
 
-- `ContentCredentials\Laravel\ContentCredentialsServiceProvider`
+- `Provemark\ContentCredentials\Laravel\ContentCredentialsServiceProvider`
   (extends `Illuminate\Support\ServiceProvider`):
   - merges + publishes `config/content-credentials.php`;
   - binds `SigningServiceConfig` from config (base URL + API key);
@@ -43,7 +43,7 @@ layer and the first real test of the architecture boundary.
 - A thin `ContentCredentialsManager` (proxies `sign()` / `read()` to the bound
   Core interfaces) and a `ContentCredentials` facade over it.
 - A Laravel-layer exception
-  `ContentCredentials\Laravel\Exception\MissingConfigurationException`
+  `Provemark\ContentCredentials\Laravel\Exception\MissingConfigurationException`
   (implements `Core\Support\ContentCredentialsException`) for missing/blank
   required config.
 - Dependencies: `php-http/discovery` (runtime — see ADR-0002) for
@@ -131,7 +131,7 @@ error/misconfiguration path.
 - **AC7 — architecture boundary holds** *(build-enforced, not a unit test)*
   - Given the new Laravel-layer code
   - When `composer deptrac` runs
-  - Then Core has **zero** dependencies on `ContentCredentials\Laravel` or
+  - Then Core has **zero** dependencies on `Provemark\ContentCredentials\Laravel` or
     `Illuminate\*`; only `Laravel → Core` edges exist. (Enforced by `composer
     check`; noted here for traceability.)
 
@@ -141,13 +141,13 @@ Illustrative only. `declare(strict_types=1)`; `final` where possible; PHPStan
 level max. Lives in `src/Laravel` (Laravel layer — may use `illuminate/*`).
 
 ```php
-namespace ContentCredentials\Laravel;
+namespace Provemark\ContentCredentials\Laravel;
 
-use ContentCredentials\Core\Reading\ReaderInterface;
-use ContentCredentials\Core\Reading\SigningServiceReader;
-use ContentCredentials\Core\Signing\SignerInterface;
-use ContentCredentials\Core\Signing\SigningServiceConfig;
-use ContentCredentials\Core\Signing\SigningServiceSigner;
+use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
+use Provemark\ContentCredentials\Core\Reading\SigningServiceReader;
+use Provemark\ContentCredentials\Core\Signing\SignerInterface;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceSigner;
 use Illuminate\Support\ServiceProvider;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
@@ -186,7 +186,7 @@ final class ContentCredentialsManager
     // sign(Asset, Manifest): SignedAsset ; read(Asset): ManifestReport
 }
 
-/** @method static \ContentCredentials\Core\Signing\SignedAsset sign(...) */
+/** @method static \Provemark\ContentCredentials\Core\Signing\SignedAsset sign(...) */
 final class ContentCredentials extends \Illuminate\Support\Facades\Facade
 {
     protected static function getFacadeAccessor(): string { return ContentCredentialsManager::class; }
@@ -198,8 +198,8 @@ Auto-discovery (composer.json):
 ```json
 "extra": {
   "laravel": {
-    "providers": ["ContentCredentials\\Laravel\\ContentCredentialsServiceProvider"],
-    "aliases": { "ContentCredentials": "ContentCredentials\\Laravel\\ContentCredentials" }
+    "providers": ["Provemark\ContentCredentials\\Laravel\\ContentCredentialsServiceProvider"],
+    "aliases": { "ContentCredentials": "Provemark\ContentCredentials\\Laravel\\ContentCredentials" }
   }
 }
 ```

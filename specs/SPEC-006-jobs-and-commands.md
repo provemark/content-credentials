@@ -108,10 +108,10 @@ Illustrative only. `declare(strict_types=1)`; PHPStan level max. Lives in
 `src/Laravel/{Console,Jobs,Events}` (Laravel layer — may use `illuminate/*`).
 
 ```php
-namespace ContentCredentials\Laravel\Jobs;
+namespace Provemark\ContentCredentials\Laravel\Jobs;
 
-use ContentCredentials\Core\Manifest\MediaType;
-use ContentCredentials\Core\Signing\SignerInterface;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Signing\SignerInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
@@ -147,7 +147,7 @@ final class SignAssetJob implements ShouldQueue
 ```
 
 ```php
-namespace ContentCredentials\Laravel\Console;
+namespace Provemark\ContentCredentials\Laravel\Console;
 
 use Illuminate\Console\Command;
 
@@ -157,7 +157,7 @@ final class SignCommand extends Command
         {input} {output} {--agent=} {--agent-version=}
         {--claim-generator=} {--claim-generator-version=}';
 
-    public function handle(\ContentCredentials\Laravel\ContentCredentialsManager $cc): int
+    public function handle(\Provemark\ContentCredentials\Laravel\ContentCredentialsManager $cc): int
     {
         // infer MediaType from the input extension; build + sign; write output;
         // return self::SUCCESS / self::FAILURE.

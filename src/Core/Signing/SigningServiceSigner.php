@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Core\Signing;
+namespace Provemark\ContentCredentials\Core\Signing;
 
-use ContentCredentials\Core\Manifest\Manifest;
-use ContentCredentials\Core\Signing\Exception\MediaTypeMismatchException;
-use ContentCredentials\Core\Signing\Exception\SigningFailedException;
-use ContentCredentials\Core\Signing\Exception\SigningResponseException;
-use ContentCredentials\Core\Signing\Exception\SigningTransportException;
+use Provemark\ContentCredentials\Core\Manifest\Manifest;
+use Provemark\ContentCredentials\Core\Signing\Exception\MediaTypeMismatchException;
+use Provemark\ContentCredentials\Core\Signing\Exception\SigningFailedException;
+use Provemark\ContentCredentials\Core\Signing\Exception\SigningResponseException;
+use Provemark\ContentCredentials\Core\Signing\Exception\SigningTransportException;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;

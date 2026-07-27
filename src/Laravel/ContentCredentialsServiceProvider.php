@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Laravel;
+namespace Provemark\ContentCredentials\Laravel;
 
-use ContentCredentials\Core\Reading\ReaderInterface;
-use ContentCredentials\Core\Reading\SigningServiceReader;
-use ContentCredentials\Core\Signing\SignerInterface;
-use ContentCredentials\Core\Signing\SigningServiceConfig;
-use ContentCredentials\Core\Signing\SigningServiceSigner;
-use ContentCredentials\Laravel\Console\ReadCommand;
-use ContentCredentials\Laravel\Console\SignCommand;
-use ContentCredentials\Laravel\Exception\MissingConfigurationException;
 use Http\Discovery\Psr17FactoryDiscovery;
 use Http\Discovery\Psr18ClientDiscovery;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Console\Kernel as ConsoleKernel;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\ServiceProvider;
+use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
+use Provemark\ContentCredentials\Core\Reading\SigningServiceReader;
+use Provemark\ContentCredentials\Core\Signing\SignerInterface;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceSigner;
+use Provemark\ContentCredentials\Laravel\Console\ReadCommand;
+use Provemark\ContentCredentials\Laravel\Console\SignCommand;
+use Provemark\ContentCredentials\Laravel\Exception\MissingConfigurationException;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\StreamFactoryInterface;

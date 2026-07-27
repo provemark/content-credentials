@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace ContentCredentials\Laravel;
+namespace Provemark\ContentCredentials\Laravel;
 
-use ContentCredentials\Core\Manifest\Manifest;
-use ContentCredentials\Core\Reading\ManifestReport;
-use ContentCredentials\Core\Reading\ReaderInterface;
-use ContentCredentials\Core\Signing\Asset;
-use ContentCredentials\Core\Signing\SignedAsset;
-use ContentCredentials\Core\Signing\SignerInterface;
+use Provemark\ContentCredentials\Core\Manifest\Manifest;
+use Provemark\ContentCredentials\Core\Reading\ManifestReport;
+use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Core\Signing\SignedAsset;
+use Provemark\ContentCredentials\Core\Signing\SignerInterface;
 
 /**
  * Thin application service behind the ContentCredentials facade. Proxies to the
