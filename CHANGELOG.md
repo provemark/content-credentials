@@ -21,12 +21,18 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
   `SigningServiceReader` parsing the manifest store into a typed
   `ManifestReport` (`isAiGenerated()`, `digitalSourceTypes()`, `signer()`,
   `validationStatusCodes()`, `isTrusted()`).
+- **Signature-validity verdict** (SPEC-005): `ManifestReport::isSignatureValid()`
+  and `validationState()`, keyed off the c2pa-rs `validation_state`
+  (`Valid`/`Invalid`/`Trusted`) — distinct from trust.
 - **Laravel integration** (SPEC-004): service provider, config, `ContentCredentials`
   facade, and package auto-discovery; PSR-18 client resolved via the container or
   `php-http/discovery`.
+- **Queued job & artisan commands** (SPEC-006): `content-credentials:sign` and
+  `content-credentials:read` commands, a `SignAssetJob` (`ShouldQueue`, bounded
+  retries) and an `AssetSigned` event.
 - **Signing service** (`service/`): a minimal Node service on
   `@contentauth/c2pa-node`, plus `bin/verify.sh` for authoritative c2patool trust
-  verification.
+  verification, and `bin/e2e.php` to run the whole chain with the real library.
 - Architecture boundary (`Core` must not depend on Laravel/Illuminate) enforced
   by Deptrac.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
