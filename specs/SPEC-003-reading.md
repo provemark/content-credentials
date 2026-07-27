@@ -2,7 +2,7 @@
 
 | Field      | Value                                   |
 |------------|-----------------------------------------|
-| Status     | approved                                |
+| Status     | implemented                             |
 | Author     | Maurice van Loon (maintainer)           |
 | Approved   | Maurice van Loon — 2026-07-27           |
 | Supersedes | —                                       |
@@ -262,18 +262,20 @@ No open questions remain.
 
 ## Traceability
 
-Filled when status becomes `implemented`. Every acceptance criterion maps to at
-least one test; every source file maps back to this spec.
+Implemented 2026-07-27. Tests in `tests/Unit/Reading/SigningServiceReaderTest.php`,
+tagged `->group('SPEC-003')` (13 tests). `composer check` green: Pint + PHPStan
+level max + Pest + Deptrac (Core → Core + PSR interfaces, 0 violations). No new
+dependencies (reuses SPEC-002 / ADR-0001).
 
-| Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
-|----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
-| AC8                  | —                           | —                    |
-| AC9                  | —                           | —                    |
-| AC10                 | —                           | —                    |
+| Criterion | Test (`it …`) | Source (file / symbol) |
+|-----------|---------------|------------------------|
+| AC1 | reads an AI-generated PNG manifest | `SigningServiceReader::parse()/parseSigner()/parseAssertions()`, `ManifestReport`, `SignerInfo` |
+| AC2 | maps the asset onto the /v1/read request | `SigningServiceReader::read()` |
+| AC3 | treats absent C2PA data as an empty report, not an error | `SigningServiceReader::parse()`, `ManifestReport::hasManifest()` |
+| AC4 | reports non-AI content as not AI-generated | `ManifestReport::isAiGenerated()/digitalSourceTypes()` |
+| AC5 | throws ReadFailedException on a non-2xx response; the read failure carries the status and service error | `SigningServiceReader::read()/extractError()`, `Exception\ReadFailedException` |
+| AC6 | wraps a PSR-18 transport failure | `SigningServiceReader::read()` (catch `ClientExceptionInterface`), `Exception\ReadTransportException` |
+| AC7 | rejects an unparseable 2xx body | `SigningServiceReader::parse()`, `Exception\ReadResponseException` |
+| AC8 | defensively parses a manifest store missing signature_info and validation_status | `SigningServiceReader::parseSigner()/validationCodes()` |
+| AC9 | surfaces the untrusted validation code and reports not trusted; reports trusted when no untrusted code is present | `ManifestReport::validationStatusCodes()/isTrusted()` |
+| AC10 | never leaks the API key in failure messages | `SigningServiceReader` (failure messages exclude the key) |
