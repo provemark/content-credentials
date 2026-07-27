@@ -1,0 +1,14 @@
+{
+  "name": "c2pa-spike-signer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal C2PA signing service for the spike (real @contentauth/c2pa-node). Mirrors the wp-plugin /v1/sign contract.",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": { "node": ">=20.0.0" },
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "@contentauth/c2pa-node": "0.7.0",
+    "express": "^4.21.0"
+  }
+}

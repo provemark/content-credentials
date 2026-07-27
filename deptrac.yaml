@@ -1,0 +1,18 @@
+deptrac:
+  paths:
+    - ./src
+  layers:
+    - name: Core
+      collectors:
+        - type: directory
+          value: src/Core/.*
+    - name: Laravel
+      collectors:
+        - type: directory
+          value: src/Laravel/.*
+  ruleset:
+    # Laravel may depend on Core.
+    Laravel:
+      - Core
+    # Core depends on nothing internal (empty allow-list).
+    Core: ~

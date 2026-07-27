@@ -1,0 +1,19 @@
+name: c2pa-spike
+
+services:
+  service:
+    build:
+      context: ./service
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      CONTENTAUTH_API_KEY: "${CONTENTAUTH_API_KEY:?set CONTENTAUTH_API_KEY in .env}"
+      CONTENTAUTH_SIGN_ALG: "es256"
+      SIGNING_CERT_PATH: "/run/secrets/signing.crt"
+      SIGNING_KEY_PATH: "/run/secrets/signing.key"
+    volumes:
+      # TEST certs only — es256 sample cert/key from c2pa-rs. Never real keys.
+      - ./certs/es256_certs.pem:/run/secrets/signing.crt:ro
+      - ./certs/es256_private.key:/run/secrets/signing.key:ro
+    restart: unless-stopped

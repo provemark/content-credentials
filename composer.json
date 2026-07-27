@@ -1,0 +1,53 @@
+{
+    "name": "contentcredentials/content-credentials",
+    "description": "PHP library for C2PA Content Credentials: build, sign, read and verify manifests, with machine-readable marking of AI-generated content (EU AI Act, Article 50).",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3"
+    },
+    "require-dev": {
+        "deptrac/deptrac": "^4.0",
+        "illuminate/support": "^11.0",
+        "laravel/pint": "^1.18",
+        "phpstan/phpstan": "^2.0",
+        "pestphp/pest": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "ContentCredentials\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "ContentCredentials\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        },
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts": {
+        "format": "pint",
+        "analyse": "phpstan analyse",
+        "test": "pest",
+        "deptrac": "deptrac analyse",
+        "check": [
+            "@format",
+            "@analyse",
+            "@test",
+            "@deptrac"
+        ]
+    },
+    "scripts-descriptions": {
+        "format": "Fix code style with Laravel Pint",
+        "analyse": "Static analysis with PHPStan (level max)",
+        "test": "Run the Pest test suite",
+        "deptrac": "Enforce architecture boundaries with Deptrac",
+        "check": "The single definition of green: format + analyse + test + deptrac"
+    }
+}
