@@ -1,5 +1,10 @@
 # Content Credentials
 
+[![CI](https://github.com/provemark/content-credentials/actions/workflows/ci.yml/badge.svg)](https://github.com/provemark/content-credentials/actions/workflows/ci.yml)
+[![Latest Version](https://img.shields.io/packagist/v/contentcredentials/content-credentials)](https://packagist.org/packages/contentcredentials/content-credentials)
+[![PHP Version](https://img.shields.io/badge/php-%5E8.3-777bb4)](composer.json)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 A PHP library for **C2PA Content Credentials**: build, sign, read and verify
 manifests for media assets. Its primary purpose is the machine-readable marking
 of **AI-generated content** required by the **EU AI Act, Article 50** — a
