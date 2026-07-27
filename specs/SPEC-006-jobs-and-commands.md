@@ -2,9 +2,9 @@
 
 | Field      | Value                                   |
 |------------|-----------------------------------------|
-| Status     | draft                                   |
+| Status     | approved                                |
 | Author     | Maurice van Loon (maintainer)           |
-| Approved   | — (pending maintainer approval)         |
+| Approved   | Maurice van Loon — 2026-07-27           |
 | Supersedes | —                                       |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -173,31 +173,31 @@ if ($this->app->runningInConsole()) {
 }
 ```
 
-## Open questions
+## Decisions (resolved at approval, 2026-07-27)
 
-- **Q1 — job source/destination contract.** Local filesystem paths (proposed;
-  simplest, matches the CLI and same-host workers), or Laravel **Storage**
-  disks + paths (better for distributed workers, but pulls the Storage facade
-  into the harness)? Or raw bytes on the payload (discouraged for large files)?
-- **Q2 — retry policy granularity.** v1: a flat `$tries`/`backoff()` that retries
-  any failure (proposed). Or distinguish transient (`SigningTransportException`,
-  5xx) from permanent (`MediaTypeMismatchException`, 4xx, `MissingConfiguration`)
-  and `fail()` permanently on the latter? Proposed: flat for v1; smarter policy
-  later.
-- **Q3 — completion event.** Fire an `AssetSigned` event on success (proposed,
-  lightweight) so apps can react, or leave events out of v1?
-- **Q4 — media-type inference.** Map file extension → `MediaType` in the command
-  (`.png`→Png, `.jpg`/`.jpeg`→Jpeg), erroring on anything else (proposed). A
-  `--format` override? Proposed: infer from extension; add `--format` only if
-  needed.
-- **Q5 — testing depth.** The bare harness can drive commands (`setLaravel` +
-  Symfony IO) and the job's `handle()` directly, but **queue dispatch/worker
-  behaviour and console auto-registration** are framework integration that a bare
-  harness can't exercise (no full app/kernel; testbench is uninstallable here —
-  SPEC-004 D4). Proposed: unit-test command/job logic in the bare harness;
-  treat dispatch/registration as covered by manual/e2e verification, and expect
-  possible small annotated PHPStan ignores for framework-typed console/queue
-  APIs (as in SPEC-004).
+The draft's open questions were resolved as proposed; recorded here so the
+approved spec is self-contained.
+
+- **D1 — job source/destination contract.** Local filesystem paths for v1
+  (simplest, matches the CLI and same-host workers). Storage-disk and raw-bytes
+  variants are deferred.
+- **D2 — retry policy.** A flat `$tries` + `backoff()` that retries any failure
+  for v1; a transient-vs-permanent policy (`fail()` on
+  `MediaTypeMismatchException`/`MissingConfiguration`/4xx) is a later refinement.
+- **D3 — completion event.** Fire a lightweight `AssetSigned` event on success so
+  apps can react.
+- **D4 — media-type inference.** Infer `MediaType` from the input extension
+  (`.png`→Png, `.jpg`/`.jpeg`→Jpeg); error on anything else. No `--format`
+  override in v1.
+- **D5 — testing depth.** Unit-test command logic (via `setLaravel` + Symfony
+  `ArrayInput`/`BufferedOutput`) and the job's `handle()` (direct call with a
+  mock signer) in the bare harness. Queue dispatch/worker behaviour and console
+  auto-registration are framework integration the bare harness cannot exercise
+  (no full app/kernel; testbench uninstallable — SPEC-004 D4); those are covered
+  by manual/e2e verification. Small annotated PHPStan ignores for framework-typed
+  console/queue APIs are acceptable if needed, scoped as in SPEC-004.
+
+No open questions remain.
 
 ## Traceability
 
