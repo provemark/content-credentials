@@ -18,9 +18,12 @@ It ships as two pieces:
 - an optional **Laravel integration** (`Provemark\ContentCredentials\Laravel\*`) — a
   service provider + facade that wires everything from config.
 
-The private key never lives in PHP: signing is delegated to a small **Node
-signing service** (`service/`, based on `@contentauth/c2pa-node`) that you run
-next to your app.
+**The private signing key never touches your web application.** Signing is
+delegated to a small **Node signing service** (`service/`, based on
+`@contentauth/c2pa-node`) that you run separately — keeping the key isolated
+from the app process, the pattern the CAI's own tooling uses. (This is the
+deliberate trade-off versus an in-process native extension, which puts the key
+on the web server.)
 
 > **Status:** this is a spec-driven rebuild of a proven end-to-end spike. The
 > design, decisions and trade-offs are documented in [`specs/`](specs/),
