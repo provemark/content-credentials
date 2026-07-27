@@ -2,9 +2,9 @@
 
 | Field      | Value                                   |
 |------------|-----------------------------------------|
-| Status     | draft                                   |
+| Status     | approved                                |
 | Author     | Maurice van Loon (maintainer)           |
-| Approved   | — (pending maintainer approval)         |
+| Approved   | Maurice van Loon — 2026-07-27           |
 | Supersedes | —                                       |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -235,30 +235,30 @@ final class ReadResponseException  extends \RuntimeException implements ContentC
 client + PSR-17 factories + `SigningServiceConfig`) and endpoint joining
 (`rtrim(baseUrl,'/').'/v1/read'`).
 
-## Open questions
+## Decisions (resolved at approval, 2026-07-27)
 
-- **Q1 — shared value objects.** Reuse `Signing\Asset` and
-  `SigningServiceConfig` from the Signing namespace (proposed), or relocate them
-  to a shared `Core` location (rename `SigningServiceConfig` → `ServiceConfig`)
-  via a SPEC-002 amendment? Proposed: reuse as-is for v1; revisit if churn is
-  acceptable.
-- **Q2 — cryptographic-validity verdict.** Add `isSignatureValid()` now, or
-  defer? It needs a confirmed mapping of the service reader's validation output
-  (`validation_status` vs `validation_results`, and which codes count as a valid
-  claim signature). Proposed: **defer**; expose `validationStatusCodes()` +
-  `isTrusted()` only, and add the verdict in a follow-up once the shape is
+The draft's open questions were resolved as proposed; recorded here so the
+approved spec is self-contained.
+
+- **D1 — shared value objects.** Reuse `Signing\Asset` and
+  `SigningServiceConfig` from the Signing namespace as-is for v1. No relocation
+  or rename now; revisit if a third consumer appears.
+- **D2 — cryptographic-validity verdict.** **Deferred.** Expose
+  `validationStatusCodes()` + `isTrusted()` only; a strict `isSignatureValid()`
+  verdict is a follow-up once the service reader's validation output shape is
   pinned against the running service.
-- **Q3 — trust scoping.** Confirm that in-band trust (`signingCredential.trusted`)
-  is out of scope for v1 (service reader has no trust anchors) and c2patool
-  `bin/verify.sh` stays the trust authority.
-- **Q4 — active vs. all manifests.** Report the active manifest's
-  signer/assertions only, plus expose the list of all manifest labels? Or full
-  ingredient traversal? Proposed: active only + label list; traversal deferred.
-- **Q5 — actions label matching.** When scanning for `digitalSourceType`, match
+- **D3 — trust scoping.** In-band trust (`signingCredential.trusted`) is out of
+  scope for v1 (the service reader has no trust anchors); c2patool
+  `bin/verify.sh` remains the trust authority. The library reports codes only.
+- **D4 — active vs. all manifests.** Report the active manifest's
+  signer/assertions only for v1; deep ingredient/parent traversal is deferred.
+- **D5 — actions label matching.** When scanning for `digitalSourceType`, match
   any assertion whose label starts with `c2pa.actions` (covers `c2pa.actions`
-  and `c2pa.actions.v2`). Proposed: yes.
-- **Q6 — read input type.** `read(Asset $asset)` reusing `Signing\Asset` (ties to
-  Q1). Confirm vs. a raw `read(string $bytes, MediaType $type)`.
+  and `c2pa.actions.v2`).
+- **D6 — read input type.** `read(Asset $asset)` reusing `Signing\Asset`
+  (ties to D1).
+
+No open questions remain.
 
 ## Traceability
 
