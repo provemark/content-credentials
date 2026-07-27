@@ -35,6 +35,30 @@ next to your app.
 composer require contentcredentials/content-credentials
 ```
 
+### Installing from GitHub (before Packagist)
+
+Until this package is published on Packagist, install it straight from the Git
+repository by adding a VCS repository to your project's `composer.json`:
+
+```json
+{
+    "repositories": [
+        { "type": "vcs", "url": "https://github.com/OWNER/content-credentials" }
+    ]
+}
+```
+
+Then require it by branch (or by tag once releases exist):
+
+```bash
+composer require contentcredentials/content-credentials:dev-main
+# or, once tagged:  composer require contentcredentials/content-credentials:^0.1
+```
+
+Replace `OWNER` with the repository owner. Everything else below works
+identically; Composer reads the package name and `extra.laravel` auto-discovery
+from the repository's own `composer.json`.
+
 In **Laravel** the service provider and `ContentCredentials` facade are
 registered automatically (package auto-discovery). Publish the config if you
 want to tweak it:
