@@ -26,6 +26,7 @@ final readonly class ManifestReport
         private ?SignerInfo $signer,
         private array $assertions,
         private array $validationStatusCodes,
+        private ?ValidationState $validationState = null,
     ) {}
 
     public function hasManifest(): bool
@@ -63,6 +64,23 @@ final readonly class ManifestReport
     public function isTrusted(): bool
     {
         return ! in_array(self::UNTRUSTED_CODE, $this->validationStatusCodes, true);
+    }
+
+    /** The c2pa-rs `validation_state` verdict, or null if absent/unrecognised (SPEC-005). */
+    public function validationState(): ?ValidationState
+    {
+        return $this->validationState;
+    }
+
+    /**
+     * True iff the C2PA validation state is Valid or Trusted — i.e. the claim
+     * signature and asset-integrity checks passed (trust aside). A missing or
+     * unrecognised state yields false; this never asserts validity it cannot
+     * confirm (SPEC-005 D2). Distinct from {@see isTrusted()}.
+     */
+    public function isSignatureValid(): bool
+    {
+        return in_array($this->validationState, [ValidationState::Valid, ValidationState::Trusted], true);
     }
 
     /** True if the active manifest carries the trainedAlgorithmicMedia marking. */

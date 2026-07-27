@@ -279,3 +279,11 @@ dependencies (reuses SPEC-002 / ADR-0001).
 | AC8 | defensively parses a manifest store missing signature_info and validation_status | `SigningServiceReader::parseSigner()/validationCodes()` |
 | AC9 | surfaces the untrusted validation code and reports not trusted; reports trusted when no untrusted code is present | `ManifestReport::validationStatusCodes()/isTrusted()` |
 | AC10 | never leaks the API key in failure messages | `SigningServiceReader` (failure messages exclude the key) |
+
+## Amendments
+
+- **2026-07-27 (via SPEC-005):** added the cryptographic-validity verdict that
+  was deferred here (D2). `ManifestReport` gains `validationState(): ?ValidationState`
+  and `isSignatureValid(): bool`, and `SigningServiceReader::parse()` reads the
+  top-level `validation_state` field. New `ValidationState` enum. `isTrusted()`
+  is unchanged (SPEC-005 D3). See `specs/SPEC-005-signature-validity.md`.

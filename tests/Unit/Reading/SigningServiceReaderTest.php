@@ -8,6 +8,7 @@ use ContentCredentials\Core\Reading\Exception\ReadResponseException;
 use ContentCredentials\Core\Reading\Exception\ReadTransportException;
 use ContentCredentials\Core\Reading\ManifestReport;
 use ContentCredentials\Core\Reading\SigningServiceReader;
+use ContentCredentials\Core\Reading\ValidationState;
 use ContentCredentials\Core\Signing\Asset;
 use ContentCredentials\Core\Signing\SigningServiceConfig;
 use ContentCredentials\Core\Support\ContentCredentialsException;
@@ -274,3 +275,92 @@ it('never leaks the API key in failure messages', function () {
             ->and((string) $e)->not->toContain('super-secret-key');
     }
 })->group('SPEC-003');
+
+// =========================================================================
+// SPEC-005 — signature-validity verdict (isSignatureValid / validationState).
+// @see specs/SPEC-005-signature-validity.md
+// =========================================================================
+
+/**
+ * @param  array<string, mixed>  $store
+ * @return array<string, mixed>
+ */
+function withState(array $store, ?string $state): array
+{
+    if ($state !== null) {
+        $store['validation_state'] = $state;
+    }
+
+    return $store;
+}
+
+// --- AC1: intact, untrusted manifest is signature-valid --------------------
+
+it('reports an intact untrusted manifest as signature-valid', function () {
+    $client = new MockClient;
+    $client->addResponse(readStoreResponse(withState(aiStore(), 'Valid'))); // aiStore() carries signingCredential.untrusted
+
+    $report = readerFor($client)->read(new Asset('B', MediaType::Png));
+
+    expect($report->isSignatureValid())->toBeTrue()
+        ->and($report->validationState())->toBe(ValidationState::Valid)
+        ->and($report->isTrusted())->toBeFalse(); // independent of validity
+})->group('SPEC-005');
+
+// --- AC2: tampered manifest is not signature-valid -------------------------
+
+it('reports a tampered manifest as not signature-valid', function () {
+    $store = manifestStore(
+        [['action' => 'c2pa.created', 'digitalSourceType' => AI_TRAINED_URI_READ]],
+        ['alg' => 'Es256', 'issuer' => 'C2PA Test Signing Cert'],
+        [['code' => 'signingCredential.untrusted'], ['code' => 'assertion.hashedURI.mismatch']],
+    );
+    $client = new MockClient;
+    $client->addResponse(readStoreResponse(withState($store, 'Invalid')));
+
+    $report = readerFor($client)->read(new Asset('B', MediaType::Png));
+
+    expect($report->isSignatureValid())->toBeFalse()
+        ->and($report->validationState())->toBe(ValidationState::Invalid);
+})->group('SPEC-005');
+
+// --- AC3: trusted manifest is signature-valid ------------------------------
+
+it('reports a trusted manifest as signature-valid', function () {
+    $store = manifestStore(
+        [['action' => 'c2pa.created', 'digitalSourceType' => AI_TRAINED_URI_READ]],
+        ['alg' => 'Es256', 'issuer' => 'C2PA Test Signing Cert'],
+        [],
+    );
+    $client = new MockClient;
+    $client->addResponse(readStoreResponse(withState($store, 'Trusted')));
+
+    $report = readerFor($client)->read(new Asset('B', MediaType::Png));
+
+    expect($report->isSignatureValid())->toBeTrue()
+        ->and($report->validationState())->toBe(ValidationState::Trusted);
+})->group('SPEC-005');
+
+// --- AC4: missing/unknown state does not assert validity (edge path) -------
+
+it('does not assert validity for a missing or unknown state', function (?string $state) {
+    $client = new MockClient;
+    $client->addResponse(readStoreResponse(withState(aiStore(), $state)));
+
+    $report = readerFor($client)->read(new Asset('B', MediaType::Png));
+
+    expect($report->validationState())->toBeNull()
+        ->and($report->isSignatureValid())->toBeFalse();
+})->with([[null], ['Weird']])->group('SPEC-005');
+
+// --- AC5: no manifest -> not signature-valid -------------------------------
+
+it('reports no signature validity when there is no manifest', function () {
+    $client = new MockClient;
+    $client->addResponse(readStoreResponse([]));
+
+    $report = readerFor($client)->read(new Asset('B', MediaType::Png));
+
+    expect($report->isSignatureValid())->toBeFalse()
+        ->and($report->validationState())->toBeNull();
+})->group('SPEC-005');

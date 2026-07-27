@@ -87,6 +87,8 @@ printf("  isAiGenerated      : %s\n", var_export($report->isAiGenerated(), true)
 printf("  digitalSourceTypes : %s\n", implode(', ', $report->digitalSourceTypes()));
 printf("  signer             : %s / CN=%s [%s]\n", $s?->issuer ?? '?', $s?->commonName ?? '?', $s?->algorithm ?? '?');
 printf("  validationStatus   : %s\n", implode(', ', $report->validationStatusCodes()) ?: '(none)');
+printf("  validationState    : %s\n", $report->validationState()?->value ?? '(none)');
+printf("  isSignatureValid   : %s\n", var_export($report->isSignatureValid(), true));
 printf("  isTrusted          : %s\n", var_export($report->isTrusted(), true));
 
 $libOk = $report->hasManifest() && $report->isAiGenerated() && $s !== null;

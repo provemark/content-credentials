@@ -2,7 +2,7 @@
 
 | Field      | Value                                   |
 |------------|-----------------------------------------|
-| Status     | approved                                |
+| Status     | implemented                             |
 | Author     | Maurice van Loon (maintainer)           |
 | Approved   | Maurice van Loon — 2026-07-27           |
 | Supersedes | —                                       |
@@ -157,10 +157,14 @@ No open questions remain.
 Filled when status becomes `implemented`. Every acceptance criterion maps to at
 least one test; every source file maps back to this spec.
 
-| Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
-|----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
+Implemented 2026-07-27. Tests added to
+`tests/Unit/Reading/SigningServiceReaderTest.php`, tagged `->group('SPEC-005')`
+(6 tests). `composer check` green (Pint + PHPStan level max + Pest + Deptrac).
+
+| Criterion | Test (`it …`) | Source (file / symbol) |
+|-----------|---------------|------------------------|
+| AC1 | reports an intact untrusted manifest as signature-valid | `ManifestReport::isSignatureValid()/validationState()`, `SigningServiceReader::parse()`, `ValidationState` |
+| AC2 | reports a tampered manifest as not signature-valid | `ManifestReport::isSignatureValid()`, `ValidationState::Invalid` |
+| AC3 | reports a trusted manifest as signature-valid | `ManifestReport::isSignatureValid()`, `ValidationState::Trusted` |
+| AC4 | does not assert validity for a missing or unknown state | `SigningServiceReader::parse()` (`ValidationState::tryFrom`), `ManifestReport::validationState()` |
+| AC5 | reports no signature validity when there is no manifest | `ManifestReport::isSignatureValid()` |

@@ -82,8 +82,12 @@ final class SigningServiceReader implements ReaderInterface
             ? $manifests[$activeLabel]
             : null;
 
+        $state = isset($store['validation_state']) && is_string($store['validation_state'])
+            ? ValidationState::tryFrom($store['validation_state'])
+            : null;
+
         if ($active === null) {
-            return new ManifestReport(null, null, [], $this->validationCodes($store));
+            return new ManifestReport(null, null, [], $this->validationCodes($store), $state);
         }
 
         return new ManifestReport(
@@ -91,6 +95,7 @@ final class SigningServiceReader implements ReaderInterface
             $this->parseSigner($active),
             $this->parseAssertions($active),
             $this->validationCodes($store),
+            $state,
         );
     }
 
