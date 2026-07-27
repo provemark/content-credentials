@@ -180,6 +180,14 @@ composer check   # Pint (style) + PHPStan (level max) + Pest + Deptrac
 `composer check` is the single definition of green. The architecture boundary
 (`Core` must not depend on Laravel/Illuminate) is enforced by Deptrac.
 
+To exercise the whole chain against a **running** service with the real library
+code (build → sign → read → c2patool verify):
+
+```bash
+docker compose up -d --build   # service must be running (see above)
+php bin/e2e.php                 # signs tests/fixture.png -> out/signed.png, then verifies
+```
+
 ## Security
 
 - **Never commit real private keys or production certificates.** `certs/` and
