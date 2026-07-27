@@ -2,7 +2,7 @@
 
 | Field      | Value                                   |
 |------------|-----------------------------------------|
-| Status     | approved                                |
+| Status     | implemented                             |
 | Author     | Maurice van Loon (maintainer)           |
 | Approved   | Maurice van Loon — 2026-07-27           |
 | Supersedes | —                                       |
@@ -47,9 +47,9 @@ layer and the first real test of the architecture boundary.
   (implements `Core\Support\ContentCredentialsException`) for missing/blank
   required config.
 - Dependencies: `php-http/discovery` (runtime — see ADR-0002) for
-  client/factory discovery; `orchestra/testbench` + a concrete PSR-18 client
-  (`guzzlehttp/guzzle`) in require-dev; `illuminate/support` stays require-dev
-  **and** is added to composer `suggest`.
+  client/factory discovery; `illuminate/container` + `illuminate/config` +
+  `guzzlehttp/guzzle` in require-dev (bare provider-test harness — D4);
+  `illuminate/support` stays require-dev **and** is added to composer `suggest`.
 
 **Out of scope** (each needs its own spec)
 
@@ -66,17 +66,29 @@ layer and the first real test of the architecture boundary.
   PSR-18 client and PSR-17 factories (Laravel ships Guzzle 7, which discovery
   finds). Recorded in `docs/adr/ADR-0002-http-client-discovery.md`. Container
   bindings always win over discovery (AC5).
-- **require-dev:** `orchestra/testbench` (Laravel package test harness) and
+- **require-dev:** `illuminate/container` + `illuminate/config` (a bare harness
+  to register and inspect the provider — D4), `vlucas/phpdotenv` (so Laravel's
+  `env()` resolves when the config file is merged in the bare harness), and
   `guzzlehttp/guzzle` (a concrete PSR-18 client so discovery resolves in tests).
+- **PHPStan note (D4 consequence):** the bare harness passes a plain
+  `Illuminate\Container\Container` where `Facade::setFacadeApplication()` and
+  `ServiceProvider::__construct()` are phpdoc-typed for the `Application`
+  contract. This is runtime-valid but PHPStan-max rejects it, and no real
+  `Application` is installable here (`illuminate/foundation` is not published
+  standalone at ^11; `laravel/framework`/testbench are blocked). A single
+  **annotated** `ignoreErrors` entry in `phpstan.neon`, scoped to
+  `identifier: argument.type` in the one Laravel test file, covers this
+  test-only false positive; `src/` analysis stays strict.
 - `illuminate/support`: require-dev + `suggest` (the host Laravel app provides it
   at runtime); the provider is never loaded outside a Laravel app.
 
 ## Behavior
 
 Given/When/Then; each maps to a Pest test tagged `->group('SPEC-004')`, run inside
-an `orchestra/testbench` app that loads the provider. No live signing service is
-contacted — bindings are resolved and inspected, not exercised over HTTP. AC6 is
-the required error/misconfiguration path.
+a bare `illuminate/container` + `illuminate/config` harness that registers the
+provider (D4). No live signing service is contacted — bindings are resolved and
+inspected; AC5's override is proven with a mock PSR-18 client. AC6 is the required
+error/misconfiguration path.
 
 - **AC1 — resolves a configured signer**
   - Given the provider is registered and config sets
@@ -206,8 +218,13 @@ approved spec is self-contained.
 - **D3 — config keys / env names.** `service.base_url` ←
   `CONTENTAUTH_SERVICE_URL`, `service.api_key` ← `CONTENTAUTH_API_KEY` (matches
   `.env.example`).
-- **D4 — test harness.** `orchestra/testbench` (require-dev), the idiomatic
-  Laravel package harness.
+- **D4 — test harness.** *(Amended 2026-07-27.)* A minimal bootstrap:
+  `illuminate/container` + `illuminate/config` (require-dev), building a
+  container + config repository to register the provider and assert
+  bindings/facade. `orchestra/testbench` is **not installable here** — it pulls
+  `laravel/framework`, which *replaces* our pinned `illuminate/support` and is
+  additionally blocked by security advisories. `illuminate/support` stays
+  require-dev + `suggest`.
 - **D5 — jobs / artisan.** Deferred to a later spec.
 - **D6 — when to fail on missing config.** At resolve time, when building
   `SigningServiceConfig` with a blank `api_key`
@@ -217,16 +234,18 @@ No open questions remain.
 
 ## Traceability
 
-Filled when status becomes `implemented`. Every acceptance criterion maps to at
-least one test (AC7 is build-enforced by Deptrac); every source file maps back to
-this spec.
+Implemented 2026-07-27. Tests in
+`tests/Unit/Laravel/ContentCredentialsServiceProviderTest.php`, tagged
+`->group('SPEC-004')` (7 tests). `composer check` green: Pint + PHPStan level max
+(one annotated test-only ignore, above) + Pest (56 total) + Deptrac (AC7:
+`Core → Laravel`/`Illuminate` edges = 0). ADR-0002 records `php-http/discovery`.
 
-| Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
-|----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | deptrac (composer check)    | —                    |
+| Criterion | Test (`it …`) | Source (file / symbol) |
+|-----------|---------------|------------------------|
+| AC1 | resolves a configured signer from the container | `ContentCredentialsServiceProvider::register()`, `SigningServiceConfig` binding |
+| AC2 | resolves a configured reader from the container | `ContentCredentialsServiceProvider::register()` |
+| AC3 | drives config from env and registers it for publishing | `register()` (`mergeConfigFrom`), `boot()` (`publishes`), `config/content-credentials.php` |
+| AC4 | proxies sign() through the facade to the bound signer | `ContentCredentials` (facade), `ContentCredentialsManager::sign()` |
+| AC5 | uses a container-bound PSR-18 client over discovery | `ContentCredentialsServiceProvider::resolveClient()` |
+| AC6 | throws MissingConfigurationException when api_key is blank; names the key | `register()` (`SigningServiceConfig` closure), `Exception\MissingConfigurationException` |
+| AC7 | deptrac (`composer check`) | `deptrac.yaml` (Laravel → Core), enforced build-side |

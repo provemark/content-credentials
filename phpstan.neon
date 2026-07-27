@@ -3,3 +3,17 @@ parameters:
     paths:
         - src
         - tests
+    ignoreErrors:
+        # Test-only false positive (SPEC-004). The Laravel provider/facade tests use
+        # a bare Illuminate\Container\Container as a lightweight harness, because
+        # orchestra/testbench is not installable in this environment (it pulls
+        # laravel/framework, which replaces our pinned illuminate/support and is
+        # blocked by security advisories — see SPEC-004 D4). ServiceProvider::__construct()
+        # and Facade::setFacadeApplication() are phpdoc-typed for the Application
+        # contract but accept any container at runtime, so a plain Container is valid
+        # (the tests pass). This does NOT relax analysis of product code — src/ stays
+        # strict, and the scope is one identifier in one test file.
+        -
+            message: '#expects Illuminate\\Contracts\\Foundation\\Application(\|null)?, Illuminate\\Container\\Container given\.#'
+            identifier: argument.type
+            path: tests/Unit/Laravel/ContentCredentialsServiceProviderTest.php
