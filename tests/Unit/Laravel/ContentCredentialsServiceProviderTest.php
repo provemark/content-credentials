@@ -178,3 +178,13 @@ it('missing-config exception names the key and implements the Core interface', f
     expect(fn () => $app->make(SignerInterface::class))
         ->toThrow(MissingConfigurationException::class, 'api_key');
 })->group('SPEC-004');
+
+// --- Defect fix: base_url is required config too, validated symmetrically ---
+
+it('throws MissingConfigurationException when base_url is blank', function () {
+    $app = ccApp(['base_url' => '', 'api_key' => 'secret']);
+    ccRegister($app);
+
+    expect(fn () => $app->make(SignerInterface::class))
+        ->toThrow(MissingConfigurationException::class, 'base_url');
+})->group('SPEC-004');

@@ -223,3 +223,30 @@ it('SignAssetJob lets a signing failure propagate and leaves no output', functio
 
     expect(file_exists($out))->toBeFalse();
 })->group('SPEC-006');
+
+// --- Defect fix: a failed write is surfaced, not reported as success --------
+
+it('sign command reports a failed write instead of succeeding', function () {
+    $app = h6ConsoleApp();
+    $app->instance(SignerInterface::class, h6RecordingSigner('SIGNED-BYTES'));
+
+    $in = h6TempFile('png');
+    // Parent directory does not exist -> file_put_contents fails.
+    $out = sys_get_temp_dir().'/cc6_missing_'.uniqid('', true).'/out.png';
+
+    [$exit, $output] = h6Run(new SignCommand, $app, ['input' => $in, 'output' => $out, '--agent' => 'X']);
+
+    expect($exit)->not->toBe(0)
+        ->and($output)->toContain($out)
+        ->and(file_exists($out))->toBeFalse();
+})->group('SPEC-006');
+
+it('SignAssetJob throws when the destination cannot be written', function () {
+    $in = h6TempFile('png', 'SOURCE-BYTES');
+    $out = sys_get_temp_dir().'/cc6_missing_'.uniqid('', true).'/out.png';
+
+    expect(fn () => (new SignAssetJob($in, $out, MediaType::Png, 'X'))->handle(h6RecordingSigner()))
+        ->toThrow(RuntimeException::class);
+
+    expect(file_exists($out))->toBeFalse();
+})->group('SPEC-006');

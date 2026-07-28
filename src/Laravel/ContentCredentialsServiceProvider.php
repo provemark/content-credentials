@@ -38,6 +38,12 @@ final class ContentCredentialsServiceProvider extends ServiceProvider
         $container->singleton(SigningServiceConfig::class, function (Container $app): SigningServiceConfig {
             ['base_url' => $baseUrl, 'api_key' => $apiKey] = $this->serviceConfig($app);
 
+            if (trim($baseUrl) === '') {
+                throw new MissingConfigurationException(
+                    'Missing required configuration "content-credentials.service.base_url" (set the CONTENTAUTH_SERVICE_URL environment variable).'
+                );
+            }
+
             if (trim($apiKey) === '') {
                 throw new MissingConfigurationException(
                     'Missing required configuration "content-credentials.service.api_key" (set the CONTENTAUTH_API_KEY environment variable).'

@@ -6,7 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+
+- **Silent write failures.** `content-credentials:sign` and `SignAssetJob` now
+  surface a failed write (missing/unwritable destination) as an error /
+  exception, instead of reporting success and firing `AssetSigned` for a file
+  that was never written.
+- **`base_url` validation.** The Laravel provider throws
+  `MissingConfigurationException` for a blank
+  `content-credentials.service.base_url`, symmetric with the existing `api_key`
+  check, instead of failing later with an opaque HTTP error.
 
 ## [0.3.0] - 2026-07-28
 

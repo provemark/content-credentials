@@ -79,7 +79,12 @@ final class SignCommand extends Command
             return self::FAILURE;
         }
 
-        file_put_contents($output, $signed->bytes);
+        if (! is_dir(dirname($output)) || @file_put_contents($output, $signed->bytes) === false) {
+            $this->error("Cannot write signed image to: {$output}");
+
+            return self::FAILURE;
+        }
+
         $this->info(sprintf('Signed %s -> %s (%d bytes)', $input, $output, strlen($signed->bytes)));
 
         return self::SUCCESS;

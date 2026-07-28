@@ -57,7 +57,10 @@ final class SignAssetJob implements ShouldQueue
         $signed = $signer->sign(new Asset($bytes, $this->mediaType), $builder->build());
 
         // Only write once signing succeeded — a failure leaves no partial file.
-        file_put_contents($this->destinationPath, $signed->bytes);
+        // A failed write must surface, not silently "succeed" (no AssetSigned).
+        if (! is_dir(dirname($this->destinationPath)) || @file_put_contents($this->destinationPath, $signed->bytes) === false) {
+            throw new \RuntimeException("Cannot write signed file: {$this->destinationPath}");
+        }
 
         $events?->dispatch(new AssetSigned($this->destinationPath));
     }
