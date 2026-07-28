@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — (while draft)                                   |
+| Approved   | Maurice van Loon — 2026-07-28                     |
 | Supersedes | —                                                 |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -131,32 +131,41 @@ function tokenMatches(token, key) {
 // - signing / TSA failure     -> 500 (unchanged)
 ```
 
-## Open questions
+## Decisions (resolved at approval, 2026-07-28)
 
-- **OQ1 (non-blocker).** Default `maxResponseBytes`. The service caps *requests*
-  at `MAX_BODY_SIZE` (50 MB); a signed asset base64-encoded in `signed_content`
-  inflates ~33%, so a legitimate response can approach ~70 MB. Proposal: default
-  **96 MiB** (headroom over 50 MB × 1.4), configurable via config/env. Confirm
-  the value, and whether to tie it to the service's `MAX_BODY_SIZE`.
-- **OQ2 (non-blocker).** `mime_type` allowlist in the service: hardcode
-  `image/png` + `image/jpeg` (mirrors `MediaType`), or make it env-configurable?
-  Proposal: hardcode, with a comment that it must track `MediaType`; revisit when
-  SPEC adds asset types.
-- **OQ3 (non-blocker).** Constant-time approach: SHA-256-then-`timingSafeEqual`
-  (length-safe, proposed) vs. length-check + `timingSafeEqual`. Proposal: the
-  digest approach — no length leak, no throw on unequal lengths.
-- **OQ4 (non-blocker).** Expose `maxResponseBytes` through the Laravel config
-  (`content-credentials.service.max_response_bytes`) too, or Core-only for now?
-  Proposal: add the config key for symmetry with SPEC-008's timeouts.
+Resolved as proposed in the draft.
+
+- **D1 — max size (was OQ1).** `SigningServiceConfig.maxResponseBytes` defaults to
+  **96 MiB** (`100_663_296`), configurable via Laravel config / env (D4). Headroom
+  over the service's 50 MB request cap × the ~1.33 base64 inflation. Not
+  hard-coupled to `MAX_BODY_SIZE` (independent knobs, documented).
+- **D2 — allowlist (was OQ2).** The service hardcodes `image/png` + `image/jpeg`
+  (mirrors `MediaType`), with a comment that it must track `MediaType` when asset
+  types are added.
+- **D3 — constant-time (was OQ3).** SHA-256 digest of both token and key, then
+  `crypto.timingSafeEqual` — length-safe (no throw, no length leak).
+- **D4 — Laravel config (was OQ4).** Add `content-credentials.service.max_response_bytes`
+  (env `CONTENTAUTH_MAX_RESPONSE_BYTES`), wired into `SigningServiceConfig` by the
+  provider, symmetric with SPEC-008's timeouts. Invalid (non-numeric / < 1) →
+  `MissingConfigurationException`.
+
+No open questions remain.
 
 ## Traceability
 
-Filled when status becomes `implemented`. Every acceptance criterion maps to at
-least one test; every source file maps back to this spec.
+Implemented 2026-07-28. AC1/AC2 (#5) are Pest unit tests in
+`tests/Unit/ResponseBoundsTest.php` (`->group('SPEC-009')`); the D4 config
+validation has a provider test in
+`tests/Unit/Laravel/ContentCredentialsServiceProviderTest.php`. `composer check`
+green (Pint + PHPStan level max + Pest + Deptrac 0 — `ResponseBody` is Core →
+PSR only). AC3/AC4 (#4/#6) are service-side and were verified against the running
+service via `curl` (wrong/short token → 401 + valid → 200; invalid base64 → 400;
+unsupported mime → 400; valid → 200).
 
-| Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
-|----------------------|-----------------------------|----------------------|
-| AC1 | — | — |
-| AC2 | — | — |
-| AC3 | — | — |
-| AC4 | — | — |
+| Acceptance criterion | Test (`it …` / check) | Source (file/symbol) |
+|-----------------------|-----------------------|----------------------|
+| AC1 (#5 over-limit) | rejects an over-limit signing/read response before decoding | `Core\Support\ResponseBody::readBounded()`, `SigningServiceSigner::sign()` / `SigningServiceReader::read()`, `SigningServiceConfig::$maxResponseBytes` |
+| AC2 (#5 within-limit) | still signs when the response is within the limit | `ResponseBody::readBounded()` |
+| — (D4 config) | throws MissingConfigurationException for an invalid max_response_bytes | `ContentCredentialsServiceProvider::maxResponseBytes()`, `config/content-credentials.php` |
+| AC3 (#4 auth) | curl: wrong/short token → 401, valid → 200 (constant-time) | `service/server.js` `tokenMatches()` (SHA-256 + `timingSafeEqual`) |
+| AC4 (#6 codes) | curl: invalid base64 → 400, unsupported mime → 400, valid → 200 | `service/server.js` `isValidBase64()` + `SUPPORTED_MIME` in `/v1/sign` and `/v1/read` |

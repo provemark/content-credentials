@@ -51,7 +51,7 @@ final class ContentCredentialsServiceProvider extends ServiceProvider
                 );
             }
 
-            return new SigningServiceConfig($baseUrl, $apiKey);
+            return new SigningServiceConfig($baseUrl, $apiKey, $this->maxResponseBytes($app));
         });
 
         // Timeout options for the client we build when none is injected (SPEC-008).
@@ -141,6 +141,24 @@ final class ContentCredentialsServiceProvider extends ServiceProvider
         // Guzzle absent: discovery returns a pre-built client to which no timeout
         // can be applied (documented caveat, D4). Better a working client than none.
         return Psr18ClientDiscovery::find();
+    }
+
+    private function maxResponseBytes(Container $app): int
+    {
+        $config = $app->make('config');
+        $value = $config instanceof ConfigRepository ? $config->get('content-credentials.service.max_response_bytes') : null;
+
+        if ($value === null) {
+            return 100_663_296;
+        }
+
+        if (! is_numeric($value) || (int) $value < 1) {
+            throw new MissingConfigurationException(
+                'Invalid configuration "content-credentials.service.max_response_bytes": expected a positive integer.'
+            );
+        }
+
+        return (int) $value;
     }
 
     private function httpClientOptions(Container $app): HttpClientOptions

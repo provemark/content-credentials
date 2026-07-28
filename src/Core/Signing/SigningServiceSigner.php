@@ -9,6 +9,7 @@ use Provemark\ContentCredentials\Core\Signing\Exception\MediaTypeMismatchExcepti
 use Provemark\ContentCredentials\Core\Signing\Exception\SigningFailedException;
 use Provemark\ContentCredentials\Core\Signing\Exception\SigningResponseException;
 use Provemark\ContentCredentials\Core\Signing\Exception\SigningTransportException;
+use Provemark\ContentCredentials\Core\Support\ResponseBody;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
@@ -57,7 +58,12 @@ final class SigningServiceSigner implements SignerInterface
         }
 
         $status = $response->getStatusCode();
-        $responseBody = (string) $response->getBody();
+
+        // SPEC-009 #5: bound the response before buffering/decoding it.
+        $responseBody = ResponseBody::readBounded($response->getBody(), $this->config->maxResponseBytes);
+        if ($responseBody === null) {
+            throw new SigningResponseException('Signing service response exceeded the maximum allowed size.');
+        }
 
         if ($status < 200 || $status >= 300) {
             throw new SigningFailedException(sprintf(

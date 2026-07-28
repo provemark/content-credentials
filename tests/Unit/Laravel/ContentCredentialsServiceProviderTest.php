@@ -41,7 +41,7 @@ if (! function_exists('config_path')) {
 }
 
 /**
- * @param  array{base_url?: string, api_key?: string, timeout?: int|float|string, connect_timeout?: int|float|string}  $service
+ * @param  array{base_url?: string, api_key?: string, timeout?: int|float|string, connect_timeout?: int|float|string, max_response_bytes?: int|string}  $service
  */
 function ccApp(array $service = ['base_url' => 'https://sign.test', 'api_key' => 'secret']): Container
 {
@@ -188,3 +188,13 @@ it('throws MissingConfigurationException when base_url is blank', function () {
     expect(fn () => $app->make(SignerInterface::class))
         ->toThrow(MissingConfigurationException::class, 'base_url');
 })->group('SPEC-004');
+
+// --- SPEC-009 D4: max_response_bytes is validated config -------------------
+
+it('throws MissingConfigurationException for an invalid max_response_bytes', function () {
+    $app = ccApp(['base_url' => 'https://sign.test', 'api_key' => 'secret', 'max_response_bytes' => 0]);
+    ccRegister($app);
+
+    expect(fn () => $app->make(SigningServiceConfig::class))
+        ->toThrow(MissingConfigurationException::class, 'max_response_bytes');
+})->group('SPEC-009');

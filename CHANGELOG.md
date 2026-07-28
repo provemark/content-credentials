@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **Hardening (SPEC-009).** Constant-time bearer-token comparison in the signing
+  service (SHA-256 digest + `timingSafeEqual`); the PHP client bounds the
+  response size it will buffer (`max_response_bytes`, default 96 MiB) instead of
+  reading an unbounded body; the service returns **400** (not 500) for client
+  errors — content that is not valid base64, or a `mime_type` outside
+  `image/png` / `image/jpeg`.
+
 ### Added
 
 - **HTTP timeouts for the signing-service client (SPEC-008).** The package builds

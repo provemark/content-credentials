@@ -12,8 +12,15 @@ namespace Provemark\ContentCredentials\Core\Signing;
  */
 final readonly class SigningServiceConfig
 {
+    /**
+     * @param  int  $maxResponseBytes  Reject a service response larger than this
+     *                                 before reading it into memory (SPEC-009 #5).
+     *                                 Default 96 MiB — headroom over the service's
+     *                                 50 MB request cap and base64 inflation.
+     */
     public function __construct(
         public string $baseUrl,
         public string $apiKey,
+        public int $maxResponseBytes = 100_663_296,
     ) {}
 }

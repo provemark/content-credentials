@@ -64,6 +64,8 @@ CONTENTAUTH_API_KEY=your-shared-secret
 # Optional HTTP timeouts (seconds) for the signing-service calls:
 CONTENTAUTH_TIMEOUT=10
 CONTENTAUTH_CONNECT_TIMEOUT=5
+# Optional cap (bytes) on a service response the client will buffer (default 96 MiB):
+CONTENTAUTH_MAX_RESPONSE_BYTES=100663296
 ```
 
 These timeouts apply to the HTTP client this package builds for you. If you bind

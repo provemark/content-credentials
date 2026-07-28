@@ -63,6 +63,26 @@ if (!privateKey.toString().includes('PRIVATE KEY')) {
   process.exit(1);
 }
 
+// Asset types this service will sign/read (SPEC-009 #6). Must track MediaType
+// in the PHP client; revisit when a spec adds asset types.
+const SUPPORTED_MIME = new Set(['image/png', 'image/jpeg']);
+
+// Constant-time bearer-token check (SPEC-009 #4): compare fixed-length SHA-256
+// digests so timing does not leak how much of the token matched, and unequal
+// lengths do not throw.
+function tokenMatches(token, key) {
+  if (!key) return false;
+  const a = crypto.createHash('sha256').update(String(token)).digest();
+  const b = crypto.createHash('sha256').update(String(key)).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+// Strict base64 (our PHP client always pads) — reject obvious garbage as a
+// client error rather than letting it become a 500 (SPEC-009 #6).
+function isValidBase64(value) {
+  return typeof value === 'string' && value.length > 0 && value.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(value);
+}
+
 const app = express();
 app.use(express.json({ limit: MAX_BODY }));
 
@@ -70,7 +90,7 @@ app.use(express.json({ limit: MAX_BODY }));
 app.use('/v1', (req, res, next) => {
   const header = req.headers['authorization'] ?? '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-  if (!API_KEY || token !== API_KEY) {
+  if (!tokenMatches(token, API_KEY)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
@@ -89,6 +109,12 @@ app.post('/v1/sign', async (req, res) => {
   const { content, mime_type, creator_name, extra_assertions } = req.body ?? {};
   if (!content || !mime_type) {
     return res.status(400).json({ error: 'content and mime_type are required' });
+  }
+  if (!SUPPORTED_MIME.has(mime_type)) {
+    return res.status(400).json({ error: `unsupported mime_type "${mime_type}" (supported: image/png, image/jpeg)` });
+  }
+  if (!isValidBase64(content)) {
+    return res.status(400).json({ error: 'content is not valid base64' });
   }
 
   const fileBuffer = Buffer.from(content, 'base64');
@@ -156,6 +182,12 @@ app.post('/v1/read', async (req, res) => {
   const { content, mime_type } = req.body ?? {};
   if (!content || !mime_type) {
     return res.status(400).json({ error: 'content and mime_type are required' });
+  }
+  if (!SUPPORTED_MIME.has(mime_type)) {
+    return res.status(400).json({ error: `unsupported mime_type "${mime_type}" (supported: image/png, image/jpeg)` });
+  }
+  if (!isValidBase64(content)) {
+    return res.status(400).json({ error: 'content is not valid base64' });
   }
   const fileBuffer = Buffer.from(content, 'base64');
   try {

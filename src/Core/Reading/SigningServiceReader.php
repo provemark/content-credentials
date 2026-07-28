@@ -9,6 +9,7 @@ use Provemark\ContentCredentials\Core\Reading\Exception\ReadResponseException;
 use Provemark\ContentCredentials\Core\Reading\Exception\ReadTransportException;
 use Provemark\ContentCredentials\Core\Signing\Asset;
 use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
+use Provemark\ContentCredentials\Core\Support\ResponseBody;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
@@ -48,7 +49,12 @@ final class SigningServiceReader implements ReaderInterface
         }
 
         $status = $response->getStatusCode();
-        $responseBody = (string) $response->getBody();
+
+        // SPEC-009 #5: bound the response before buffering/parsing it.
+        $responseBody = ResponseBody::readBounded($response->getBody(), $this->config->maxResponseBytes);
+        if ($responseBody === null) {
+            throw new ReadResponseException('Read service response exceeded the maximum allowed size.');
+        }
 
         if ($status < 200 || $status >= 300) {
             throw new ReadFailedException(sprintf(

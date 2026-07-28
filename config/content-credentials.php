@@ -23,5 +23,12 @@ return [
         */
         'timeout' => env('CONTENTAUTH_TIMEOUT', 10),
         'connect_timeout' => env('CONTENTAUTH_CONNECT_TIMEOUT', 5),
+
+        /*
+        | Reject a signing-service response larger than this many bytes before
+        | buffering it into memory (defends against an oversized/hostile
+        | response). Default 96 MiB — headroom over the service's request cap.
+        */
+        'max_response_bytes' => env('CONTENTAUTH_MAX_RESPONSE_BYTES', 100663296),
     ],
 ];
