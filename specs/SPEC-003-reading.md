@@ -287,3 +287,9 @@ dependencies (reuses SPEC-002 / ADR-0001).
   and `isSignatureValid(): bool`, and `SigningServiceReader::parse()` reads the
   top-level `validation_state` field. New `ValidationState` enum. `isTrusted()`
   is unchanged (SPEC-005 D3). See `specs/SPEC-005-signature-validity.md`.
+- **2026-07-28 (via SPEC-007):** added trusted-timestamp detection.
+  `ManifestReport` gains `hasTimestamp(): bool`, and
+  `SigningServiceReader::parse()` reads the active manifest's
+  `signature_info.time` (present + parseable ⇒ timestamped; malformed/absent ⇒
+  false, no throw). Additive; existing accessors unchanged. See
+  `specs/SPEC-007-tsa-timestamping.md` (D1, D4).

@@ -96,7 +96,36 @@ final class SigningServiceReader implements ReaderInterface
             $this->parseAssertions($active),
             $this->validationCodes($store),
             $state,
+            $this->parseHasTimestamp($active),
         );
+    }
+
+    /**
+     * True iff the active manifest's `signature_info.time` is present and parses
+     * as a date-time (SPEC-007 D1/D3). Untrusted input: a missing, empty,
+     * non-string or unparseable value yields false, never an exception.
+     *
+     * @param  array<array-key, mixed>  $manifest
+     */
+    private function parseHasTimestamp(array $manifest): bool
+    {
+        $info = $manifest['signature_info'] ?? null;
+        if (! is_array($info)) {
+            return false;
+        }
+
+        $time = $info['time'] ?? null;
+        if (! is_string($time) || $time === '') {
+            return false;
+        }
+
+        try {
+            new \DateTimeImmutable($time);
+        } catch (\Exception) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

@@ -2,9 +2,9 @@
 
 | Field      | Value                                   |
 |------------|-----------------------------------------|
-| Status     | draft                                   |
+| Status     | approved                                |
 | Author     | Maurice van Loon (maintainer)           |
-| Approved   | — (while draft)                         |
+| Approved   | Maurice van Loon — 2026-07-28           |
 | Supersedes | —                                       |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -173,27 +173,34 @@ Service env example (`service/.env.example` / compose), documented:
 # CONTENTAUTH_TSA_URL=http://timestamp.digicert.com
 ```
 
-## Open questions
+## Decisions (resolved at approval, 2026-07-28)
 
-- **OQ1 (blocker for AC1–AC3 field mapping).** Where does a timestamp surface in
-  the c2pa-node / manifest-store JSON that SPEC-003 parses — a
-  `signature_info.time` (or similar) field, a `validation_status` code (e.g.
-  `timeStamp.validated` / `timeStamp.mismatch`), or both? Resolve by signing once
-  against a real TSA during tests-first and capturing the fixture; the exact
-  accessor predicate follows from what the reader actually exposes.
-- **OQ2 (non-blocker).** Ship boolean `hasTimestamp()` only for v1, or also
-  `timestampedAt(): ?DateTimeImmutable`? Recommendation: boolean first; add time
-  in a follow-up if the field is trivially available (keeps this spec tight).
-- **OQ3 (non-blocker).** Does `hasTimestamp()` mean *present* or *present and
-  cryptographically valid*? Recommendation: *present and structurally valid per
-  the reader*; trust of the TSA's own certificate is a verification/trust concern
-  (out of scope, mirrors signer trust in primer §5). Note the distinction in docs.
-- **OQ4 (non-blocker).** Which TSA to name as the documented example in
-  `.env.example` (DigiCert `http://timestamp.digicert.com`, or a C2PA-recommended
-  one). Documentation choice only; no code impact.
-- **OQ5 (non-blocker).** Verification tooling for AC4/AC5: extend `bin/e2e.php`
-  with a timestamp assertion, or add a small Node test in `service/`? The Pest
-  suite cannot exercise the service's signing path directly.
+The draft's open questions were resolved as recommended; recorded here so the
+approved spec is self-contained.
+
+- **D1 — timestamp field (was OQ1).** Verified against `@contentauth/c2pa-node`
+  `dist/Reader.spec.js`: the manifest store's `signature_info` carries a `"time"`
+  ISO-8601 string when the signature is timestamped (e.g.
+  `"time": "2024-08-06T21:53:37+00:00"`), alongside the `alg` / `issuer` /
+  `common_name` the reader already parses (SPEC-003). Without a trusted timestamp
+  the field is absent or null. `hasTimestamp()` returns `true` iff
+  `signature_info.time` is present and parses as a date-time.
+- **D2 — boolean only (was OQ2).** v1 ships `hasTimestamp(): bool`. A
+  `timestampedAt(): ?DateTimeImmutable` accessor is deferred to a follow-up spec.
+- **D3 — present vs trusted (was OQ3).** `hasTimestamp()` means *present and
+  structurally valid* (a parseable `time`). Trust of the TSA's own certificate is
+  a separate verification concern (out of scope; mirrors signer trust, primer §5).
+- **D4 — SPEC-003 amendment (sign-off).** Adding read-only
+  `ManifestReport::hasTimestamp(): bool` to the approved SPEC-003 is approved with
+  this spec; applied during implementation with its own test and a back-pointer
+  recorded in SPEC-003. Additive — no existing accessor changes.
+- **D5 — example TSA (was OQ4).** Document `http://timestamp.digicert.com` as the
+  `CONTENTAUTH_TSA_URL` example. Documentation only; no code impact.
+- **D6 — service verification (was OQ5).** AC4/AC5 are integration checks, run by
+  extending `bin/e2e.php` with a timestamp assertion — the Pest suite cannot drive
+  the service's signing path. AC1–AC3 (reading) are the Pest unit coverage.
+
+No open questions remain.
 
 ## Traceability
 

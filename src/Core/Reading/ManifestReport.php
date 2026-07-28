@@ -27,6 +27,7 @@ final readonly class ManifestReport
         private array $assertions,
         private array $validationStatusCodes,
         private ?ValidationState $validationState = null,
+        private bool $hasTimestamp = false,
     ) {}
 
     public function hasManifest(): bool
@@ -81,6 +82,17 @@ final readonly class ManifestReport
     public function isSignatureValid(): bool
     {
         return in_array($this->validationState, [ValidationState::Valid, ValidationState::Trusted], true);
+    }
+
+    /**
+     * True when the active manifest's signature carries an RFC 3161 trusted
+     * timestamp (a present, structurally valid `signature_info.time`). Trust of
+     * the timestamp authority's own certificate is a separate concern (SPEC-007
+     * D3). Distinct from signature validity and signer trust.
+     */
+    public function hasTimestamp(): bool
+    {
+        return $this->hasTimestamp;
     }
 
     /** True if the active manifest carries the trainedAlgorithmicMedia marking. */
