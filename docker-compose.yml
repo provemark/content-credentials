@@ -10,6 +10,8 @@ services:
       PORT: "3000"
       CONTENTAUTH_API_KEY: "${CONTENTAUTH_API_KEY:?set CONTENTAUTH_API_KEY in .env}"
       CONTENTAUTH_SIGN_ALG: "es256"
+      # Optional RFC 3161 timestamp authority (SPEC-007). Empty => no timestamp.
+      CONTENTAUTH_TSA_URL: "${CONTENTAUTH_TSA_URL:-}"
       SIGNING_CERT_PATH: "/run/secrets/signing.crt"
       SIGNING_KEY_PATH: "/run/secrets/signing.key"
     volumes:

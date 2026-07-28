@@ -28,6 +28,9 @@ const SIGN_ALG = (process.env.CONTENTAUTH_SIGN_ALG ?? 'es256').toLowerCase();
 const CERT_PATH = process.env.SIGNING_CERT_PATH;
 const KEY_PATH = process.env.SIGNING_KEY_PATH;
 const MAX_BODY = process.env.MAX_BODY_SIZE ?? '50mb';
+// Optional RFC 3161 Time Stamping Authority (SPEC-007). Unset => no timestamp
+// (today's behaviour). When set, signatures carry a trusted timestamp.
+const TSA_URL = process.env.CONTENTAUTH_TSA_URL || undefined;
 
 if (!CERT_PATH || !KEY_PATH) {
   console.error('SIGNING_CERT_PATH and SIGNING_KEY_PATH are required');
@@ -60,7 +63,7 @@ app.use('/v1', (req, res, next) => {
 });
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', signing_alg: SIGN_ALG });
+  res.json({ status: 'ok', signing_alg: SIGN_ALG, timestamping: Boolean(TSA_URL) });
 });
 
 /**
@@ -89,7 +92,10 @@ app.post('/v1/sign', (req, res) => {
   // sign to a temp file and read that file back to get the signed image.
   const tmp = path.join(os.tmpdir(), `sign-${crypto.randomBytes(8).toString('hex')}`);
   try {
-    const signer = LocalSigner.newSigner(certificate, privateKey, SIGN_ALG);
+    // TSA_URL (4th arg) adds an RFC 3161 timestamp when configured. If the TSA
+    // is unreachable/rejects, sign() throws and the catch below returns 5xx
+    // (SPEC-007 AC5: fail closed — never an untimestamped fallback).
+    const signer = LocalSigner.newSigner(certificate, privateKey, SIGN_ALG, TSA_URL);
     const builder = Builder.withJson(manifestDefinition);
     builder.sign(
       signer,
@@ -131,5 +137,5 @@ app.post('/v1/read', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`c2pa-spike signer listening on :${PORT} (alg=${SIGN_ALG})`);
+  console.log(`c2pa-spike signer listening on :${PORT} (alg=${SIGN_ALG}, timestamping=${Boolean(TSA_URL)})`);
 });
