@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Provemark\ContentCredentials\Laravel;
 
+use GuzzleHttp\Client;
 use Http\Discovery\Psr17FactoryDiscovery;
 use Http\Discovery\Psr18ClientDiscovery;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
@@ -52,6 +53,9 @@ final class ContentCredentialsServiceProvider extends ServiceProvider
 
             return new SigningServiceConfig($baseUrl, $apiKey);
         });
+
+        // Timeout options for the client we build when none is injected (SPEC-008).
+        $container->singleton(HttpClientOptions::class, fn (Container $app): HttpClientOptions => $this->httpClientOptions($app));
 
         $container->singleton(SignerInterface::class, fn (Container $app): SigningServiceSigner => new SigningServiceSigner(
             $this->resolveClient($app),
@@ -121,9 +125,49 @@ final class ContentCredentialsServiceProvider extends ServiceProvider
 
     private function resolveClient(Container $app): ClientInterface
     {
-        return $app->bound(ClientInterface::class)
-            ? $app->make(ClientInterface::class)
-            : Psr18ClientDiscovery::find();
+        // An application-bound client owns its own timeout (SPEC-008 AC3): use it
+        // unchanged, never wrap or re-instantiate it.
+        if ($app->bound(ClientInterface::class)) {
+            return $app->make(ClientInterface::class);
+        }
+
+        // No bound client: build one with a bounded timeout (SPEC-008 D1/D4). The
+        // Guzzle reference lives only here in the Laravel layer — Core stays
+        // client-agnostic.
+        if (class_exists(Client::class)) {
+            return new Client($app->make(HttpClientOptions::class)->toArray());
+        }
+
+        // Guzzle absent: discovery returns a pre-built client to which no timeout
+        // can be applied (documented caveat, D4). Better a working client than none.
+        return Psr18ClientDiscovery::find();
+    }
+
+    private function httpClientOptions(Container $app): HttpClientOptions
+    {
+        return new HttpClientOptions(
+            $this->timeoutSeconds($app, 'timeout', 10.0),
+            $this->timeoutSeconds($app, 'connect_timeout', 5.0),
+        );
+    }
+
+    private function timeoutSeconds(Container $app, string $key, float $default): float
+    {
+        $config = $app->make('config');
+        $value = $config instanceof ConfigRepository ? $config->get("content-credentials.service.{$key}") : null;
+
+        if ($value === null) {
+            return $default;
+        }
+
+        if (! is_numeric($value) || (float) $value < 0) {
+            throw new MissingConfigurationException(sprintf(
+                'Invalid configuration "content-credentials.service.%s": expected a non-negative number of seconds.',
+                $key,
+            ));
+        }
+
+        return (float) $value;
     }
 
     private function resolveRequestFactory(Container $app): RequestFactoryInterface

@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **HTTP timeouts for the signing-service client (SPEC-008).** The package builds
+  its default HTTP client with a bounded request timeout (10s) and connect
+  timeout (5s), configurable via `CONTENTAUTH_TIMEOUT` /
+  `CONTENTAUTH_CONNECT_TIMEOUT`, so a hung signing service no longer blocks the
+  caller or queue workers indefinitely. A PSR-18 client you bind yourself keeps
+  its own timeouts (PSR-18 has no timeout API to override).
+
 ### Fixed
 
 - **Silent write failures.** `content-credentials:sign` and `SignAssetJob` now

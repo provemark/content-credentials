@@ -41,7 +41,7 @@ if (! function_exists('config_path')) {
 }
 
 /**
- * @param  array{base_url?: string, api_key?: string}  $service
+ * @param  array{base_url?: string, api_key?: string, timeout?: int|float|string, connect_timeout?: int|float|string}  $service
  */
 function ccApp(array $service = ['base_url' => 'https://sign.test', 'api_key' => 'secret']): Container
 {

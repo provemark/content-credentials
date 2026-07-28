@@ -61,7 +61,15 @@ Set the service location and shared secret in your `.env`:
 ```dotenv
 CONTENTAUTH_SERVICE_URL=http://localhost:3000
 CONTENTAUTH_API_KEY=your-shared-secret
+# Optional HTTP timeouts (seconds) for the signing-service calls:
+CONTENTAUTH_TIMEOUT=10
+CONTENTAUTH_CONNECT_TIMEOUT=5
 ```
+
+These timeouts apply to the HTTP client this package builds for you. If you bind
+your own PSR-18 client into the container, that client owns its timeouts — PSR-18
+has no timeout API, so the package cannot set one on a client it did not
+construct.
 
 ## Quick start (Laravel)
 

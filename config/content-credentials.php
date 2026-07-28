@@ -14,5 +14,14 @@ return [
     'service' => [
         'base_url' => env('CONTENTAUTH_SERVICE_URL', 'http://localhost:3000'),
         'api_key' => env('CONTENTAUTH_API_KEY'),
+
+        /*
+        | HTTP timeouts (seconds) for the signing-service calls, applied when this
+        | package builds the HTTP client (i.e. you have not bound your own
+        | PSR-18 client — in which case that client owns its timeouts). Without
+        | these, a hung service would block the request/queue worker forever.
+        */
+        'timeout' => env('CONTENTAUTH_TIMEOUT', 10),
+        'connect_timeout' => env('CONTENTAUTH_CONNECT_TIMEOUT', 5),
     ],
 ];

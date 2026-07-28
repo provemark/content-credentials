@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — (while draft)                                   |
+| Approved   | Maurice van Loon — 2026-07-28                     |
 | Supersedes | —                                                 |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -121,45 +121,45 @@ private function resolveClient(Container $app): ClientInterface
 }
 ```
 
-## Open questions
+## Decisions (resolved at approval, 2026-07-28)
 
-- **OQ1 (blocker — the core design decision).** How to build a timeout-configured
-  default client without coupling Core to Guzzle? Guzzle is already a suggested /
-  require-dev PSR-18 client, and the *Laravel layer* may depend on concrete
-  packages (Deptrac only fences Core). Proposal: in the Laravel provider, if
-  `GuzzleHttp\Client` exists, build `new Client(['timeout' => …,
-  'connect_timeout' => …])`; otherwise fall back to `Psr18ClientDiscovery::find()`
-  (see OQ4). This keeps the Guzzle touch in `src/Laravel` only. Confirm this is
-  acceptable vs. a more abstract client-factory seam.
-- **OQ2 (non-blocker).** Default values. Proposal: `timeout` 10s (total),
-  `connect_timeout` 5s. Conservative enough to fail fast, generous enough for a
-  large asset + a TSA round-trip (SPEC-007). Confirm.
-- **OQ3 (non-blocker).** Expose both total and connect timeout, or just a single
-  `timeout`? Proposal: both (connect failures should fail faster than a slow
-  body). Confirm.
-- **OQ4 (blocker for AC1/AC2 completeness).** When no Guzzle is present and the
-  client comes from `Psr18ClientDiscovery::find()` (pre-constructed, no timeout
-  hook), the package cannot apply a timeout. Options: (a) document the caveat and
-  proceed (timeout only when we construct the client); (b) throw a configuration
-  error advising the user to bind a timeout-configured client. Proposal: (a) with
-  a clear README note. Confirm.
-- **OQ5 (non-blocker).** Verification of the *effective* timeout: Guzzle 8 dropped
-  `getConfig()`, so asserting the timeout on the built client is awkward. Options:
-  a tiny internal factory whose input (the timeout array) is unit-asserted (AC1/2
-  check the value passed to construction), plus an optional slow-server
-  integration check in `bin/`. Confirm the unit strategy targets the wiring, not
-  the socket.
-- **OQ6 (non-blocker).** Confirm retry/backoff stays a *separate* spec (this one
-  is timeout-only), given `SignAssetJob` already retries at the queue level.
+Resolved as proposed in the draft; recorded so the approved spec is
+self-contained.
+
+- **D1 — Guzzle in the Laravel provider (was OQ1).** When no `ClientInterface` is
+  bound, the provider builds `new GuzzleHttp\Client(['timeout' => …,
+  'connect_timeout' => …])` if `GuzzleHttp\Client` exists. The Guzzle reference
+  lives only in `src/Laravel` — Core stays client-agnostic (Deptrac preserved).
+- **D2 — defaults (was OQ2).** `timeout` 10s (total), `connect_timeout` 5s.
+- **D3 — both timeouts (was OQ3).** Expose `service.timeout` and
+  `service.connect_timeout`.
+- **D4 — discovered-client caveat (was OQ4).** When no client is bound and Guzzle
+  is absent, fall back to `Psr18ClientDiscovery::find()` (timeout **not** applied)
+  with a documented README/config note. Do not hard-fail — a working (if
+  un-timed-out) client beats an exception.
+- **D5 — verification seam (was OQ5).** The resolved timeouts are a bindable,
+  readonly `HttpClientOptions` value object (validated at resolution — AC4). Unit
+  tests assert that object (the wiring), not the socket; effective enforcement is
+  Guzzle's. `SigningServiceConfig` stays timeout-free (timeout is a client
+  concern, not part of the signing contract).
+- **D6 — retry is separate (was OQ6).** Retry/backoff stays its own future spec;
+  `SignAssetJob` already retries at the queue level (SPEC-006).
+
+No open questions remain.
 
 ## Traceability
 
-Filled when status becomes `implemented`. Every acceptance criterion maps to at
-least one test; every source file maps back to this spec.
+Implemented 2026-07-28. Tests in `tests/Unit/Laravel/HttpTimeoutTest.php`
+(`->group('SPEC-008')`, 5 tests incl. the AC4 dataset), reusing the SPEC-004
+harness. `composer check` green (Pint + PHPStan level max + Pest + Deptrac 0 —
+the Guzzle reference is confined to `src/Laravel`, Core untouched). Per D5 the
+unit tests assert the resolved `HttpClientOptions` (the wiring); effective
+socket enforcement is Guzzle's.
 
-| Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
-|----------------------|-----------------------------|----------------------|
-| AC1 | — | — |
-| AC2 | — | — |
-| AC3 | — | — |
-| AC4 | — | — |
+| Acceptance criterion | Test (`it …`) | Source (file/symbol) |
+|-----------------------|---------------|----------------------|
+| AC1 | applies a safe default timeout when none is configured | `ContentCredentialsServiceProvider::timeoutSeconds()` (defaults 10/5), `HttpClientOptions` |
+| AC2 | applies a configured timeout over the default | `ContentCredentialsServiceProvider::httpClientOptions()/timeoutSeconds()`, `config/content-credentials.php` |
+| AC3 | uses an injected PSR-18 client unchanged | `ContentCredentialsServiceProvider::resolveClient()` (bound-client branch) |
+| AC4 | throws MissingConfigurationException for an invalid timeout (negative / non-numeric) | `ContentCredentialsServiceProvider::timeoutSeconds()` (validation) |
+| D1/D4 | (integration) | `resolveClient()` builds `GuzzleHttp\Client` when present, else `Psr18ClientDiscovery::find()` |
