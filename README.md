@@ -159,6 +159,22 @@ Note: test certificates produce a cryptographically **valid signature** but are
 not on any production trust list — "valid signature" is not the same as
 "trusted certificate". See [`docs/c2pa-primer.md`](docs/c2pa-primer.md) §5.
 
+## Going to production
+
+The test certificates above are only trusted against the bundled test settings.
+For a signature a public verifier will trust, you need a certificate from a CA on
+the C2PA trust list, issued through the C2PA conformance program. As of 2026,
+[SSL.com](https://www.ssl.com/products/content-authenticity/content-credentials/c2pa/)
+issues production-ready C2PA-conformant certificates, and its free tier includes
+a Level&nbsp;1 signing certificate plus trusted timestamps — note it still
+requires a valid C2PA conformance record ID at application.
+
+For the full picture of certificates, trust lists and the valid-vs-trusted
+distinction, see the write-up:
+[**Valid ≠ trusted: a practical guide to C2PA signing certificates**](https://provemark.github.io/articles/c2pa-certificates/).
+Whichever certificate you use, the private key stays isolated behind the signing
+service — it never enters your web application.
+
 ## Development
 
 ```bash
