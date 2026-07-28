@@ -89,6 +89,7 @@ $report = ContentCredentials::read(new Asset($signed->bytes, MediaType::Png));
 $report->isAiGenerated();        // true
 $report->digitalSourceTypes();   // ['http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia']
 $report->signer()?->issuer;      // e.g. "C2PA Test Signing Cert"
+$report->hasTimestamp();         // true when signed with a trusted timestamp (see "Going to production")
 ```
 
 ## Quick start (plain PHP / any framework)
@@ -174,6 +175,15 @@ distinction, see the write-up:
 [**Valid ≠ trusted: a practical guide to C2PA signing certificates**](https://provemark.github.io/articles/c2pa-certificates/).
 Whichever certificate you use, the private key stays isolated behind the signing
 service — it never enters your web application.
+
+**Trusted timestamps.** Set `CONTENTAUTH_TSA_URL` on the signing service to an
+RFC 3161 Time Stamping Authority (e.g. `http://timestamp.digicert.com`) and every
+signature carries a trusted timestamp, so its validity survives certificate
+expiry. Unset, no timestamp is added (the default); if the TSA is unreachable the
+signing request **fails closed** rather than producing an untimestamped
+signature. `GET /health` reports `timestamping`, and
+`ManifestReport::hasTimestamp()` confirms a read manifest is timestamped. A
+timestamp's *trust* still depends on the TSA's own certificate chain.
 
 ## Development
 
