@@ -6,6 +6,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.3.0] - 2026-07-28
+
 ### Added
 
 - **Trusted timestamps (SPEC-007).** The signing service adds an RFC 3161
@@ -15,6 +19,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `ManifestReport::hasTimestamp()` to verify a read manifest carries a timestamp
   (present + parseable `signature_info.time`; malformed/absent ⇒ false).
   `bin/e2e.php` asserts timestamp presence against the service's `/health` flag.
+  Backwards-compatible: no timestamp is added unless `CONTENTAUTH_TSA_URL` is set.
 
 ## [0.2.1] - 2026-07-28
 
@@ -77,7 +82,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.2.1...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.3.0...main
+[0.3.0]: https://github.com/provemark/content-credentials/releases/tag/v0.3.0
 [0.2.1]: https://github.com/provemark/content-credentials/releases/tag/v0.2.1
 [0.2.0]: https://github.com/provemark/content-credentials/releases/tag/v0.2.0
 [0.1.0]: https://github.com/provemark/content-credentials/releases/tag/v0.1.0
