@@ -20,7 +20,21 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
-const { LocalSigner, Builder, Reader } = require('@contentauth/c2pa-node');
+const { LocalSigner, CallbackSigner, Builder, Reader } = require('@contentauth/c2pa-node');
+
+/**
+ * Hash for the ECDSA callback signer used on the timestamped (async) path.
+ * The signing service ships es256 test certs; es384/es512 are mapped too.
+ */
+function hashForAlg(alg) {
+  switch (alg) {
+    case 'es256': return 'SHA256';
+    case 'es384': return 'SHA384';
+    case 'es512': return 'SHA512';
+    default:
+      throw new Error(`timestamped signing supports es256/es384/es512, not '${alg}'`);
+  }
+}
 
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
 const API_KEY = process.env.CONTENTAUTH_API_KEY ?? '';
@@ -28,6 +42,9 @@ const SIGN_ALG = (process.env.CONTENTAUTH_SIGN_ALG ?? 'es256').toLowerCase();
 const CERT_PATH = process.env.SIGNING_CERT_PATH;
 const KEY_PATH = process.env.SIGNING_KEY_PATH;
 const MAX_BODY = process.env.MAX_BODY_SIZE ?? '50mb';
+// Optional RFC 3161 Time Stamping Authority (SPEC-007). Unset => no timestamp
+// (today's behaviour). When set, signatures carry a trusted timestamp.
+const TSA_URL = process.env.CONTENTAUTH_TSA_URL || undefined;
 
 if (!CERT_PATH || !KEY_PATH) {
   console.error('SIGNING_CERT_PATH and SIGNING_KEY_PATH are required');
@@ -60,7 +77,7 @@ app.use('/v1', (req, res, next) => {
 });
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', signing_alg: SIGN_ALG });
+  res.json({ status: 'ok', signing_alg: SIGN_ALG, timestamping: Boolean(TSA_URL) });
 });
 
 /**
@@ -68,7 +85,7 @@ app.get('/health', (_req, res) => {
  * Body: { content (base64), mime_type, creator_name?, extra_assertions? }
  * Resp: { signed_content (base64), manifest_url: null }
  */
-app.post('/v1/sign', (req, res) => {
+app.post('/v1/sign', async (req, res) => {
   const { content, mime_type, creator_name, extra_assertions } = req.body ?? {};
   if (!content || !mime_type) {
     return res.status(400).json({ error: 'content and mime_type are required' });
@@ -89,13 +106,34 @@ app.post('/v1/sign', (req, res) => {
   // sign to a temp file and read that file back to get the signed image.
   const tmp = path.join(os.tmpdir(), `sign-${crypto.randomBytes(8).toString('hex')}`);
   try {
-    const signer = LocalSigner.newSigner(certificate, privateKey, SIGN_ALG);
     const builder = Builder.withJson(manifestDefinition);
-    builder.sign(
-      signer,
-      { buffer: fileBuffer, mimeType: mime_type },
-      { path: tmp }
-    );
+    const source = { buffer: fileBuffer, mimeType: mime_type };
+    const dest = { path: tmp };
+
+    if (TSA_URL) {
+      // Timestamping needs the ASYNC path: fetching the RFC 3161 token is an
+      // HTTP call the sync builder.sign() cannot make ("the sync http resolver
+      // is not implemented"). We sign via a CallbackSigner whose callback signs
+      // with the local key. A TSA failure rejects here -> the catch returns 5xx
+      // (SPEC-007 AC5: fail closed, never an untimestamped fallback).
+      const hash = hashForAlg(SIGN_ALG);
+      const privateKeyObject = crypto.createPrivateKey({ key: privateKey, format: 'pem' });
+      const signer = CallbackSigner.newSigner(
+        { alg: SIGN_ALG, certs: [certificate], reserveSize: 20000, tsaUrl: TSA_URL, directCoseHandling: false },
+        async (data) => {
+          const s = crypto.createSign(hash);
+          s.update(data);
+          s.end();
+          return s.sign(privateKeyObject);
+        },
+      );
+      await builder.signAsync(signer, source, dest);
+    } else {
+      // No TSA: the simple synchronous local signer (unchanged behaviour).
+      const signer = LocalSigner.newSigner(certificate, privateKey, SIGN_ALG);
+      builder.sign(signer, source, dest);
+    }
+
     const signedAsset = fs.readFileSync(tmp);
     res.json({
       signed_content: signedAsset.toString('base64'),
@@ -131,5 +169,5 @@ app.post('/v1/read', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`c2pa-spike signer listening on :${PORT} (alg=${SIGN_ALG})`);
+  console.log(`c2pa-spike signer listening on :${PORT} (alg=${SIGN_ALG}, timestamping=${Boolean(TSA_URL)})`);
 });

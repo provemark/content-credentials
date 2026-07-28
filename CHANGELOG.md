@@ -6,7 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **Trusted timestamps (SPEC-007).** The signing service adds an RFC 3161
+  timestamp when `CONTENTAUTH_TSA_URL` is set (unset = unchanged: no timestamp);
+  it **fails closed** if the TSA is unreachable, never returning an untimestamped
+  signature. `GET /health` now reports `timestamping`. The reader gains
+  `ManifestReport::hasTimestamp()` to verify a read manifest carries a timestamp
+  (present + parseable `signature_info.time`; malformed/absent ⇒ false).
+  `bin/e2e.php` asserts timestamp presence against the service's `/health` flag.
 
 ## [0.2.1] - 2026-07-28
 

@@ -17,12 +17,12 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 require "$root/vendor/autoload.php";
 
-use ContentCredentials\Core\Manifest\ManifestBuilder;
-use ContentCredentials\Core\Manifest\MediaType;
-use ContentCredentials\Core\Reading\SigningServiceReader;
-use ContentCredentials\Core\Signing\Asset;
-use ContentCredentials\Core\Signing\SigningServiceConfig;
-use ContentCredentials\Core\Signing\SigningServiceSigner;
+use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Reading\SigningServiceReader;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceSigner;
 use GuzzleHttp\Client;
 use Nyholm\Psr7\Factory\Psr17Factory;
 
@@ -51,6 +51,9 @@ $health = @file_get_contents("$baseUrl/health");
 if ($health === false) {
     fail("signing service not reachable at $baseUrl (start it with: docker compose up -d --build).");
 }
+// SPEC-007: whether the service is configured to add trusted timestamps.
+$healthData = json_decode((string) $health, true);
+$timestampingEnabled = is_array($healthData) && (bool) ($healthData['timestamping'] ?? false);
 
 // --- wire the library with a real PSR-18 client + PSR-17 factories ---
 $factory = new Psr17Factory;
@@ -90,9 +93,26 @@ printf("  validationStatus   : %s\n", implode(', ', $report->validationStatusCod
 printf("  validationState    : %s\n", $report->validationState()?->value ?? '(none)');
 printf("  isSignatureValid   : %s\n", var_export($report->isSignatureValid(), true));
 printf("  isTrusted          : %s\n", var_export($report->isTrusted(), true));
+printf("  hasTimestamp       : %s (service timestamping=%s)\n", var_export($report->hasTimestamp(), true), var_export($timestampingEnabled, true));
 
 $libOk = $report->hasManifest() && $report->isAiGenerated() && $s !== null;
 echo $libOk ? "✓ library sign+read: OK\n" : "✗ library sign+read: FAILED\n";
+
+// SPEC-007 AC4: when the service reports timestamping enabled, the signed asset
+// MUST read back as timestamped; when disabled, hasTimestamp() must be false.
+$tsOk = $report->hasTimestamp() === $timestampingEnabled;
+echo match (true) {
+    ! $tsOk => sprintf(
+        "✗ timestamp mismatch: service timestamping=%s but hasTimestamp()=%s (SPEC-007 AC4)\n",
+        var_export($timestampingEnabled, true),
+        var_export($report->hasTimestamp(), true),
+    ),
+    $timestampingEnabled => "✓ timestamp present (SPEC-007 AC4)\n",
+    default => "· timestamping disabled — set CONTENTAUTH_TSA_URL to exercise AC4\n",
+};
+// SPEC-007 AC5 (fail-closed) is a separate check: start the service with an
+// unreachable CONTENTAUTH_TSA_URL and confirm /v1/sign returns a 5xx error and
+// no signed_content (not automated here — it requires a deliberately bad TSA).
 
 // --- 4. authoritative c2patool verification (trust enabled) ---
 $verify = "$root/bin/verify.sh";
@@ -104,4 +124,4 @@ if (is_file($verify) && is_file("$root/tools/c2patool")) {
     $verifyExit = 0;
 }
 
-exit($libOk && $verifyExit === 0 ? 0 : 1);
+exit($libOk && $tsOk && $verifyExit === 0 ? 0 : 1);

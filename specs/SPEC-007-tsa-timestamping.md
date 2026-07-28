@@ -2,7 +2,7 @@
 
 | Field      | Value                                   |
 |------------|-----------------------------------------|
-| Status     | approved                                |
+| Status     | implemented                             |
 | Author     | Maurice van Loon (maintainer)           |
 | Approved   | Maurice van Loon — 2026-07-28           |
 | Supersedes | —                                       |
@@ -204,13 +204,23 @@ No open questions remain.
 
 ## Traceability
 
-Filled when status becomes `implemented`. Every acceptance criterion maps to at
-least one test; every source file maps back to this spec.
+Implemented 2026-07-28. AC1–AC3 are Pest unit tests in
+`tests/Unit/Reading/ManifestTimestampTest.php` (`->group('SPEC-007')`, 7 tests);
+`composer check` green (Pint + PHPStan level max + Pest + Deptrac 0). AC4/AC5 are
+integration checks verified against a live service + DigiCert TSA via
+`bin/e2e.php` and a direct `/v1/sign` call (see NOTES.md Step 6).
 
-| Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
-|----------------------|-----------------------------|----------------------|
-| AC1 | — | — |
-| AC2 | — | — |
-| AC3 | — | — |
-| AC4 | — | — |
-| AC5 | — | — |
+**Implementation note (does not change the contract):** timestamping requires
+the **async** signing path. Sync `builder.sign()` with a TSA errors "the sync
+http resolver is not implemented", so the service signs via `CallbackSigner` +
+`builder.signAsync()` when `CONTENTAUTH_TSA_URL` is set, and keeps the sync
+`LocalSigner` path unchanged when it is not. `reserveSize` 20000 (timestamp token
+~7–8 KB). See NOTES.md Step 6.
+
+| Acceptance criterion | Test (`it …` / check) | Source (file/symbol) |
+|-----------------------|-----------------------|----------------------|
+| AC1 | reports a timestamped manifest as timestamped | `SigningServiceReader::parseHasTimestamp()`, `ManifestReport::hasTimestamp()` |
+| AC2 | reports a manifest without a timestamp field as not timestamped; reports no timestamp when there is no manifest | `SigningServiceReader::parseHasTimestamp()`, `ManifestReport::hasTimestamp()` |
+| AC3 | treats a malformed timestamp as absent without throwing (4 datasets) | `SigningServiceReader::parseHasTimestamp()` |
+| AC4 | `bin/e2e.php` timestamp assertion vs `/health` (integration, verified 2026-07-28) | `service/server.js` async `CallbackSigner` path; `GET /health` `timestamping` |
+| AC5 | direct `/v1/sign` with unreachable TSA ⇒ HTTP 500, no `signed_content` (integration, verified 2026-07-28) | `service/server.js` sign `catch` (no untimestamped fallback) |
