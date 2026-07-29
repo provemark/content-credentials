@@ -19,7 +19,7 @@ Minimal steps or code:
 What you expected to happen.
 
 **Environment**
-- Package version (e.g. v0.2.0 / dev-main):
+- Package version (e.g. v0.4.1 / dev-main):
 - PHP version:
 - Laravel version (if using the integration):
 - Is the signing service running? yes / no
