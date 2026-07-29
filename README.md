@@ -25,8 +25,10 @@ isolated from the app process. (This is the deliberate trade-off versus an
 in-process native extension, which puts the key on the web server.)
 
 > **Status:** this is a spec-driven rebuild of a proven end-to-end spike. The
-> design, decisions and trade-offs are documented in [`specs/`](specs/),
-> [`docs/`](docs/) and [`NOTES.md`](NOTES.md).
+> design, decisions and trade-offs are documented in
+> [`specs/`](https://github.com/provemark/content-credentials/tree/main/specs),
+> [`docs/`](https://github.com/provemark/content-credentials/tree/main/docs) and
+> [`NOTES.md`](https://github.com/provemark/content-credentials/blob/main/NOTES.md).
 
 ## Requirements
 
@@ -138,8 +140,16 @@ Supported formats in this version: **PNG and JPEG**.
 
 ## Signing service
 
-The service holds the signing key and performs the C2PA operation. Run it with
-Docker Compose using the bundled **c2pa-rs ES256 test certificates**:
+> **Note:** the signing service, test certificates and verification tooling
+> (`service/`, `certs/`, `bin/`) live in the
+> [source repository](https://github.com/provemark/content-credentials) — they
+> are **not** part of the Composer package. Clone the repo to run them; the
+> installed package is the PHP client that talks to the service.
+
+The service holds the signing key and performs the C2PA operation. Run it from a
+clone of the repository with Docker Compose. The **public** c2pa-rs ES256 test
+**certificate chain and trust settings are committed in `certs/`**; the matching
+private key is intentionally **not** — fetch it below:
 
 ```bash
 cp .env.example .env          # set a CONTENTAUTH_API_KEY value
@@ -168,7 +178,9 @@ bin/verify.sh out/signed.png
 
 Note: test certificates produce a cryptographically **valid signature** but are
 not on any production trust list — "valid signature" is not the same as
-"trusted certificate". See [`docs/c2pa-primer.md`](docs/c2pa-primer.md) §5.
+"trusted certificate". See
+[`docs/c2pa-primer.md`](https://github.com/provemark/content-credentials/blob/main/docs/c2pa-primer.md)
+§5.
 
 ## Going to production
 
