@@ -8,6 +8,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 _Nothing yet._
 
+## [0.4.1] - 2026-07-29
+
+### Fixed
+
+- **Manifest-less reads no longer error (SPEC-010).** `POST /v1/read` in the
+  signing service returned HTTP 500 (`Cannot read properties of null`) for an
+  asset with no C2PA manifest, because `Reader.fromAsset()` resolves to `null`
+  in that case. It now returns an empty manifest store (HTTP 200), which the
+  client already parses into an empty `ManifestReport` (`hasManifest() ===
+  false`) — honouring the SPEC-003 "absence is not an error" contract end to
+  end. Found by a new Eris property-based test suite (a stateful provenance
+  chain driven against the real service). This is a service-side change
+  (`service/server.js`); the distributed PHP package (`src/`) is unchanged, so
+  installers via Composer see no difference.
+
 ## [0.4.0] - 2026-07-28
 
 ### Security
@@ -113,7 +128,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.4.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.4.1...main
+[0.4.1]: https://github.com/provemark/content-credentials/releases/tag/v0.4.1
 [0.4.0]: https://github.com/provemark/content-credentials/releases/tag/v0.4.0
 [0.3.0]: https://github.com/provemark/content-credentials/releases/tag/v0.3.0
 [0.2.1]: https://github.com/provemark/content-credentials/releases/tag/v0.2.1
