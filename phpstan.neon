@@ -3,6 +3,18 @@ parameters:
     paths:
         - src
         - tests
+    # The property-based suites (tests/{Unit,Integration}/Property/) are excluded
+    # from static analysis, not weakened. They are written in the Eris DSL, which
+    # is inherently untypeable under level max: Eris\Generators::* factories are
+    # not typed to return Eris\Generator (PHPStan infers `mixed`), Eris\Generator
+    # is a bare @template T, and Pest's `uses(TestTrait::class)` hides
+    # forAll()/then() from $this (seen as a plain PHPUnit TestCase). The
+    # properties are exercised and guarded by Pest itself (`composer test`); src/
+    # and every other test path stay strict. Revisit if Eris ships PHPStan-friendly
+    # types.
+    excludePaths:
+        - tests/Unit/Property/*
+        - tests/Integration/Property/*
     ignoreErrors:
         # Test-only false positive (SPEC-004 D4 / SPEC-006 D5). The Laravel tests use
         # a bare Illuminate\Container\Container as a lightweight harness, because

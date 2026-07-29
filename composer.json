@@ -31,6 +31,7 @@
     },
     "require-dev": {
         "deptrac/deptrac": "^4.0",
+        "giorgiosironi/eris": "^1.1",
         "guzzlehttp/guzzle": "^8.0",
         "illuminate/config": "^11.0",
         "illuminate/console": "^11.0",
@@ -55,7 +56,8 @@
     },
     "config": {
         "allow-plugins": {
-            "pestphp/pest-plugin": true
+            "pestphp/pest-plugin": true,
+            "php-http/discovery": true
         },
         "sort-packages": true
     },
@@ -81,7 +83,7 @@
     "scripts": {
         "format": "pint",
         "analyse": "phpstan analyse",
-        "test": "pest",
+        "test": "pest --exclude-group=integration",
         "deptrac": "deptrac analyse",
         "check": [
             "@format",
@@ -93,7 +95,7 @@
     "scripts-descriptions": {
         "format": "Fix code style with Laravel Pint",
         "analyse": "Static analysis with PHPStan (level max)",
-        "test": "Run the Pest test suite",
+        "test": "Run the Pest test suite (excludes the service-dependent integration group; run it with: vendor/bin/pest --group=provenance)",
         "deptrac": "Enforce architecture boundaries with Deptrac",
         "check": "The single definition of green: format + analyse + test + deptrac"
     }

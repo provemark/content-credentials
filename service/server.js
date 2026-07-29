@@ -192,6 +192,12 @@ app.post('/v1/read', async (req, res) => {
   const fileBuffer = Buffer.from(content, 'base64');
   try {
     const reader = await Reader.fromAsset({ buffer: fileBuffer, mimeType: mime_type });
+    // SPEC-010: an asset with no C2PA manifest yields a null reader. Absence is
+    // an empty manifest store (HTTP 200), never a 500 — the PHP client parses
+    // {} into an empty ManifestReport (hasManifest() === false).
+    if (!reader) {
+      return res.json({});
+    }
     const json = reader.json();
     res.json(typeof json === 'string' ? JSON.parse(json) : json);
   } catch (err) {
