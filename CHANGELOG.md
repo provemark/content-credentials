@@ -8,6 +8,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 _Nothing yet._
 
+## [0.4.2] - 2026-07-29
+
+### Documentation
+
+- **README clarifies what is (and isn't) in the Composer package.** The signing
+  service, test certificates and verification tooling (`service/`, `certs/`,
+  `bin/`) are `export-ignore`d from the dist, so a note now states they live in
+  the source repository, not the installed package. Links to `specs/`, `docs/`
+  and `NOTES.md` are now absolute GitHub URLs so they resolve from an installed
+  copy in `vendor/` as well, and the test-certificate wording no longer implies a
+  ready-to-use cert+key pair is bundled (the public chain and trust settings are
+  committed; the private key is fetched). Docs only — no code change.
+
 ## [0.4.1] - 2026-07-29
 
 ### Fixed
@@ -128,7 +141,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.4.1...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.4.2...main
+[0.4.2]: https://github.com/provemark/content-credentials/releases/tag/v0.4.2
 [0.4.1]: https://github.com/provemark/content-credentials/releases/tag/v0.4.1
 [0.4.0]: https://github.com/provemark/content-credentials/releases/tag/v0.4.0
 [0.3.0]: https://github.com/provemark/content-credentials/releases/tag/v0.3.0
