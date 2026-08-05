@@ -6,6 +6,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **The signing service now publishes on `127.0.0.1` only** (requires `git pull`
+  + `docker compose up -d --build`). `docker-compose.yml` used `"3000:3000"`,
+  which publishes on `0.0.0.0` *and* `[::]` — so the one process holding the
+  signing key was reachable from every network that could route to the host,
+  over plain HTTP, meaning the bearer token crossed the wire in the clear. It is
+  now `"127.0.0.1:3000:3000"`.
+
+  **This can break an existing deployment, deliberately.** If you reach the
+  service from another host, it will stop responding after this update, with no
+  error explaining why — the connection simply will not establish. That is the
+  intended outcome: the correct fix is TLS termination plus a restricted network
+  path in front of the service, not widening the port binding again.
+
+- **Documented that `CONTENTAUTH_API_KEY` carries the authority of the signing
+  key.** Anyone who can call `/v1/sign` can have assertions signed by your
+  certificate; the service cannot distinguish an authorised caller from a stolen
+  token. Rotate and scope it as you would a key. Constraining *what* the service
+  will attest to is drafted as SPEC-011 and not yet implemented.
+
+- **Documented that the read-side getters report claims, not verdicts.**
+  `isAiGenerated()`, `signer()` and `digitalSourceTypes()` describe what a
+  manifest asserts and do not imply the signature checked out — gate on
+  `isSignatureValid()` (and `isTrusted()` where trust matters) before acting on
+  a credential. Documentation only; no behaviour change in this entry.
+
 ### Service (requires `git pull` + `docker compose up -d --build`)
 
 - **The signing-service image is now built reproducibly.** The Dockerfile copied
