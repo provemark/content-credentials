@@ -2,7 +2,7 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | approved                                          |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
 | Approved   | Maurice van Loon — 2026-08-05                     |
 | Supersedes | —                                                 |
@@ -236,11 +236,11 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
-| AC8                  | —                           | —                    |
+| AC1 | `tests/Integration/AssertionLimitsTest.php` :: "still signs a manifest built by the library, unchanged" | `service/server.js` `rejectAssertions()` (no-op on the builder's output) |
+| AC2 | `tests/Integration/AssertionLimitsTest.php` :: "refuses more than one actions assertion" | `service/server.js` `rejectAssertions()` actions count |
+| AC3 | `tests/Integration/AssertionLimitsTest.php` :: "refuses more assertions than the limit allows" | `service/server.js` `MAX_ASSERTIONS` |
+| AC4 | `tests/Integration/AssertionLimitsTest.php` :: "refuses an oversized assertion"; "refuses an assertion nested past the depth limit" | `service/server.js` `MAX_ASSERTION_BYTES`, `exceedsDepth()` |
+| AC5 | `tests/Integration/AssertionLimitsTest.php` :: "refuses a malformed assertion entry" | `service/server.js` `rejectAssertions()` entry/label checks |
+| AC6 | `tests/Integration/AssertionLimitsTest.php` :: "refuses a creator_name that is not a bounded string"; "still accepts a request with no creator_name at all" | `service/server.js` `MAX_CREATOR_NAME` |
+| AC7 | `tests/Integration/AssertionLimitsTest.php` :: "names the constraint without leaking internals or echoing the payload" | `service/server.js` `reject()` in `POST /v1/sign` |
+| AC8 | `tests/Integration/AssertionLimitsTest.php` :: "reports the AI-marking policy on /health"; "takes no position on digitalSourceType by default"; "refuses a non-AI marking when the policy requires one" | `service/server.js` `REQUIRE_AI_MARKING`, `firstActionSourceTypes()` |

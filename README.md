@@ -183,6 +183,60 @@ docker compose up -d --build  # service on http://localhost:3000
 `POST /v1/sign` and `POST /v1/read` are Bearer-authenticated with
 `CONTENTAUTH_API_KEY`; `GET /health` is public.
 
+### Audit logging
+
+Every `/v1/sign` request writes one line of JSON to **stdout**, for accepted and
+refused requests alike, so you can answer the question an incident starts with:
+*did we sign this, when, and at whose request?* Without a record, a fabricated
+credential carrying your certificate cannot be told apart from a genuine one —
+which makes every credential you ever issued suspect.
+
+```json
+{"ts":"2026-08-05T09:14:22.104Z","cid":"01J…","event":"sign","outcome":"signed",
+ "token_id":"9f2a41c0b7de","mime_type":"image/png","input_sha256":"3b1f…",
+ "input_bytes":1699,"output_sha256":"c07e…","creator_name":"ACME GenAI Image Model",
+ "assertion_labels":["c2pa.actions.v2"],"digital_source_types":["…trainedAlgorithmicMedia"],
+ "timestamped":true}
+```
+
+Every response also carries an `X-Correlation-Id` header, repeated as `cid` in
+error bodies. Service errors return a generic message — the detail belongs in
+the record, not in a client-side exception — so quote the `cid` in a bug report.
+
+**What is deliberately never recorded:** the bearer token, key material, the
+base64 content, the signed bytes, full assertion payloads, or the manifest
+store. Callers are identified by `token_id`, a salted one-way digest: two
+requests with the same token correlate, and the token cannot be recovered from
+it. Caller-supplied strings are length-capped, so nobody can write unbounded
+data into your log.
+
+> **Personal data.** `creator_name` is supplied by the caller and reproduced in
+> records. In normal use it is application metadata (a tool or model name), but
+> if your deployment puts a person's name there, **you are processing personal
+> data in your logs** and the retention decision is yours. Records go to stdout;
+> collecting, rotating and expiring them is your platform's job.
+
+If the audit write ever fails, the request still succeeds — a logging outage
+must not become a signing outage — and `GET /health` reports
+`"audit_degraded": true` until the process restarts, so the loss is visible to
+monitoring rather than silent.
+
+### Assertion limits
+
+The service constrains what it will attest to. At most **one** `c2pa.actions`
+assertion (two would be contradictory, and which one a verifier honours is
+undefined), a bounded number of assertions, and bounds on each assertion's size
+and nesting depth. Violations return **400** naming the constraint, and nothing
+is signed. Tune with `MAX_ASSERTIONS`, `MAX_ASSERTION_BYTES`,
+`MAX_ASSERTION_DEPTH` and `MAX_CREATOR_NAME`.
+
+The service takes **no position on `digitalSourceType`** by default. Requiring
+`trainedAlgorithmicMedia` would not make an attestation truer — the service can
+verify it no better than a camera-capture claim — while excluding the
+authenticity use case entirely. If your certificate exists solely to mark
+AI-generated content, set `REQUIRE_AI_MARKING=true`; `GET /health` reports the
+effective policy.
+
 ### Trust-list verification
 
 By default the service does **not** verify the signing certificate against a

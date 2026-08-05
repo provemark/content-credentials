@@ -97,6 +97,52 @@ a manifest *claims* and answers for a tampered manifest too.
 
 ### Service (requires `git pull` + `docker compose up -d --build`)
 
+- **Audit logging for every signing request (SPEC-012).** The service kept no
+  record of what it signed. If a fabricated credential carrying your certificate
+  ever surfaced, you could not answer *did we sign this, when, at whose
+  request?* — and without that, every credential ever issued under that
+  certificate becomes suspect. Each `/v1/sign` request now writes one line of
+  JSON to stdout, for accepted **and** refused requests: input and output
+  SHA-256, size, mime type, `creator_name`, assertion labels,
+  `digitalSourceType`s, whether a timestamp was applied, and the outcome.
+
+  Records are built from digests and summaries, never payloads. The token, key
+  material, the base64 content, the signed bytes and full assertion data are
+  never written; the caller is identified by a salted one-way `token_id`, and
+  caller-supplied strings are length-capped.
+
+  Responses now carry an `X-Correlation-Id` header (and `cid` in error bodies).
+  **Service errors return a generic message instead of the underlying error
+  text**, which used to leak temp-file paths and library internals into
+  client-side exceptions — quote the `cid` and the detail is in the record.
+
+  If the audit write fails the request still succeeds — a logging outage must
+  not become a signing outage, or anyone able to break the write could stop all
+  signing — and `GET /health` reports `audit_degraded` until restart, so the
+  loss is visible rather than silent.
+
+- **The service now constrains what it will attest to (SPEC-011).**
+  `extra_assertions` went into the builder with no validation beyond "is it an
+  array", so a caller with a valid token could have any structure signed by your
+  certificate — an AI image was signed as a Canon EOS R5 capture, and c2patool
+  reported it `Trusted`. `/v1/sign` now returns **400**, signing nothing, for:
+  more than one `c2pa.actions` assertion (two are contradictory and which one a
+  verifier honours is undefined), too many assertions, an assertion that is too
+  large or too deeply nested, an entry that is not an object or carries no
+  usable label, and a `creator_name` that is not a bounded string. Tunable via
+  `MAX_ASSERTIONS`, `MAX_ASSERTION_BYTES`, `MAX_ASSERTION_DEPTH`,
+  `MAX_CREATOR_NAME`.
+
+  **The library's own path is unaffected** — `ManifestBuilder` emits exactly one
+  well-formed actions assertion, well inside every limit.
+
+  The service still takes **no position on `digitalSourceType`**. Requiring
+  `trainedAlgorithmicMedia` cannot make an attestation truer — it can be
+  verified no better than a camera-capture claim — and would exclude the
+  authenticity use case entirely. Deployments whose certificate exists solely to
+  mark AI content can opt in with `REQUIRE_AI_MARKING=true`; `GET /health`
+  reports the effective policy.
+
 - **Trust-list verification in `/v1/read` (SPEC-014).** The service read
   manifests with no settings, so c2pa-rs never checked the signing certificate
   against a trust list: every signed asset came back `Valid` with
