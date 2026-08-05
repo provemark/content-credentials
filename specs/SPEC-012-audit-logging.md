@@ -145,6 +145,28 @@ the integration group where a live service is required.
   - Then each record is a single line of valid JSON on stdout with no
     interleaving, so a collector can parse them line by line
 
+- **AC9 — audit loss is visible, and never blocks signing** *(error path)*
+  - Given the audit write fails (stdout closed, downstream pipe broken)
+  - When a `/v1/sign` request is processed
+  - Then the request still completes normally — a logging outage must not become
+    a signing outage, and must not hand a caller who can break the write a lever
+    to stop all signing
+  - And a minimal fallback record is attempted on stderr
+  - And the service sets a persistent degraded flag reported by `GET /health`,
+    so monitoring can see that records are incomplete
+  - And the flag is not cleared by a subsequent successful write: once records
+    have been lost, that fact stays visible until the process restarts
+
+- **AC10 — the personal-data implication is stated**
+  - Given `creator_name` is caller-supplied and reproduced in records
+  - When an operator reads the README section on audit logging
+  - Then it states that records are written to stdout, that `creator_name` is
+    reproduced verbatim (truncated per AC5), that a deployment whose
+    `creator_name` carries a person's name is therefore processing personal data
+    in its logs, and that retention is the operator's responsibility
+  - And it states what is deliberately *not* logged, so the boundary is
+    auditable rather than assumed
+
 ## API sketch
 
 Illustrative only. Confined to `service/server.js`; the `/v1/sign` request and
@@ -193,18 +215,31 @@ The error response shape gains the correlation id:
 
 ## Open questions
 
-- **Fail-open or fail-closed if the record cannot be written?** Refusing to sign
-  what cannot be audited is the stronger guarantee and is defensible for a
-  signing service; but stdout writes essentially do not fail, so fail-closed
-  mostly adds a failure mode without adding safety. *Blocker for AC1*: leaning
-  **fail-open with a loud error**, but this is a security posture decision and
-  belongs to the maintainer.
-- **Is `creator_name` personal data?** It is caller-supplied and may carry a
-  person's name, which makes the log a GDPR consideration for operators. Options:
-  log it (best attribution, current proposal), hash it, or omit it. *Non-blocker*
-  for the design, but it must be stated in the README so operators can decide.
-  Note the input asset hash is not personal data; the asset itself is never
-  logged.
+- ~~**Fail-open or fail-closed if the record cannot be written?**~~
+  **RESOLVED (2026-08-05): fail-open, but audit loss is itself an event
+  (AC9).** A binary choice is the wrong frame. Fail-closed converts a logging
+  outage into a signing outage, and worse, hands an attacker a denial-of-service
+  lever: whoever can make writes fail can stop all signing. Fail-open alone,
+  though, is exactly the hole the log exists to close — signatures issued with
+  no account of them, and nobody the wiser.
+
+  So: the request proceeds, and the failure is escalated rather than swallowed.
+  A minimal fallback record goes to stderr; if that also fails, the service
+  raises a persistent degraded flag surfaced on `GET /health`. Audit loss then
+  becomes visible to monitoring instead of silent, which is the property that
+  actually matters — the risk was never "one write failed", it was "we cannot
+  tell that our records are incomplete".
+- ~~**Is `creator_name` personal data?**~~ **RESOLVED (2026-08-05): log it,
+  truncated, and say so.** In this library's intended use `creator_name` is
+  application metadata — a tool or model name such as `ACME GenAI Image Model`
+  (SPEC-001, README) — not a person. Hashing it would destroy the investigative
+  value that justifies the record at all, and omitting it removes the only field
+  linking a signature to the software that requested it. It is nonetheless
+  caller-supplied and *may* carry a personal name in some deployment, so the
+  README must state plainly that operators whose `creator_name` contains
+  personal data are processing personal data in their logs and must set
+  retention accordingly (AC10). The asset itself is never logged, and its
+  SHA-256 is not personal data.
 - **Should `token_id` be salted?** An unsalted SHA-256 prefix is brute-forceable
   if a deployment uses a weak token. `.env.example` prescribes 32 random bytes,
   which is not brute-forceable — but a salt (from env, or derived at startup)
@@ -229,3 +264,5 @@ least one test; every source file maps back to this spec.
 | AC6                  | —                           | —                    |
 | AC7                  | —                           | —                    |
 | AC8                  | —                           | —                    |
+| AC9                  | —                           | —                    |
+| AC10                 | —                           | —                    |
