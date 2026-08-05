@@ -2,7 +2,7 @@
 
 Topic-ordered reference distilled from the spike log (@NOTES.md). Everything
 here was verified against running code (c2patool 0.27.3, @contentauth/c2pa-node
-0.8.0, c2pa-rs test certs), first on 2026-07-27 and last reconciled with
+0.8.1, c2pa-rs test certs), first on 2026-07-27 and last reconciled with
 NOTES.md on 2026-08-05 — none of it is from model memory. When this page and
 NOTES.md disagree, NOTES.md (the raw log) wins; fix this page. When neither
 answers a question, ask — do not guess.
@@ -61,8 +61,9 @@ scaffolding anyway — see NOTES.md Step 1 for the four blockers.)
 
 ## 4. c2pa-node API essentials (`service/src/`)
 
-- Maintained package: **`@contentauth/c2pa-node`** (currently 0.8.0). The old
-  unscoped `c2pa-node` is EOL at 0.5.26 — never depend on it. The
+- Maintained package: **`@contentauth/c2pa-node`** (currently 0.8.1, carrying
+  c2pa-rs 0.90.4). The old unscoped `c2pa-node` is EOL at 0.5.26 — never depend
+  on it. The
   `contentauth/c2pa-node-v2` repo was archived ~2026-06-08; development and the
   real CHANGELOG moved to the `contentauth/c2pa-js` monorepo under
   `packages/c2pa-node`, while npm keeps publishing from there. Do not read
