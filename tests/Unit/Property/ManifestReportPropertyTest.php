@@ -7,6 +7,7 @@ use Eris\TestTrait;
 use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
 use Provemark\ContentCredentials\Core\Manifest\MediaType;
 use Provemark\ContentCredentials\Core\Reading\ManifestReport;
+use Provemark\ContentCredentials\Core\Reading\ValidationState;
 use Provemark\ContentCredentials\Tests\Unit\Property\Gen;
 
 uses(TestTrait::class);
@@ -85,22 +86,57 @@ it('never claims AI-generated without a real marking', function () {
 })->group('SPEC-003', 'pbt');
 
 /**
- * D3 — trust is decided solely by the untrusted status code, whatever other
- * codes the service reports alongside it.
+ * SPEC-013 amends D3. Trust is the `Trusted` verdict and nothing else: no
+ * combination of status codes can produce it, and none can take it away. The
+ * old property asserted the inverse — trust as the mere absence of one code —
+ * which made every unlisted credential failure read as trusted.
  */
-it('treats trust as exactly the absence of the untrusted code', function () {
+it('decides trust by the Trusted verdict alone, whatever codes accompany it', function () {
     $codes = Generators::seq(Generators::elements([
         'signingCredential.untrusted',
+        'signingCredential.revoked',
+        'signingCredential.expired',
         'claimSignature.validated',
         'assertion.hashedURI.match',
         'timeStamp.validated',
         'some.unknown.code',
     ]));
+    $states = Generators::elements(['NONE', 'Invalid', 'Valid', 'Trusted', 'NotAState']);
 
-    $this->forAll($codes)->then(function (array $statusCodes) {
-        $report = new ManifestReport('urn:test:manifest', null, [], array_values($statusCodes));
+    $this->forAll($codes, $states)->then(function (array $statusCodes, string $state) {
+        $report = new ManifestReport(
+            'urn:test:manifest',
+            null,
+            [],
+            array_values($statusCodes),
+            ValidationState::tryFrom($state),
+        );
 
-        expect($report->isTrusted())
-            ->toBe(! in_array('signingCredential.untrusted', $statusCodes, true));
+        expect($report->isTrusted())->toBe($state === 'Trusted');
     });
-})->group('SPEC-003', 'pbt');
+})->group('SPEC-003', 'SPEC-013', 'pbt');
+
+/**
+ * SPEC-013 AC6 — the convenience predicate can never be more permissive than
+ * the two checks it combines, for any manifest the reader can produce.
+ */
+it('never reports a verified AI marking without both halves holding', function () {
+    $states = Generators::elements(['NONE', 'Invalid', 'Valid', 'Trusted']);
+    $sourceTypes = Generators::elements([PBT_TRAINED, 'http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture']);
+
+    $this->forAll($states, $sourceTypes)->then(function (string $state, string $sourceType) {
+        $report = new ManifestReport(
+            'urn:test:manifest',
+            null,
+            [['label' => 'c2pa.actions.v2', 'data' => ['actions' => [[
+                'action' => 'c2pa.created',
+                'digitalSourceType' => $sourceType,
+            ]]]]],
+            [],
+            ValidationState::tryFrom($state),
+        );
+
+        expect($report->isVerifiedAiGenerated())
+            ->toBe($report->isSignatureValid() && $report->isAiGenerated());
+    });
+})->group('SPEC-013', 'pbt');

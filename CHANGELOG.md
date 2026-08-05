@@ -6,6 +6,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **BEHAVIOUR — `ManifestReport::isTrusted()` now fails closed (SPEC-013).** It
+  was defined negatively — true unless the reader reported
+  `signingCredential.untrusted` — so absence of evidence read as evidence of
+  trust. **An asset carrying no C2PA data at all answered `true`**, meaning
+  `if ($report->isTrusted())` used as a gate admitted every unsigned file. The
+  empty report was the clearest case, not the only one: because the definition
+  named exactly one status code, a **revoked or expired certificate**, an
+  **`Invalid` manifest**, and any store with no codes at all also answered
+  `true`.
+
+  It is now `validation_state === Trusted` — trust must be positively
+  established. Callers relying on the old behaviour will see `false`.
+
+  Note that trust depends on the signing service being configured with trust
+  settings (`CONTENTAUTH_TRUST_SETTINGS`, SPEC-014). Without them `isTrusted()`
+  is `false` **by design, not by failure**, and `isSignatureValid()` is the
+  meaningful verdict — both are now documented at the call site.
+
+### Added
+
+- **`ManifestReport::isVerifiedAiGenerated()`** — the Article 50 marking *and*
+  a signature that checked out, so the safe check is also the short one to
+  write. `isAiGenerated()` reports what a manifest **claims** and answers for a
+  tampered or unverifiable manifest too; the README example now shows the
+  verified form. Deliberately does not require `isTrusted()`, since trust
+  depends on deployment configuration the library cannot see.
+
 ### Security
 
 - **The signing service now publishes on `127.0.0.1` only** (requires `git pull`

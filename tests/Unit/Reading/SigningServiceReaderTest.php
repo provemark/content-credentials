@@ -248,7 +248,10 @@ it('surfaces the untrusted validation code and reports not trusted', function ()
         ->and($report->isTrusted())->toBeFalse();
 })->group('SPEC-003');
 
-it('reports trusted when no untrusted code is present', function () {
+// SPEC-013 amends D3: trust is the `Trusted` verdict, not the absence of one
+// status code. A clean status list on its own no longer implies trust — the
+// service reports `Trusted` only when it verified against a trust list.
+it('does not report trusted merely because no untrusted code is present', function () {
     $client = new MockClient;
     $client->addResponse(readStoreResponse(manifestStore(
         [['action' => 'c2pa.created', 'digitalSourceType' => AI_TRAINED_URI_READ]],
@@ -258,8 +261,22 @@ it('reports trusted when no untrusted code is present', function () {
 
     $report = readerFor($client)->read(new Asset('B', MediaType::Png));
 
-    expect($report->isTrusted())->toBeTrue();
-})->group('SPEC-003');
+    expect($report->isTrusted())->toBeFalse();
+})->group('SPEC-003', 'SPEC-013');
+
+it('reports trusted when the store carries the Trusted verdict', function () {
+    $client = new MockClient;
+    $client->addResponse(readStoreResponse(withState(manifestStore(
+        [['action' => 'c2pa.created', 'digitalSourceType' => AI_TRAINED_URI_READ]],
+        ['alg' => 'Es256', 'issuer' => 'C2PA Test Signing Cert'],
+        [],
+    ), 'Trusted')));
+
+    $report = readerFor($client)->read(new Asset('B', MediaType::Png));
+
+    expect($report->isTrusted())->toBeTrue()
+        ->and($report->isSignatureValid())->toBeTrue();
+})->group('SPEC-003', 'SPEC-013');
 
 // --- AC10: the API key never leaks -----------------------------------------
 

@@ -2,7 +2,7 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | approved                                          |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
 | Approved   | Maurice van Loon — 2026-08-05                     |
 | Supersedes | — (amends SPEC-003 D3 and SPEC-005)               |
@@ -221,11 +221,11 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
-| AC8                  | —                           | —                    |
+| AC1 | `tests/Unit/Reading/ManifestReportTrustTest.php` :: "does not trust an asset that carries no C2PA data at all" | `ManifestReport::isTrusted()` |
+| AC2 | `tests/Unit/Reading/ManifestReportTrustTest.php` :: "trusts a report whose validation state is Trusted"; `tests/Unit/Reading/SigningServiceReaderTest.php` :: "reports trusted when the store carries the Trusted verdict" | `ManifestReport::isTrusted()` |
+| AC3 | `tests/Unit/Reading/ManifestReportTrustTest.php` :: "does not trust a valid signature whose certificate is not on a trust list"; `tests/Unit/Reading/SigningServiceReaderTest.php` :: "does not report trusted merely because no untrusted code is present" | `ManifestReport::isTrusted()` |
+| AC4 | `tests/Unit/Reading/ManifestReportTrustTest.php` :: "does not trust a report whose validation state is absent or unrecognised" | `ManifestReport::isTrusted()` |
+| AC5 | `tests/Unit/Reading/ManifestReportTrustTest.php` :: "does not trust other signingCredential failures"; "does not trust an invalid manifest"; `tests/Unit/Property/ManifestReportPropertyTest.php` :: "decides trust by the Trusted verdict alone, whatever codes accompany it" | `ManifestReport::isTrusted()` |
+| AC6 | `tests/Unit/Reading/ManifestReportTrustTest.php` :: "reports a verified AI marking only when the signature checked out"; "does not report a verified AI marking for a valid asset without the marking"; `tests/Unit/Property/ManifestReportPropertyTest.php` :: "never reports a verified AI marking without both halves holding" | `ManifestReport::isVerifiedAiGenerated()` |
+| AC7 | `tests/Unit/Reading/ManifestReportTrustTest.php` :: "documents that the marking accessors report claims, not verdicts" | `ManifestReport::isAiGenerated()` docblock; README quick start |
+| AC8 | `tests/Unit/Reading/ManifestReportTrustTest.php` :: "documents that trust depends on service configuration, not on failure" | `ManifestReport::isTrusted()` docblock; README |
