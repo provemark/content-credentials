@@ -132,6 +132,155 @@ const trustSettings = TRUST_SETTINGS_PATH ? loadTrustSettings(TRUST_SETTINGS_PAT
 // in the PHP client; revisit when a spec adds asset types.
 const SUPPORTED_MIME = new Set(['image/png', 'image/jpeg']);
 
+// --- SPEC-011: structural limits on what this service will attest to --------
+// Restrictive by default: too permissive is the risk for structure. The
+// semantic policy below is the opposite — see REQUIRE_AI_MARKING.
+const MAX_ASSERTIONS = Number(process.env.MAX_ASSERTIONS ?? 16);
+const MAX_ASSERTION_BYTES = Number(process.env.MAX_ASSERTION_BYTES ?? 64 * 1024);
+const MAX_ASSERTION_DEPTH = Number(process.env.MAX_ASSERTION_DEPTH ?? 16);
+const MAX_CREATOR_NAME = Number(process.env.MAX_CREATOR_NAME ?? 256);
+const AI_MARKING = 'http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia';
+
+// Deployment policy, NOT a structural invariant, and permissive by default:
+// requiring trainedAlgorithmicMedia cannot make an attestation truer (the
+// service can verify it no better than digitalCapture), it only narrows the
+// direction of a possible lie — while excluding the authenticity use case
+// outright. Deployments whose certificate exists solely to mark AI content can
+// opt in.
+const REQUIRE_AI_MARKING = process.env.REQUIRE_AI_MARKING === 'true';
+
+/** Depth of a JSON value, stopping as soon as the limit is passed. */
+function exceedsDepth(value, limit, depth = 0) {
+  if (depth > limit) return true;
+  if (value === null || typeof value !== 'object') return false;
+
+  for (const child of Object.values(value)) {
+    if (exceedsDepth(child, limit, depth + 1)) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Vet `extra_assertions` (SPEC-011).
+ *
+ * @returns {string|null} the violated constraint, or null when acceptable.
+ */
+function rejectAssertions(assertions) {
+  if (assertions === undefined) return null;
+  if (!Array.isArray(assertions)) return 'extra_assertions must be an array';
+  if (assertions.length > MAX_ASSERTIONS) {
+    return `too many assertions (max ${MAX_ASSERTIONS})`;
+  }
+
+  let actionsCount = 0;
+
+  for (const assertion of assertions) {
+    if (assertion === null || typeof assertion !== 'object' || Array.isArray(assertion)) {
+      return 'each assertion must be an object';
+    }
+    if (typeof assertion.label !== 'string' || assertion.label.trim() === '') {
+      return 'each assertion must carry a non-empty string label';
+    }
+    if (JSON.stringify(assertion).length > MAX_ASSERTION_BYTES) {
+      return `assertion too large (max ${MAX_ASSERTION_BYTES} bytes)`;
+    }
+    if (exceedsDepth(assertion, MAX_ASSERTION_DEPTH)) {
+      return `assertion nested too deeply (max ${MAX_ASSERTION_DEPTH})`;
+    }
+    if (assertion.label.startsWith('c2pa.actions')) {
+      actionsCount += 1;
+    }
+  }
+
+  // Two actions assertions in one signed manifest are contradictory and resolve
+  // verifier-dependently. This is a correctness invariant, not a policy.
+  if (actionsCount > 1) {
+    return 'at most one c2pa.actions assertion is allowed';
+  }
+
+  if (REQUIRE_AI_MARKING && !firstActionSourceTypes(assertions).includes(AI_MARKING)) {
+    return 'this service is configured to sign only trainedAlgorithmicMedia markings';
+  }
+
+  return null;
+}
+
+/** digitalSourceType of the FIRST action of each actions assertion. */
+function firstActionSourceTypes(assertions) {
+  const types = [];
+
+  for (const assertion of Array.isArray(assertions) ? assertions : []) {
+    if (!assertion || typeof assertion !== 'object') continue;
+    if (typeof assertion.label !== 'string' || !assertion.label.startsWith('c2pa.actions')) continue;
+
+    const first = assertion.data?.actions?.[0];
+    if (first && typeof first.digitalSourceType === 'string') {
+      types.push(first.digitalSourceType);
+    }
+  }
+
+  return types;
+}
+
+/** Every digitalSourceType present, for the audit record. */
+function allSourceTypes(assertions) {
+  const types = new Set();
+
+  for (const assertion of Array.isArray(assertions) ? assertions : []) {
+    for (const action of assertion?.data?.actions ?? []) {
+      if (action && typeof action.digitalSourceType === 'string') {
+        types.add(action.digitalSourceType);
+      }
+    }
+  }
+
+  return [...types];
+}
+
+// --- SPEC-012: audit logging ------------------------------------------------
+
+// Salt the token digest so a weak token cannot be brute-forced out of a
+// token_id. Per-process by default, which is enough for AC6 (two requests with
+// the same token correlate); set the env var to keep ids stable across
+// restarts. Never logged.
+const TOKEN_ID_SALT = process.env.CONTENTAUTH_TOKEN_ID_SALT || crypto.randomBytes(16).toString('hex');
+
+const tokenId = (token) => crypto.createHash('sha256')
+  .update(TOKEN_ID_SALT).update(String(token)).digest('hex').slice(0, 12);
+
+const sha256 = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
+
+/** Caller-supplied strings are capped, so nobody can write unbounded data into an operator's log. */
+const cap = (value, limit = 256) => (typeof value === 'string' ? value.slice(0, limit) : undefined);
+
+// Once records have been lost, that stays visible until the process restarts: a
+// later successful write does not clear it. The risk was never "one write
+// failed", it was "we cannot tell that our records are incomplete".
+let auditDegraded = false;
+
+/**
+ * Write one audit record (SPEC-012). Fail-open with escalation: a logging
+ * outage must not become a signing outage — that would hand anyone who can
+ * break the write a lever to stop all signing — but the loss is surfaced on
+ * /health rather than swallowed.
+ */
+function audit(record) {
+  const line = JSON.stringify(record) + '\n';
+  try {
+    process.stdout.write(line);
+  } catch {
+    auditDegraded = true;
+    try {
+      process.stderr.write(line);
+    } catch {
+      // Nothing left to try; /health carries the flag.
+    }
+  }
+}
+
+process.stdout.on('error', () => { auditDegraded = true; });
+
 // Constant-time bearer-token check (SPEC-009 #4): compare fixed-length SHA-256
 // digests so timing does not leak how much of the token matched, and unequal
 // lengths do not throw.
@@ -151,13 +300,24 @@ function isValidBase64(value) {
 const app = express();
 app.use(express.json({ limit: MAX_BODY }));
 
+// One correlation id per request, echoed to the client so a caller can quote it
+// (SPEC-012 AC3). It is what makes a generic error message acceptable: the
+// detail is recorded, and this is the key to find it by.
+app.use((req, res, next) => {
+  req.cid = crypto.randomUUID();
+  res.setHeader('X-Correlation-Id', req.cid);
+  next();
+});
+
 // Bearer-token auth on /v1/* — mirrors the upstream service.
 app.use('/v1', (req, res, next) => {
   const header = req.headers['authorization'] ?? '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
   if (!tokenMatches(token, API_KEY)) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(401).json({ error: 'Unauthorized', cid: req.cid });
   }
+  // Kept only to derive the one-way token_id for audit records; never logged.
+  req.token = token;
   next();
 });
 
@@ -167,6 +327,8 @@ app.get('/health', (_req, res) => {
     signing_alg: SIGN_ALG,
     timestamping: Boolean(TSA_URL),
     trust_verification: Boolean(trustSettings),
+    require_ai_marking: REQUIRE_AI_MARKING,
+    audit_degraded: auditDegraded,
   });
 });
 
@@ -177,15 +339,39 @@ app.get('/health', (_req, res) => {
  */
 app.post('/v1/sign', async (req, res) => {
   const { content, mime_type, creator_name, extra_assertions } = req.body ?? {};
-  if (!content || !mime_type) {
-    return res.status(400).json({ error: 'content and mime_type are required' });
-  }
+
+  // Every refusal is recorded and answered the same way: the reason names the
+  // violated constraint (our own wording — never library internals, never an
+  // echo of the payload) and the response carries the correlation id.
+  const reject = (reason) => {
+    audit({
+      ts: new Date().toISOString(),
+      cid: req.cid,
+      event: 'sign',
+      outcome: 'rejected',
+      token_id: tokenId(req.token ?? ''),
+      reason,
+      mime_type: cap(mime_type, 64),
+    });
+
+    return res.status(400).json({ error: reason, cid: req.cid });
+  };
+
+  if (!content || !mime_type) return reject('content and mime_type are required');
   if (!SUPPORTED_MIME.has(mime_type)) {
-    return res.status(400).json({ error: `unsupported mime_type "${mime_type}" (supported: image/png, image/jpeg)` });
+    return reject(`unsupported mime_type "${cap(mime_type, 64)}" (supported: image/png, image/jpeg)`);
   }
-  if (!isValidBase64(content)) {
-    return res.status(400).json({ error: 'content is not valid base64' });
+  if (!isValidBase64(content)) return reject('content is not valid base64');
+
+  if (creator_name !== undefined) {
+    if (typeof creator_name !== 'string') return reject('creator_name must be a string');
+    if (creator_name.length > MAX_CREATOR_NAME) {
+      return reject(`creator_name too long (max ${MAX_CREATOR_NAME} characters)`);
+    }
   }
+
+  const assertionProblem = rejectAssertions(extra_assertions);
+  if (assertionProblem !== null) return reject(assertionProblem);
 
   const fileBuffer = Buffer.from(content, 'base64');
 
@@ -231,13 +417,44 @@ app.post('/v1/sign', async (req, res) => {
     }
 
     const signedAsset = fs.readFileSync(tmp);
+
+    audit({
+      ts: new Date().toISOString(),
+      cid: req.cid,
+      event: 'sign',
+      outcome: 'signed',
+      token_id: tokenId(req.token ?? ''),
+      mime_type: mime_type,
+      input_sha256: sha256(fileBuffer),
+      input_bytes: fileBuffer.length,
+      output_sha256: sha256(signedAsset),
+      creator_name: cap(creator_name, MAX_CREATOR_NAME),
+      assertion_labels: (Array.isArray(extra_assertions) ? extra_assertions : [])
+        .map((a) => cap(a?.label, 128)).filter(Boolean),
+      digital_source_types: allSourceTypes(extra_assertions),
+      timestamped: Boolean(TSA_URL),
+    });
+
     res.json({
       signed_content: signedAsset.toString('base64'),
       manifest_url: null,
     });
   } catch (err) {
-    console.error('[sign] error:', err);
-    res.status(500).json({ error: String(err && err.message ? err.message : err) });
+    // The detail goes to the record, never to the client: c2pa and fs errors
+    // name the temp file and library internals (SPEC-012 AC4).
+    audit({
+      ts: new Date().toISOString(),
+      cid: req.cid,
+      event: 'sign',
+      outcome: 'failed',
+      token_id: tokenId(req.token ?? ''),
+      reason: cap(String(err && err.message ? err.message : err), 512),
+      mime_type: cap(mime_type, 64),
+      input_sha256: sha256(fileBuffer),
+      input_bytes: fileBuffer.length,
+    });
+
+    res.status(500).json({ error: 'signing failed', cid: req.cid });
   } finally {
     fs.rm(tmp, { force: true }, () => {});
   }
@@ -251,13 +468,16 @@ app.post('/v1/sign', async (req, res) => {
 app.post('/v1/read', async (req, res) => {
   const { content, mime_type } = req.body ?? {};
   if (!content || !mime_type) {
-    return res.status(400).json({ error: 'content and mime_type are required' });
+    return res.status(400).json({ error: 'content and mime_type are required', cid: req.cid });
   }
   if (!SUPPORTED_MIME.has(mime_type)) {
-    return res.status(400).json({ error: `unsupported mime_type "${mime_type}" (supported: image/png, image/jpeg)` });
+    return res.status(400).json({
+      error: `unsupported mime_type "${cap(mime_type, 64)}" (supported: image/png, image/jpeg)`,
+      cid: req.cid,
+    });
   }
   if (!isValidBase64(content)) {
-    return res.status(400).json({ error: 'content is not valid base64' });
+    return res.status(400).json({ error: 'content is not valid base64', cid: req.cid });
   }
   const fileBuffer = Buffer.from(content, 'base64');
   try {
@@ -276,8 +496,18 @@ app.post('/v1/read', async (req, res) => {
     const json = reader.json();
     res.json(typeof json === 'string' ? JSON.parse(json) : json);
   } catch (err) {
-    console.error('[read] error:', err);
-    res.status(500).json({ error: String(err && err.message ? err.message : err) });
+    // Reading is not an exercise of the signing key, so it gets no audit
+    // record — but the same no-leak rule applies to its errors (SPEC-012 AC4).
+    audit({
+      ts: new Date().toISOString(),
+      cid: req.cid,
+      event: 'read',
+      outcome: 'failed',
+      token_id: tokenId(req.token ?? ''),
+      reason: cap(String(err && err.message ? err.message : err), 512),
+    });
+
+    res.status(500).json({ error: 'read failed', cid: req.cid });
   }
 });
 

@@ -2,7 +2,7 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | approved                                          |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
 | Approved   | Maurice van Loon — 2026-08-05                     |
 | Supersedes | —                                                 |
@@ -256,13 +256,13 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
-| AC8                  | —                           | —                    |
-| AC9                  | —                           | —                    |
-| AC10                 | —                           | —                    |
+| AC1 | `tests/Integration/AuditLoggingTest.php` :: "records a successful signature" | `service/server.js` `audit()` on the success path |
+| AC2 | `tests/Integration/AuditLoggingTest.php` :: "records a rejected request with the reason" | `service/server.js` `reject()` in `POST /v1/sign` |
+| AC3 | `tests/Integration/AuditLoggingTest.php` :: "returns a correlation id on success and on failure" | `service/server.js` correlation-id middleware |
+| AC4 | `tests/Integration/AuditLoggingTest.php` :: "returns a generic message and a correlation id when signing fails" | `service/server.js` `catch` in `POST /v1/sign`, `POST /v1/read` |
+| AC5 | `tests/Integration/AuditLoggingTest.php` :: "never records the token, the payload or unbounded caller strings" | `service/server.js` `cap()`, record construction |
+| AC6 | `tests/Integration/AuditLoggingTest.php` :: "identifies the token without revealing it" | `service/server.js` `tokenId()`, `TOKEN_ID_SALT` |
+| AC7 | `tests/Integration/AuditLoggingTest.php` :: "returns a generic message and a correlation id when signing fails" | `service/server.js` `catch` in `POST /v1/sign` |
+| AC8 | `tests/Integration/AuditLoggingTest.php` :: "writes each record as a single line of JSON" | `service/server.js` `audit()` |
+| AC9 | `tests/Integration/AuditLoggingTest.php` :: "keeps signing and reports degraded when the audit write fails" | `service/server.js` `audit()` catch, `auditDegraded`, `GET /health` |
+| AC10 | `tests/Integration/AuditLoggingTest.php` :: "documents what is and is not recorded" | `README.md` "Audit logging" |

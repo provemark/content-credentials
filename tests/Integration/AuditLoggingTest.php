@@ -204,8 +204,20 @@ it('returns a generic message and a correlation id when signing fails', function
 // --- AC5: the record never contains secrets or payloads ---------------------
 
 it('never records the token, the payload or unbounded caller strings', function () {
-    $longName = str_repeat('N', 200);
-    $result = auditedSign(['creator_name' => $longName]);
+    // A creator_name over the request limit is refused outright (SPEC-011 AC6),
+    // so the unbounded-input path into a record is an assertion label: it rides
+    // inside the assertion size budget and would otherwise be copied verbatim.
+    $longLabel = 'org.example.'.str_repeat('L', 500);
+    $result = auditedSign([
+        'creator_name' => 'SPEC-012 denylist',
+        'extra_assertions' => [[
+            'label' => $longLabel,
+            'data' => ['x' => 1],
+        ], [
+            'label' => 'c2pa.actions.v2',
+            'data' => ['actions' => [['action' => 'c2pa.created', 'digitalSourceType' => 'http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia']]],
+        ]],
+    ]);
 
     $record = auditRecordFor($result['cid']);
     expect($record)->not->toBeNull();
@@ -221,7 +233,15 @@ it('never records the token, the payload or unbounded caller strings', function 
 
     // Caller-supplied strings are length-capped, so a caller cannot write
     // unbounded data into the operator's log.
-    expect(strlen(recordString($record, 'creator_name')))->toBeLessThan(strlen($longName));
+    $labels = is_array($record['assertion_labels'] ?? null) ? $record['assertion_labels'] : [];
+    expect($labels)->not->toBeEmpty();
+
+    foreach ($labels as $label) {
+        expect($label)->toBeString();
+        expect(strlen(is_string($label) ? $label : ''))->toBeLessThan(strlen($longLabel));
+    }
+
+    expect(strlen(recordString($record, 'creator_name')))->toBeLessThanOrEqual(256);
 })->group('SPEC-012', 'integration')->skip($skipUnlessReachable)->skip($skipUnlessContainer);
 
 // --- AC6: the caller is identified without revealing the credential ---------
@@ -270,6 +290,15 @@ it('writes each record as a single line of JSON', function () {
 
 it('keeps signing and reports degraded when the audit write fails', function () {
     $container = spec012Container();
+
+    // Copy the fixture in rather than assuming it is there: the container is
+    // recreated on every `docker compose up`, so anything placed by hand is
+    // gone by the next run.
+    shell_exec(sprintf(
+        'docker cp %s %s:/tmp/spec012-fixture.png 2>/dev/null',
+        escapeshellarg(dirname(__DIR__).'/fixture.png'),
+        escapeshellarg((string) $container),
+    ));
 
     // Start a second instance whose stdout is /dev/full — every write fails
     // with ENOSPC — then sign against it and ask /health what it thinks.

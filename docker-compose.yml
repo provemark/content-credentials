@@ -23,6 +23,17 @@ services:
       # to switch verification on:
       #   CONTENTAUTH_TRUST_SETTINGS=/run/secrets/c2pa-trust.settings.json
       CONTENTAUTH_TRUST_SETTINGS: "${CONTENTAUTH_TRUST_SETTINGS:-}"
+      # Assertion limits (SPEC-011). Structural limits are restrictive by
+      # default; leave them unless you have a reason. The semantic policy is the
+      # opposite — off unless this certificate exists solely to mark AI content.
+      REQUIRE_AI_MARKING: "${REQUIRE_AI_MARKING:-}"
+      MAX_ASSERTIONS: "${MAX_ASSERTIONS:-16}"
+      MAX_ASSERTION_BYTES: "${MAX_ASSERTION_BYTES:-65536}"
+      MAX_ASSERTION_DEPTH: "${MAX_ASSERTION_DEPTH:-16}"
+      MAX_CREATOR_NAME: "${MAX_CREATOR_NAME:-256}"
+      # Optional: keeps audit token_id values stable across restarts (SPEC-012).
+      # Unset => a per-process salt, which still correlates within one run.
+      CONTENTAUTH_TOKEN_ID_SALT: "${CONTENTAUTH_TOKEN_ID_SALT:-}"
       SIGNING_CERT_PATH: "/run/secrets/signing.crt"
       SIGNING_KEY_PATH: "/run/secrets/signing.key"
     volumes:
