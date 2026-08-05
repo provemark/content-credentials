@@ -906,9 +906,15 @@ A burst of 20 of those gives 5 accepted and 15 refused, and `in_flight` is
 observed at the cap. Both criteria are now testable at 58 ms per signature, so
 they no longer depend on anyone's TSA configuration.
 
-`/health` is also sampled repeatedly and reduced to a peak rather than read
-once: a single sample can land between requests, and one unlucky read should not
-fail a working service.
+`/health` is also polled **to a deadline** rather than for a fixed window, and
+reduced to a peak. The first attempt sampled 20 times at 50ms — about a second —
+which is a race, not an observation: the background clients take time to fork
+and the burst itself lasts roughly a second, so the window can straddle it
+entirely. It did exactly that in CI on a run whose predecessor had passed with
+identical code, which is the signature of flakiness rather than a defect. The
+loop now exits as soon as work is observed in flight and only pays the full 15s
+on a genuine failure. Re-run five times against a TSA-less service to confirm,
+because one green run proves nothing about a flaky test.
 
 ### ⚠️ The suite trips its own rate limit
 Running `--group=integration` against a default service produces a wall of

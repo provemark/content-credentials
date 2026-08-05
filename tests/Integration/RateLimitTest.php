@@ -319,14 +319,28 @@ it('answers /health while signing is saturating the cap', function () {
     shell_exec($command.' > /dev/null 2>&1 &');
 
     // While that is in flight, /health must answer — and say it is busy.
-    // Sampled repeatedly and reduced to the peak: one sample can land in a gap
-    // between requests, and a single unlucky read would fail a working service.
+    //
+    // Polled to a deadline rather than for a fixed window. A fixed window is a
+    // race: the background clients take time to fork and the burst itself lasts
+    // only about a second, so a window that starts too early or ends too late
+    // observes nothing and fails a working service. Observed doing exactly that
+    // in CI, on a run whose predecessor had passed with the same code.
+    //
+    // Exits as soon as the service reports work in flight, so the common case
+    // is fast and only a genuine failure pays the full deadline.
     $peak = 0;
     $health = [];
-    for ($i = 0; $i < 20; $i++) {
+    $deadline = microtime(true) + 15;
+
+    while (microtime(true) < $deadline) {
         $health = ServiceHarness::health();
         $seen = $health['in_flight'] ?? 0;
         $peak = max($peak, is_int($seen) ? $seen : 0);
+
+        if ($peak > 0) {
+            break;
+        }
+
         usleep(50_000);
     }
 
@@ -337,7 +351,7 @@ it('answers /health while signing is saturating the cap', function () {
         ->and($health['status'])->toBe('ok')
         ->and($peak)->toBeGreaterThan(
             0,
-            'the service reported nothing in flight across 20 samples while a burst was being signed'
+            'the service reported nothing in flight while a burst was being signed, polled for 15s'
         );
 })->group('SPEC-015', 'integration')
     ->skip($skipUnlessReachable)
