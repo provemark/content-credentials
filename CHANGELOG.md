@@ -6,7 +6,36 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Service (requires `git pull` + `docker compose up -d --build`)
+
+- **Rate limiting and concurrency bounds (SPEC-015).** The service accepted
+  unbounded concurrent work — no rate limit, no cap in flight, no request
+  timeout — against a signing path that holds roughly four copies of the asset
+  at once. It was the cheapest denial of service available against the one
+  process holding the signing key, and a misconfigured queue worker did it by
+  accident. `/v1/sign` now answers **429** with `Retry-After` past a per-token
+  rate limit or the concurrency cap, and signs nothing.
+
+  It **refuses rather than queues**: the PHP client bounds a request at 10
+  seconds, so a queued request would time out client-side while still holding a
+  slot server-side — the caller has given up and the service is still paying for
+  it.
+
+  Limits are **on by default** (`MAX_CONCURRENT_SIGNS=4`,
+  `RATE_LIMIT_REQUESTS=60` per minute); a protection that ships off is one
+  nobody turns on. Setting one to `0` disables it explicitly, and `GET /health`
+  reports that.
+
+- **`GET /health` reports saturation.** Signing does not block the event loop —
+  six concurrent signatures complete in roughly the time of two — so a saturated
+  instance answered `/health` exactly as fast as an idle one, and an
+  orchestrator could not tell them apart. It now reports `in_flight` and the
+  effective `limits`.
+
+- **Stalled connections are closed.** A client that announced a body and never
+  sent it held its slot indefinitely. Node's `requestTimeout` does *not* cover
+  that case — reproduced with no framework involved — so the socket inactivity
+  timeout is now set as well.
 
 ## [0.5.0] - 2026-08-05
 

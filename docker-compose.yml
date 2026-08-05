@@ -31,6 +31,13 @@ services:
       MAX_ASSERTION_BYTES: "${MAX_ASSERTION_BYTES:-65536}"
       MAX_ASSERTION_DEPTH: "${MAX_ASSERTION_DEPTH:-16}"
       MAX_CREATOR_NAME: "${MAX_CREATOR_NAME:-256}"
+      # Rate limiting and concurrency bounds (SPEC-015). On by default; 0
+      # disables a limit explicitly and /health reports that.
+      MAX_CONCURRENT_SIGNS: "${MAX_CONCURRENT_SIGNS:-4}"
+      RATE_LIMIT_REQUESTS: "${RATE_LIMIT_REQUESTS:-60}"
+      RATE_LIMIT_WINDOW_MS: "${RATE_LIMIT_WINDOW_MS:-60000}"
+      REQUEST_TIMEOUT_MS: "${REQUEST_TIMEOUT_MS:-15000}"
+      HEADERS_TIMEOUT_MS: "${HEADERS_TIMEOUT_MS:-10000}"
       # Optional: keeps audit token_id values stable across restarts (SPEC-012).
       # Unset => a per-process salt, which still correlates within one run.
       CONTENTAUTH_TOKEN_ID_SALT: "${CONTENTAUTH_TOKEN_ID_SALT:-}"

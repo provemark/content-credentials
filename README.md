@@ -221,6 +221,37 @@ must not become a signing outage — and `GET /health` reports
 `"audit_degraded": true` until the process restarts, so the loss is visible to
 monitoring rather than silent.
 
+### Rate limiting and concurrency
+
+The service bounds how much work it will accept at once. Excess requests get
+**429** with `Retry-After`, and nothing is signed. It refuses rather than
+queues: the PHP client bounds a request at 10 seconds, so a queued request would
+time out client-side while still holding a slot server-side — the caller has
+given up and the service is still paying for it.
+
+`GET /health` reports the effective limits and how many signs are in flight:
+
+```json
+{"in_flight": 2, "limits": {"max_concurrent_signs": 4, "rate_limit_requests": 60,
+ "rate_limit_window_ms": 60000, "request_timeout_ms": 15000, "headers_timeout_ms": 10000}}
+```
+
+That last part matters more than it looks. Signing does **not** block the event
+loop — measured, six concurrent signatures complete in roughly the time of two —
+so a saturated instance answers `/health` just as fast as an idle one. Without
+`in_flight`, an orchestrator cannot tell them apart and keeps routing to an
+instance about to run out of memory.
+
+Limits are **on by default**; a protection that ships off is one nobody turns
+on. Setting one to `0` disables it explicitly, and `/health` says so.
+
+Tune with `MAX_CONCURRENT_SIGNS`, `RATE_LIMIT_REQUESTS`, `RATE_LIMIT_WINDOW_MS`,
+`REQUEST_TIMEOUT_MS` and `HEADERS_TIMEOUT_MS`. One caveat worth knowing: the
+request body is buffered before any limit is consulted, so a concurrency cap
+bounds *signing work*, not the memory spent admitting a request it then refuses.
+If you sign only small assets, lowering `MAX_BODY_SIZE` (default 50 MB) does
+more than any other setting here.
+
 ### Assertion limits
 
 The service constrains what it will attest to. At most **one** `c2pa.actions`

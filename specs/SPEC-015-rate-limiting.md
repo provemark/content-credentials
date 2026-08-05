@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — while draft                                     |
+| Approved   | Maurice van Loon — 2026-08-05                     |
 | Supersedes | —                                                 |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -200,10 +200,10 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
+| AC1 | `tests/Integration/RateLimitTest.php` :: "signs a normal sequence of requests without interference" | `service/server.js` `/v1/sign` guard (no-op within budget) |
+| AC2 | `tests/Integration/RateLimitTest.php` :: "refuses a token that exceeds its rate, and serves it again after the window" | `service/server.js` `rateLimited()`, `buckets` |
+| AC3 | `tests/Integration/RateLimitTest.php` :: "refuses the excess when more signs arrive than the cap allows" | `service/server.js` `inFlight`, `MAX_CONCURRENT_SIGNS` |
+| AC4 | `tests/Integration/RateLimitTest.php` :: "answers /health while signing is saturating the cap"; "reports its configured limits and how many signs are in flight" | `service/server.js` `GET /health` `in_flight` + `limits` |
+| AC5 | `tests/Integration/RateLimitTest.php` :: "closes a connection whose body never arrives" | `service/server.js` `server.setTimeout()`, `requestTimeout`, `headersTimeout` |
+| AC6 | `tests/Integration/RateLimitTest.php` :: "refuses the excess when more signs arrive than the cap allows" (Retry-After + correlation id) | `service/server.js` `refuse()` in the `/v1/sign` guard |
+| AC7 | `tests/Integration/RateLimitTest.php` :: "has its limits switched on by default" | `service/server.js` limit constants, `GET /health` `limits` |
