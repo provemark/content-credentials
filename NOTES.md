@@ -926,3 +926,55 @@ Hence the raised limit in the first two CI profiles. Worth knowing beyond CI:
 **60 requests per minute is comfortable for interactive use and tight for batch
 work.** A queue worker signing a hundred assets hits it. The default is a
 starting point, not a recommendation — `RATE_LIMIT_REQUESTS` exists for this.
+
+---
+
+## Step 18 — Branch protection on `main` (2026-08-05)
+
+A ruleset (`main`, id 20475597) rather than classic branch protection: rulesets
+are inspectable and manageable through the API, and can be versioned.
+
+| Rule | Setting |
+|---|---|
+| Pull request required | yes, **0 required approvals** |
+| Required status checks | **`all checks passed`** only |
+| Strict (branch up to date) | no |
+| Force pushes | blocked |
+| Deletion | blocked |
+
+Zero required approvals is not a weakness for a solo maintainer: GitHub does not
+let you approve your own pull request, so requiring one would lock the only
+person with commit rights out of their own repository. The value here is the
+enforced PR plus a green run, not a second pair of eyes that does not exist yet.
+Raise it when there is a second committer.
+
+### Why one aggregate check rather than the real ones
+The twelve jobs are matrix jobs, so their names carry their parameters —
+`composer check (PHP 8.3, Laravel 11)` and so on. A required-checks list built
+from those goes stale the moment the matrix changes, and it fails in the
+dangerous direction: add Laravel 14 and its job is simply *not required*, so a
+red run merges. `all-green` depends on every job and is the only name the
+ruleset knows.
+
+`if: always()` on that job is load-bearing. Without it the job is **skipped**
+when anything upstream fails, and a skipped required check does not block a
+merge — the protection would silently permit exactly what it exists to stop.
+
+### Verified in both directions before trusting it
+A required check that cannot fail is worse than none. The aggregator was pushed
+together with a deliberately failing test (PR #20): `composer check` went red,
+`integration (defaults)` stayed green, and `all checks passed` reported **red** —
+so it reports the run, not one job. Then the probe was removed and everything
+went green.
+
+The first attempt at that probe was named `TemporaryAggregatorProbe.php`, which
+Pest does not collect — it wants a `Test.php` suffix. So the deliberate failure
+never ran, and `all checks passed` went green, which looked exactly like the
+aggregator working. Same failure shape as SPEC-014's silent trust settings and
+the old `isTrusted()`: something reports success while testing nothing.
+
+### ⚠️ `GET /repos/{owner}/{repo}/rules/branches/main` does not answer "does this
+apply to me"
+It lists the rules on the branch regardless of whether the caller can bypass
+them, so it cannot be used to confirm a bypass actor is configured correctly.
+The only reliable test is to attempt the push.
