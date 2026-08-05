@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.5.1] - 2026-08-05
+
+A service-side release. **No change to `src/`**, so the installed Composer
+package is byte-for-byte what 0.5.0 shipped — `composer update` changes nothing.
+Update the signing service from a clone of the repository.
+
 ### Service (requires `git pull` + `docker compose up -d --build`)
 
 - **Rate limiting and concurrency bounds (SPEC-015).** The service accepted
@@ -390,7 +398,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.5.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.5.1...main
+[0.5.1]: https://github.com/provemark/content-credentials/releases/tag/v0.5.1
 [0.5.0]: https://github.com/provemark/content-credentials/releases/tag/v0.5.0
 [0.4.3]: https://github.com/provemark/content-credentials/releases/tag/v0.4.3
 [0.4.2]: https://github.com/provemark/content-credentials/releases/tag/v0.4.2
