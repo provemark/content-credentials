@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.5.0] - 2026-08-05
+
+The first release since 0.4.0 to change `src/`, and the first to change
+behaviour a caller can depend on — see **Upgrading** below before taking it.
+Alongside that, the signing service gains the three controls a provenance system
+needs and did not have: it constrains what it will attest to, records every
+signing request, and can verify a certificate against a trust list.
+
 ### Upgrading
 
 **This release changes what `isTrusted()` answers.** No code has to change to
@@ -86,8 +96,10 @@ a manifest *claims* and answers for a tampered manifest too.
 - **Documented that `CONTENTAUTH_API_KEY` carries the authority of the signing
   key.** Anyone who can call `/v1/sign` can have assertions signed by your
   certificate; the service cannot distinguish an authorised caller from a stolen
-  token. Rotate and scope it as you would a key. Constraining *what* the service
-  will attest to is drafted as SPEC-011 and not yet implemented.
+  token. Rotate and scope it as you would a key. The service now constrains
+  *what* it will attest to (SPEC-011, below) and records every request
+  (SPEC-012, below), but neither can tell an authorised caller from a stolen
+  token — only rotation and scoping can.
 
 - **Documented that the read-side getters report claims, not verdicts.**
   `isAiGenerated()`, `signer()` and `digitalSourceTypes()` describe what a
@@ -349,7 +361,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.4.3...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.5.0...main
+[0.5.0]: https://github.com/provemark/content-credentials/releases/tag/v0.5.0
 [0.4.3]: https://github.com/provemark/content-credentials/releases/tag/v0.4.3
 [0.4.2]: https://github.com/provemark/content-credentials/releases/tag/v0.4.2
 [0.4.1]: https://github.com/provemark/content-credentials/releases/tag/v0.4.1
