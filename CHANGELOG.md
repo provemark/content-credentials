@@ -6,7 +6,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Service (requires `git pull` + `docker compose up -d --build`)
+
+- **`@contentauth/c2pa-node` 0.8.0 → 0.8.1** in the signing service, which
+  brings c2pa-rs 0.90.0 → 0.90.4. Verified end to end against a live service:
+  signing, read-back, the async TSA timestamp path, and `bin/verify.sh`
+  (c2patool, trust enabled) all pass, and the signed manifest still carries
+  exactly one `c2pa.actions.v2` assertion with `c2pa.created` +
+  `digitalSourceType = trainedAlgorithmicMedia`.
+- **Resolves a high-severity advisory** in `brace-expansion` (DoS via unbounded
+  expansion, GHSA-mh99-v99m-4gvg / GHSA-rgw5-rvv9-x895), pulled in transitively
+  through `@contentauth/c2pa-node → unzipper → fstream → rimraf → glob →
+  minimatch`. `npm audit` on the service now reports 0 vulnerabilities.
+
+This is a service-side change only. The distributed PHP package (`src/`) is
+unchanged, so installing via Composer makes no difference — update the service
+from a clone of the repository.
 
 ## [0.4.2] - 2026-07-29
 
