@@ -6,6 +6,68 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Upgrading
+
+**This release changes what `isTrusted()` answers.** No code has to change to
+compile — nothing was removed or resigned — but the verdict is stricter, and
+deliberately so. Composer will not hand you this automatically: a `^0.4`
+constraint does not resolve to 0.5.0, so the upgrade is opt-in.
+
+**Do this:** search your code for `isTrusted()`. If you use it as a gate,
+confirm you actually meant *"the certificate chained to a trust list"* and not
+*"this file looks fine"* — the two used to be the same answer in cases where
+they should not have been.
+
+The verdict only ever moves **towards** untrusted, so nothing that was refused
+before is admitted now; no upgrade weakens a check. What changes is that these
+stop passing, all of which passed before:
+
+- an asset carrying **no C2PA data at all**
+- a **revoked, expired or otherwise invalid** signing certificate
+- an **`Invalid`** manifest
+- any manifest store reporting no status codes
+
+For a normal signed asset read through a service without trust settings,
+`isTrusted()` was already `false` and stays `false` — that path is unchanged.
+
+**If you need it to say `true`**, configure the signing service with trust
+settings (`CONTENTAUTH_TRUST_SETTINGS`, also in this release). Without them
+`isTrusted()` is `false` by design, and `isSignatureValid()` is the verdict that
+carries meaning.
+
+**If you were checking the Article 50 marking**, prefer the new
+`isVerifiedAiGenerated()` over a bare `isAiGenerated()`: the latter reports what
+a manifest *claims* and answers for a tampered manifest too.
+
+### Changed
+
+- **BEHAVIOUR — `ManifestReport::isTrusted()` now fails closed (SPEC-013).** It
+  was defined negatively — true unless the reader reported
+  `signingCredential.untrusted` — so absence of evidence read as evidence of
+  trust. **An asset carrying no C2PA data at all answered `true`**, meaning
+  `if ($report->isTrusted())` used as a gate admitted every unsigned file. The
+  empty report was the clearest case, not the only one: because the definition
+  named exactly one status code, a **revoked or expired certificate**, an
+  **`Invalid` manifest**, and any store with no codes at all also answered
+  `true`.
+
+  It is now `validation_state === Trusted` — trust must be positively
+  established. Callers relying on the old behaviour will see `false`.
+
+  Note that trust depends on the signing service being configured with trust
+  settings (`CONTENTAUTH_TRUST_SETTINGS`, SPEC-014). Without them `isTrusted()`
+  is `false` **by design, not by failure**, and `isSignatureValid()` is the
+  meaningful verdict — both are now documented at the call site.
+
+### Added
+
+- **`ManifestReport::isVerifiedAiGenerated()`** — the Article 50 marking *and*
+  a signature that checked out, so the safe check is also the short one to
+  write. `isAiGenerated()` reports what a manifest **claims** and answers for a
+  tampered or unverifiable manifest too; the README example now shows the
+  verified form. Deliberately does not require `isTrusted()`, since trust
+  depends on deployment configuration the library cannot see.
+
 ### Security
 
 - **The signing service now publishes on `127.0.0.1` only** (requires `git pull`
