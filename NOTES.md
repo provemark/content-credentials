@@ -860,8 +860,9 @@ one process:
 | `hardened` | trust settings + `REQUIRE_AI_MARKING=true` | `--group=integration` |
 | `rate-limited` | `RATE_LIMIT_REQUESTS=5`, window 2000ms | `--group=SPEC-015` |
 
-Verified locally against all three before pushing: 43 passed / 5 skipped,
-44 passed / 4 skipped, 7 passed. The tests gate on what `GET /health` reports
+Verified locally against all three, **with and without a TSA configured**,
+before pushing: 43 passed / 5 skipped, 44 passed / 4 skipped, 6 passed / 1
+skipped. The TSA distinction matters — see below. The tests gate on what `GET /health` reports
 and skip what does not apply, so the union covers the set.
 
 ### ⚠️ `--group=provenance` does NOT run the integration tests
@@ -879,6 +880,35 @@ Every docblock, and `composer.json`'s `scripts-descriptions`, said `provenance`.
 Corrected everywhere to `integration`; only the property suite still names its
 own group. The instruction had been copied forward since Step 7 without anyone
 checking that it still selected what it claimed to.
+
+### ⚠️ The concurrency tests passed for an incidental reason
+The two SPEC-015 criteria about concurrency — the cap refusing an excess, and
+`/health` reporting `in_flight` — passed locally and failed in CI on all three
+profiles. The cause was not CI:
+
+```
+one sign WITH a TSA configured    ~250 ms   (this machine's .env)
+one sign with no TSA              ~58 ms    (CI, and any deployment without one)
+```
+
+They only ever worked because the TSA round-trip made each signature slow enough
+to overlap. Reproduced locally by clearing `CONTENTAUTH_TSA_URL`: same failures.
+
+Then the obvious fix — more parallelism — turned out not to be the fix either.
+Forty parallel `curl` processes against the fast service kept `in_flight` at
+**0 for the entire burst** and had nothing refused: forking forty clients costs
+more than the server spends answering them, so the requests never coexist.
+
+What works is making each request **cost** more rather than making more of them.
+The suite now generates a ~2.4 MB PNG (built by hand in `largePngBytes()` —
+IHDR/IDAT/IEND with incompressible pixels, so no GD dependency on any runner).
+A burst of 20 of those gives 5 accepted and 15 refused, and `in_flight` is
+observed at the cap. Both criteria are now testable at 58 ms per signature, so
+they no longer depend on anyone's TSA configuration.
+
+`/health` is also sampled repeatedly and reduced to a peak rather than read
+once: a single sample can land between requests, and one unlucky read should not
+fail a working service.
 
 ### ⚠️ The suite trips its own rate limit
 Running `--group=integration` against a default service produces a wall of
