@@ -973,8 +973,22 @@ never ran, and `all checks passed` went green, which looked exactly like the
 aggregator working. Same failure shape as SPEC-014's silent trust settings and
 the old `isTrusted()`: something reports success while testing nothing.
 
-### ⚠️ `GET /repos/{owner}/{repo}/rules/branches/main` does not answer "does this
-apply to me"
-It lists the rules on the branch regardless of whether the caller can bypass
-them, so it cannot be used to confirm a bypass actor is configured correctly.
-The only reliable test is to attempt the push.
+### The bypass actor, and how to get it right
+`bypass_actors` decides whether the maintainer can still push straight to
+`main` — which matters here, because the release commits in Steps 12–17 were
+direct pushes. Set it wrong and the release flow breaks the next time it is
+used, not when the ruleset is created.
+
+`{"actor_type": "RepositoryRole", "actor_id": 5}` did **not** work: this
+account's admin rights come from owning the organisation, not from an explicit
+repository role. `{"actor_type": "OrganizationAdmin", "actor_id": 1}` does.
+
+⚠️ `GET /repos/{owner}/{repo}/rules/branches/main` cannot confirm this. It lists
+the rules on the branch regardless of whether the caller may bypass them, so it
+reported all four rules as applying in both configurations — the working one and
+the broken one. The only reliable test is to attempt the push: it succeeds with
+the bypass in place, printing `Required status check "all checks passed" is
+expected` as a warning rather than an error.
+
+Remove the bypass to make the ruleset absolute, at the cost of routing release
+commits through a pull request too.
