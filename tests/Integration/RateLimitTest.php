@@ -221,22 +221,31 @@ it('refuses a token that exceeds its rate, and serves it again after the window'
 it('answers /health while signing is saturating the cap', function () {
     $cap = serviceLimit('max_concurrent_signs') ?? 1;
 
-    $client = new Client(['http_errors' => false, 'timeout' => 30]);
-    $url = ServiceHarness::baseUrl().'/v1/sign';
+    // Guzzle's promises only progress while the caller is inside wait(), so
+    // firing them here and reading /health afterwards would observe nothing in
+    // flight. Launch the burst as detached background processes instead, so it
+    // is genuinely concurrent with this process.
+    $payload = tempnam(sys_get_temp_dir(), 'spec015');
+    file_put_contents((string) $payload, json_encode(signBody(), JSON_THROW_ON_ERROR));
 
-    $promises = [];
-    for ($i = 0; $i < $cap * 3; $i++) {
-        $promises[] = $client->postAsync($url, [
-            'headers' => ['Authorization' => 'Bearer '.ServiceHarness::apiKey()],
-            'json' => signBody(),
-        ]);
+    $command = sprintf(
+        'curl -s -o /dev/null -X POST %s -H %s -H %s --data-binary @%s',
+        escapeshellarg(ServiceHarness::baseUrl().'/v1/sign'),
+        escapeshellarg('Authorization: Bearer '.ServiceHarness::apiKey()),
+        escapeshellarg('Content-Type: application/json'),
+        escapeshellarg((string) $payload),
+    );
+
+    for ($i = 0; $i < $cap; $i++) {
+        shell_exec($command.' > /dev/null 2>&1 &');
     }
 
     // While that is in flight, /health must answer — and say it is busy.
-    usleep(120_000);
+    usleep(150_000);
     $health = ServiceHarness::health();
 
-    Utils::settle($promises)->wait();
+    sleep(2);
+    @unlink((string) $payload);
 
     expect($health)->toHaveKey('status')
         ->and($health['status'])->toBe('ok')

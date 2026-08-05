@@ -16,6 +16,7 @@
  */
 
 const fs = require('fs');
+const http = require('http');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
@@ -281,6 +282,50 @@ function audit(record) {
 
 process.stdout.on('error', () => { auditDegraded = true; });
 
+// --- SPEC-015: rate limiting and concurrency bounds -------------------------
+// On by default: a protection that ships off is one nobody turns on. Setting a
+// limit to 0 disables it explicitly, and /health reports that, so an
+// unprotected instance is visible rather than assumed safe.
+const MAX_CONCURRENT_SIGNS = Number(process.env.MAX_CONCURRENT_SIGNS ?? 4);
+const RATE_LIMIT_REQUESTS = Number(process.env.RATE_LIMIT_REQUESTS ?? 60);
+const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
+// Slightly above the PHP client's own 10s request timeout (SPEC-008), so in
+// normal operation the client gives up first and this only reclaims slots held
+// by something that is not our client.
+const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS ?? 15_000);
+const HEADERS_TIMEOUT_MS = Number(process.env.HEADERS_TIMEOUT_MS ?? 10_000);
+
+let inFlight = 0;
+
+// Fixed window per token_id — the identifier SPEC-012 already derives, so this
+// introduces no new way of naming a caller. Only authenticated requests reach
+// here, so the map is bounded by the number of valid tokens; entries are pruned
+// as they expire rather than accumulating.
+const buckets = new Map();
+
+/** @returns {number|null} seconds to wait, or null when within budget. */
+function rateLimited(id, now) {
+  if (RATE_LIMIT_REQUESTS <= 0) return null;
+
+  const bucket = buckets.get(id);
+
+  if (bucket === undefined || bucket.resetAt <= now) {
+    buckets.set(id, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+
+    for (const [key, value] of buckets) {
+      if (value.resetAt <= now) buckets.delete(key);
+    }
+
+    return null;
+  }
+
+  bucket.count += 1;
+
+  return bucket.count > RATE_LIMIT_REQUESTS
+    ? Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))
+    : null;
+}
+
 // Constant-time bearer-token check (SPEC-009 #4): compare fixed-length SHA-256
 // digests so timing does not leak how much of the token matched, and unequal
 // lengths do not throw.
@@ -329,6 +374,18 @@ app.get('/health', (_req, res) => {
     trust_verification: Boolean(trustSettings),
     require_ai_marking: REQUIRE_AI_MARKING,
     audit_degraded: auditDegraded,
+    // SPEC-015 AC4: signing does not block the event loop, so this endpoint
+    // stays fast however saturated the service is — which is exactly why it has
+    // to say how busy it is. Otherwise an orchestrator cannot tell a saturated
+    // instance from an idle one and keeps routing to it.
+    in_flight: inFlight,
+    limits: {
+      max_concurrent_signs: MAX_CONCURRENT_SIGNS,
+      rate_limit_requests: RATE_LIMIT_REQUESTS,
+      rate_limit_window_ms: RATE_LIMIT_WINDOW_MS,
+      request_timeout_ms: REQUEST_TIMEOUT_MS,
+      headers_timeout_ms: HEADERS_TIMEOUT_MS,
+    },
   });
 });
 
@@ -337,6 +394,46 @@ app.get('/health', (_req, res) => {
  * Body: { content (base64), mime_type, creator_name?, extra_assertions? }
  * Resp: { signed_content (base64), manifest_url: null }
  */
+/**
+ * SPEC-015: refuse rather than queue. Queueing looks friendlier under a burst,
+ * but the PHP client bounds a request at 10s (SPEC-008), so a queued request
+ * can time out client-side while still holding a slot here — the caller has
+ * given up and the service is still paying for it. Refusing keeps both ends
+ * agreeing about what happened, and Retry-After says what to do next.
+ */
+app.post('/v1/sign', (req, res, next) => {
+  const refuse = (reason, retryAfter) => {
+    audit({
+      ts: new Date().toISOString(),
+      cid: req.cid,
+      event: 'sign',
+      outcome: 'rejected',
+      token_id: tokenId(req.token ?? ''),
+      reason,
+    });
+
+    return res.status(429)
+      .set('Retry-After', String(retryAfter))
+      .json({ error: reason, cid: req.cid });
+  };
+
+  const wait = rateLimited(tokenId(req.token ?? ''), Date.now());
+  if (wait !== null) {
+    return refuse('rate limit exceeded', wait);
+  }
+
+  if (MAX_CONCURRENT_SIGNS > 0 && inFlight >= MAX_CONCURRENT_SIGNS) {
+    return refuse('too many signing requests in flight', 1);
+  }
+
+  // Release the slot however the response ends — handler return, thrown error,
+  // or a client that hung up mid-request.
+  inFlight += 1;
+  res.on('close', () => { inFlight -= 1; });
+
+  return next();
+});
+
 app.post('/v1/sign', async (req, res) => {
   const { content, mime_type, creator_name, extra_assertions } = req.body ?? {};
 
@@ -511,6 +608,26 @@ app.post('/v1/read', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`c2pa-spike signer listening on :${PORT} (alg=${SIGN_ALG}, timestamping=${Boolean(TSA_URL)})`);
+// SPEC-015 AC5: a client that opens a request and then stalls must not hold a
+// slot indefinitely. Node's defaults are 300s / 60s, long enough to exhaust the
+// concurrency cap with a handful of idle sockets.
+//
+// GOTCHA: `requestTimeout` does NOT cover the case that matters here. Verified
+// on node 20.20.2, including in a bare http.createServer with no express: a
+// client that sends complete headers announcing a Content-Length and then never
+// sends the body is left open indefinitely, whatever requestTimeout says.
+// `server.setTimeout()` — the socket inactivity timeout — is what actually
+// closes it, to the second. Both are set: requestTimeout/headersTimeout bound a
+// request that is still trickling in, setTimeout catches one that has stopped.
+const server = http.createServer(app);
+server.requestTimeout = REQUEST_TIMEOUT_MS;
+server.headersTimeout = HEADERS_TIMEOUT_MS;
+server.setTimeout(REQUEST_TIMEOUT_MS);
+
+server.listen(PORT, () => {
+  console.log(
+    `c2pa-spike signer listening on :${PORT} (alg=${SIGN_ALG}, `
+    + `timestamping=${Boolean(TSA_URL)}, trust=${Boolean(trustSettings)}, `
+    + `max_concurrent=${MAX_CONCURRENT_SIGNS}, rate=${RATE_LIMIT_REQUESTS}/${RATE_LIMIT_WINDOW_MS}ms)`,
+  );
 });
