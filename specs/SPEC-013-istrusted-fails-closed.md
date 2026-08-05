@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | approved                                          |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — while draft                                     |
+| Approved   | Maurice van Loon — 2026-08-05                     |
 | Supersedes | — (amends SPEC-003 D3 and SPEC-005)               |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
