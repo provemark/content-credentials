@@ -35,6 +35,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Service (requires `git pull` + `docker compose up -d --build`)
 
+- **Trust-list verification in `/v1/read` (SPEC-014).** The service read
+  manifests with no settings, so c2pa-rs never checked the signing certificate
+  against a trust list: every signed asset came back `Valid` with
+  `signingCredential.untrusted`, whatever certificate signed it, and
+  `ManifestReport::isTrusted()` could never be `true`. Set
+  `CONTENTAUTH_TRUST_SETTINGS` to a c2pa settings document to switch
+  verification on — Docker Compose mounts the bundled **test** anchors ready to
+  use, and `GET /health` now reports `trust_verification`.
+
+  **The default is unchanged**: no settings configured means exactly today's
+  behaviour, so no deployment shifts on upgrade.
+
+  The service **refuses to start** on a settings document it cannot use, and
+  that includes one which parses but could never verify — `verify_trust` without
+  any `trust_anchors` or `allowed_list` verifies nothing *silently*, producing
+  reads indistinguishable from having configured nothing. Failing at startup is
+  what stops an operator believing trust is on when it is not.
+
 - **The signing-service image is now built reproducibly.** The Dockerfile copied
   only `package.json` and ran `npm install`, so every transitive dependency was
   re-resolved to whatever was newest-satisfying at build time and

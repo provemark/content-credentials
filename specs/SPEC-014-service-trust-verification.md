@@ -2,7 +2,7 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | approved                                          |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
 | Approved   | Maurice van Loon — 2026-08-05                     |
 | Supersedes | —                                                 |
@@ -232,11 +232,11 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
-| AC8                  | —                           | —                    |
+| AC1 | `tests/Integration/TrustVerificationTest.php` :: "reads a signed asset as Trusted when trust verification is active"; `bin/e2e.php` trust check | `service/server.js` `/v1/read` reader construction |
+| AC2 | `tests/Integration/TrustVerificationTest.php` :: "keeps a signature valid but untrusted when the anchors do not cover it" | `service/server.js` `/v1/read` reader construction |
+| AC3 | `tests/Integration/TrustVerificationTest.php` :: "leaves reads unchanged when no trust settings are configured" | `service/server.js` `trustSettings` (undefined when unset) |
+| AC4 | `tests/Integration/TrustSettingsStartupTest.php` :: "refuses to start when the trust settings path does not exist"; "refuses to start when the trust settings file is not a settings document" | `service/server.js` `loadTrustSettings()` |
+| AC5 | `tests/Integration/TrustSettingsStartupTest.php` :: "refuses to start on settings that parse but could never verify trust" | `service/server.js` `loadTrustSettings()` |
+| AC6 | `tests/Integration/TrustVerificationTest.php` :: "reports trust verification status on /health" | `service/server.js` `GET /health` |
+| AC7 | `tests/Integration/TrustVerificationTest.php` :: "still reads a manifest-less asset as an empty report under trust verification" | `service/server.js` `/v1/read` null-reader guard (SPEC-010) |
+| AC8 | `tests/Unit/TrustSettingsDocumentTest.php` :: "does not enable any option that would make a read hit the network", "carries trust material that would actually verify" | `certs/c2pa-trust.settings.json` |

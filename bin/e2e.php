@@ -114,6 +114,22 @@ echo match (true) {
 // unreachable CONTENTAUTH_TSA_URL and confirm /v1/sign returns a 5xx error and
 // no signed_content (not automated here — it requires a deliberately bad TSA).
 
+// SPEC-014 AC1: when the service verifies against a trust list, the library
+// path must reach the same verdict c2patool reaches below. Without trust
+// settings isTrusted() is false BY DESIGN, not by failure — the read simply
+// stops at "Valid" (see SPEC-013).
+$trustEnabled = is_array($healthData) && (bool) ($healthData['trust_verification'] ?? false);
+$trustOk = $report->isTrusted() === $trustEnabled;
+echo match (true) {
+    ! $trustOk => sprintf(
+        "✗ trust mismatch: service trust_verification=%s but isTrusted()=%s (SPEC-014 AC1)\n",
+        var_export($trustEnabled, true),
+        var_export($report->isTrusted(), true),
+    ),
+    $trustEnabled => "✓ certificate trusted via the library path (SPEC-014 AC1)\n",
+    default => "· trust verification off — set CONTENTAUTH_TRUST_SETTINGS to exercise AC1\n",
+};
+
 // --- 4. authoritative c2patool verification (trust enabled) ---
 $verify = "$root/bin/verify.sh";
 if (is_file($verify) && is_file("$root/tools/c2patool")) {

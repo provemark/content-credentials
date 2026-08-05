@@ -17,10 +17,20 @@ services:
       CONTENTAUTH_SIGN_ALG: "es256"
       # Optional RFC 3161 timestamp authority (SPEC-007). Empty => no timestamp.
       CONTENTAUTH_TSA_URL: "${CONTENTAUTH_TSA_URL:-}"
+      # Optional c2pa trust settings (SPEC-014). Empty => no trust-list
+      # verification, so reads stop at "Valid" + signingCredential.untrusted.
+      # The document below is mounted read-only; set this to its container path
+      # to switch verification on:
+      #   CONTENTAUTH_TRUST_SETTINGS=/run/secrets/c2pa-trust.settings.json
+      CONTENTAUTH_TRUST_SETTINGS: "${CONTENTAUTH_TRUST_SETTINGS:-}"
       SIGNING_CERT_PATH: "/run/secrets/signing.crt"
       SIGNING_KEY_PATH: "/run/secrets/signing.key"
     volumes:
       # TEST certs only — es256 sample cert/key from c2pa-rs. Never real keys.
       - ./certs/es256_certs.pem:/run/secrets/signing.crt:ro
       - ./certs/es256_private.key:/run/secrets/signing.key:ro
+      # TEST trust anchors (public CA certs only — safe to mount, safe to
+      # commit). Mounting it does nothing on its own; CONTENTAUTH_TRUST_SETTINGS
+      # above decides whether it is used. Replace for production.
+      - ./certs/c2pa-trust.settings.json:/run/secrets/c2pa-trust.settings.json:ro
     restart: unless-stopped
