@@ -112,20 +112,29 @@ criteria in the integration group.
 
 - **AC4 — misconfiguration stops the service** *(error path)*
   - Given a credentials document that is missing, unreadable, unparseable, or
-    contains no usable client (no name, empty name, missing or empty token,
-    duplicate names)
+    contains no usable client — no name, an empty name, a client with an empty
+    or absent `tokens` list, an empty token string, or **duplicate client
+    names**
   - When the service starts
   - Then it exits non-zero naming the problem, and does not start serving
+  - And given the **same token appears under two client names**
+  - Then it also exits non-zero. With per-client token lists this is not merely
+    odd, it is an attribution failure: a record could name either client, and
+    silently picking one would make the audit trail lie
   - And given **both** `CONTENTAUTH_API_KEY` and the document are set
   - Then it also exits non-zero: two sources of truth for who may sign is a
     misconfiguration, not a merge
 
 - **AC5 — records attribute the client, and survive rotation**
-  - Given a client whose token is replaced with a new one under the same name
-  - When it signs before and after
-  - Then both records carry the same `client`, and **different** `token_id`
-    values — the name says who, the token id says which credential, and an
-    operator can see a rotation happen without losing the trail
+  - Given one client configured with **two** tokens, as it is mid-rotation
+  - When it signs with the old token and then with the new one
+  - Then both requests succeed, both records carry the same `client`, and the
+    `token_id` values **differ** — the name says who, the token id says which
+    credential, so an operator watches traffic move from one to the other and
+    knows when the old one is safe to remove
+  - And when the old token is removed and the service restarted
+  - Then it is refused while the new one continues to work, with no window in
+    which the client could not sign at all
 
 - **AC6 — one client cannot spend another's budget**
   - Given two clients and a rate limit smaller than their combined traffic
@@ -153,8 +162,10 @@ shapes of `/v1/sign` and `/v1/read` do not change.
 // CONTENTAUTH_CLIENTS -> /run/secrets/clients.json
 {
   "clients": [
-    { "name": "web",   "token": "..." },
-    { "name": "batch", "token": "..." }
+    // A list rather than a single token, so a rotation can overlap: add the new
+    // one, roll the callers over, then remove the old. Names stay unique.
+    { "name": "web",   "tokens": ["...", "...new, during handover..."] },
+    { "name": "batch", "tokens": ["..."] }
   ]
 }
 ```
@@ -193,12 +204,27 @@ Audit records gain one field beside the existing `token_id`:
   to say that `creator_name` may be. A client name is chosen by the operator
   rather than a caller, so it is far less likely to be — but the README should
   say so rather than leave the operator to infer it. *Non-blocker*.
-- **How should rotation without downtime work?** Two valid tokens for one client
-  during a handover is the obvious answer and the document format allows it
-  (two entries, same name) — except AC4 rejects duplicate names. Either relax
-  that to allow several tokens per client, or accept a restart. *Blocker for
-  AC4/AC5*: the two criteria contradict each other as written unless this is
-  decided.
+- ~~**How should rotation without downtime work?**~~ **RESOLVED (2026-08-05):
+  a client holds a list of tokens.** The contradiction turned out to be an
+  artefact of the sketched format rather than a real tension. With a flat list
+  of `{name, token}` pairs, an overlapping rotation and a duplicate-name typo
+  look identical, so AC4 could only reject both or accept both. Giving each
+  client a `tokens` array separates them: **names stay unique**, so AC4 keeps
+  catching the typo, while a client may legitimately hold more than one
+  credential.
+
+  Rotation is then: add the new token, roll the callers over, remove the old
+  one. No coordinated downtime — which matters, because the Problem section
+  argues that rotation which is expensive is rotation done late, and requiring a
+  restart would have reintroduced that at a smaller scale.
+
+  Revocation stays unambiguous, and gets finer: remove one token from a client's
+  list to retire a credential, or the whole client to remove the caller.
+
+  The change surfaced a case worth rejecting explicitly (AC4): **the same token
+  under two client names**. In a flat list that is merely odd; with per-client
+  lists it is an attribution failure — the record could name either client — so
+  it must fail at startup rather than silently pick one.
 
 ## Traceability
 
