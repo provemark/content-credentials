@@ -10,8 +10,10 @@ _Nothing yet._
 
 ## [0.5.1] - 2026-08-05
 
-A service-side release. **No change to `src/`**, so the installed Composer
-package is byte-for-byte what 0.5.0 shipped — `composer update` changes nothing.
+A service-side release. **No change to `src/` or `config/`**, so the installed
+Composer package behaves exactly as 0.5.0 did — `composer update` changes
+nothing you can observe. (`composer.json` differs by one line: a help string in
+`scripts-descriptions`, corrected because it named the wrong test group.)
 Update the signing service from a clone of the repository.
 
 ### Service (requires `git pull` + `docker compose up -d --build`)
