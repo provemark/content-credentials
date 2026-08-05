@@ -80,7 +80,9 @@ connection-level limits — see Open questions.
 - Per-client quotas or tiers. The service has one credential
   (SPEC-012 identifies *which token*, not *which human*); real per-client limits
   need per-client tokens, which is already noted as a follow-up there.
-- Queueing with backpressure instead of refusal — see the blocking question.
+- Queueing with backpressure instead of refusal. Decided against, with reasons,
+  in Open questions; revisiting it needs a spec that also addresses the
+  client-side timeout that makes queueing lie to the caller.
 - Lowering `MAX_BODY_SIZE`, which is a behaviour change for existing callers.
 - Any change to `src/`. The PHP client surfaces a non-2xx through
   `SigningFailedException` already; it gains no retry logic here.
@@ -167,13 +169,15 @@ signing key for something this small (see ADR requirement in CLAUDE.md).
 
 ## Open questions
 
-- **Refuse or queue?** Refusing is predictable and honest; the caller learns
-  immediately and can retry. Queueing is friendlier to a legitimate burst — a
-  queue worker fanning out is the common case — but the PHP client has a 10 s
-  request timeout (SPEC-008), so a queued request may time out client-side while
-  still occupying a slot server-side, which is the worst of both. *Blocker*:
-  leaning **refuse with `Retry-After`**, but it is a product decision about how
-  the service behaves under a burst it could have absorbed.
+- ~~**Refuse or queue?**~~ **RESOLVED (2026-08-05): refuse, with
+  `Retry-After`.** Queueing looks friendlier to a legitimate burst, but against
+  this client it is not: the PHP client bounds a request at 10 s (SPEC-008), so
+  a queued request can time out client-side while still occupying a slot
+  server-side — the caller has given up and the service is still paying for it.
+  Refusal keeps the two ends in agreement about what happened, and `Retry-After`
+  tells the caller what to do about it. The cost is honest and bounded: a burst
+  the service could have absorbed is refused instead, which is the trade being
+  made deliberately.
 - **What is the right default concurrency?** Measured ≈3.6× speedup at six
   concurrent on this machine, so the ceiling is not one. But the memory cost is
   ~4× the asset per request, and `MAX_BODY_SIZE` is 50 MB — four concurrent
