@@ -2,9 +2,10 @@
 
 Topic-ordered reference distilled from the spike log (@NOTES.md). Everything
 here was verified against running code (c2patool 0.27.3, @contentauth/c2pa-node
-0.7.0, c2pa-rs test certs) on 2026-07-27 — none of it is from model memory.
-When this page and NOTES.md disagree, NOTES.md (the raw log) wins; fix this
-page. When neither answers a question, ask — do not guess.
+0.8.1, c2pa-rs test certs), first on 2026-07-27 and last reconciled with
+NOTES.md on 2026-08-05 — none of it is from model memory. When this page and
+NOTES.md disagree, NOTES.md (the raw log) wins; fix this page. When neither
+answers a question, ask — do not guess.
 
 ## 1. Manifest structure (claim v2)
 
@@ -60,11 +61,22 @@ scaffolding anyway — see NOTES.md Step 1 for the four blockers.)
 
 ## 4. c2pa-node API essentials (`service/src/`)
 
-- Maintained package: **`@contentauth/c2pa-node`** (repo `c2pa-node-v2`).
-  The old unscoped `c2pa-node` is EOL at 0.5.26 — never depend on it.
+- Maintained package: **`@contentauth/c2pa-node`** (currently 0.8.1, carrying
+  c2pa-rs 0.90.4). The old unscoped `c2pa-node` is EOL at 0.5.26 — never depend
+  on it. The
+  `contentauth/c2pa-node-v2` repo was archived ~2026-06-08; development and the
+  real CHANGELOG moved to the `contentauth/c2pa-js` monorepo under
+  `packages/c2pa-node`, while npm keeps publishing from there. Do not read
+  version history off the archived repo — its tags stop at v0.5.5.
 - Signer: `LocalSigner.newSigner(certChainBuf, privateKeyBuf, "es256"
-  [, tsaUrl])`. No tsaUrl configured yet → no trusted timestamp (open item;
-  spec required before adding).
+  [, tsaUrl])`.
+- **Timestamping requires the async path (SPEC-007, implemented).** Passing a
+  `tsaUrl` and then calling the *synchronous* `builder.sign(...)` fails with
+  `the sync http resolver is not implemented` — fetching the RFC 3161 token is
+  an HTTP call. With a TSA the service uses `CallbackSigner.newSigner({ alg,
+  certs, reserveSize: 20000, tsaUrl, directCoseHandling: false }, cb)` plus
+  `await builder.signAsync(...)`; without one it keeps the sync `LocalSigner`.
+  An unreachable TSA fails closed — there is no untimestamped fallback.
 - Build: `Builder.withJson({ claim_generator_info, format, assertions, ... })`
   or `builder.addAssertion(label, data)`.
 - **Critical gotcha:** `builder.sign(signer, source, dest)` RETURNS the JUMBF
@@ -74,6 +86,11 @@ scaffolding anyway — see NOTES.md Step 1 for the four blockers.)
   (ASCII "jumb").
 - Read/verify: `Reader.fromAsset({buffer, mimeType})` → `.json()`,
   `.getActive()`.
+- **Gotcha (SPEC-010):** `Reader.fromAsset()` resolves to **`null`** — it does
+  not throw — for an asset with no C2PA manifest, so an unguarded `.json()`
+  crashes. `POST /v1/read` returns `{}` in that case, which decodes client-side
+  to an empty `ManifestReport` (`hasManifest() === false`) per the SPEC-003
+  contract.
 
 ## 5. Certificates & trust
 
@@ -116,5 +133,7 @@ manifest. Applies to code paths AND documentation examples.
 ## Open items (spec required before touching)
 
 - `c2pa.actions` vs `c2pa.actions.v2` naming in public API/docs wording.
-- TSA timestamping for production-grade provenance.
 - Asset types beyond PNG/JPEG (MP4, WAV).
+
+Closed since the spike: **TSA timestamping** (SPEC-007, implemented — see §4)
+and **manifest-less reads** (SPEC-010, implemented — see §4).
