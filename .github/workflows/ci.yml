@@ -146,3 +146,31 @@ jobs:
       - name: Stop the signing service
         if: always()
         run: docker compose down
+
+  # A single stable check to require in branch protection.
+  #
+  # Requiring the real jobs by name does not work well here: they are matrix
+  # jobs, so the names carry their parameters — "composer check (PHP 8.3,
+  # Laravel 11)" and eleven more. A required-checks list built from those goes
+  # stale the moment the matrix changes, and it fails in the dangerous
+  # direction: add Laravel 14 and its job is simply not required, so a red run
+  # merges. This job depends on all of them and is the only name protection
+  # needs to know.
+  #
+  # `if: always()` is load-bearing. Without it the job is skipped when anything
+  # upstream fails, and a skipped required check does not block a merge — the
+  # protection would silently permit exactly what it exists to stop.
+  all-green:
+    name: all checks passed
+    needs: [check, integration]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify every job succeeded
+        run: |
+          echo "check:       ${{ needs.check.result }}"
+          echo "integration: ${{ needs.integration.result }}"
+          # Anything other than success — failure, cancelled, or skipped —
+          # means this must not report green.
+          [ "${{ needs.check.result }}" = "success" ] || exit 1
+          [ "${{ needs.integration.result }}" = "success" ] || exit 1
