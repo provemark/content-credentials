@@ -102,11 +102,25 @@ file_put_contents('signed.png', $signed->bytes); // never re-encode these bytes
 // 3. Read the credential back.
 $report = ContentCredentials::read(new Asset($signed->bytes, MediaType::Png));
 
-$report->isAiGenerated();        // true
+// The marking, verified: true only if the signature also checked out.
+$report->isVerifiedAiGenerated(); // true
+
+// The individual pieces. Note isAiGenerated() reports what the manifest
+// CLAIMS — it does not imply the signature verified, so gate on
+// isSignatureValid() before acting on it.
+$report->isSignatureValid();     // true — integrity verdict
+$report->isAiGenerated();        // true — the claim
 $report->digitalSourceTypes();   // ['http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia']
 $report->signer()?->issuer;      // e.g. "C2PA Test Signing Cert"
 $report->hasTimestamp();         // true when signed with a trusted timestamp (see "Going to production")
+$report->isTrusted();            // true only when the service verified against a trust list
 ```
+
+> **Claims versus verdicts.** `isAiGenerated()`, `signer()` and
+> `digitalSourceTypes()` describe what a manifest *asserts*; they answer for a
+> tampered or unverifiable manifest too. `isSignatureValid()` and `isTrusted()`
+> are the verdicts. `isVerifiedAiGenerated()` combines the marking with the
+> signature verdict, so the safe check is also the short one to write.
 
 ## Quick start (plain PHP / any framework)
 

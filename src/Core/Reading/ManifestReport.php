@@ -15,8 +15,6 @@ use Provemark\ContentCredentials\Core\Manifest\DigitalSourceType;
  */
 final readonly class ManifestReport
 {
-    private const UNTRUSTED_CODE = 'signingCredential.untrusted';
-
     /**
      * @param  list<AssertionShape>  $assertions
      * @param  list<string>  $validationStatusCodes
@@ -61,10 +59,26 @@ final readonly class ManifestReport
         return $this->validationStatusCodes;
     }
 
-    /** True unless the reader reported a signingCredential.untrusted code (D3). */
+    /**
+     * True only when the reader positively established trust: the c2pa-rs
+     * `validation_state` is `Trusted`, meaning integrity passed AND the signing
+     * certificate chained to a configured trust list (SPEC-013).
+     *
+     * **Absence of evidence is not trust.** A report with no manifest, an
+     * absent or unrecognised state, or any credential failure yields false —
+     * the previous definition ("true unless `signingCredential.untrusted` was
+     * reported") answered true for all of those, including an asset carrying no
+     * C2PA data at all and a revoked certificate.
+     *
+     * Trust depends on configuration this library cannot see: the signing
+     * service only reports `Trusted` when it is started with trust settings
+     * (`CONTENTAUTH_TRUST_SETTINGS`, SPEC-014). Without them this is false **by
+     * design, not by failure**, and {@see isSignatureValid()} is the meaningful
+     * verdict. `bin/verify.sh` verifies trust authoritatively with c2patool.
+     */
     public function isTrusted(): bool
     {
-        return ! in_array(self::UNTRUSTED_CODE, $this->validationStatusCodes, true);
+        return $this->validationState === ValidationState::Trusted;
     }
 
     /** The c2pa-rs `validation_state` verdict, or null if absent/unrecognised (SPEC-005). */
@@ -95,7 +109,15 @@ final readonly class ManifestReport
         return $this->hasTimestamp;
     }
 
-    /** True if the active manifest carries the trainedAlgorithmicMedia marking. */
+    /**
+     * True if the active manifest carries the trainedAlgorithmicMedia marking.
+     *
+     * This reports what the manifest **claims**, not a verdict on it: the
+     * marking is read straight out of the assertions whatever the validation
+     * outcome was, so a tampered or unverifiable manifest still answers true.
+     * Before acting on it, gate on `isSignatureValid()` — or use
+     * {@see isVerifiedAiGenerated()}, which does that for you (SPEC-013).
+     */
     public function isAiGenerated(): bool
     {
         return in_array(
@@ -103,6 +125,22 @@ final readonly class ManifestReport
             $this->digitalSourceTypes(),
             true,
         );
+    }
+
+    /**
+     * True when the asset is marked as AI-generated **and** that marking came
+     * from a manifest whose signature checked out — the check to reach for when
+     * a decision hangs on the Article 50 marking (SPEC-013 AC6).
+     *
+     * Deliberately does NOT require {@see isTrusted()}. Trust depends on
+     * deployment configuration this library cannot see, so including it would
+     * make this false in every deployment that has not configured trust
+     * anchors, and callers would learn to avoid it. Where trust matters, add
+     * `&& $report->isTrusted()` explicitly.
+     */
+    public function isVerifiedAiGenerated(): bool
+    {
+        return $this->isSignatureValid() && $this->isAiGenerated();
     }
 
     /**
