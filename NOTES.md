@@ -785,3 +785,57 @@ the request it refuses. `MAX_BODY_SIZE` (50 MB) remains the biggest lever.
 Verified: SPEC-015 7 passed (rate limit exercised with
 `RATE_LIMIT_REQUESTS=5 RATE_LIMIT_WINDOW_MS=2000`), SPEC-011/012/014 unchanged,
 `bin/e2e.php` green, `composer check` green.
+
+---
+
+## Step 16 — Open items (2026-08-05)
+
+All six findings of the security review are closed, and SPEC-001..015 are
+implemented. What follows is what a next session should pick up, with enough
+context to act without re-deriving it.
+
+### 1. Pending release decision: v0.5.1
+
+`[Unreleased]` holds one Service section (SPEC-015). It does not touch `src/`,
+so the Composer dist is identical to v0.5.0 — but it **is** a behaviour change
+for anyone running the service: a client that fans out hard gets 429s after a
+rebuild. That argues against leaving it sitting on `main` unannounced.
+
+Either tag v0.5.1 or let it ride to the next substantive change. The entry is
+written; only the version heading and the compare links need moving.
+
+### 2. `MAX_BODY_SIZE` is still 50 MB
+
+The single biggest remaining lever, and the multiplier under every limit
+SPEC-015 introduced: the signing path holds roughly four copies of the asset at
+once, so four concurrent 50 MB requests is ~800 MB. Express also buffers the
+body **before** any limit is consulted, so a concurrency cap cannot protect the
+memory spent admitting a request it then refuses — only a smaller body limit
+can.
+
+50 MB is far above any PNG or JPEG this service legitimately signs. Lowering it
+is a behaviour change for anyone signing large assets, which is why SPEC-015 put
+it out of scope rather than deciding it quietly. Currently documented in the
+README as the operator's lever. Needs its own decision, and a spec if the
+default changes.
+
+### 3. Per-client tokens — the real gap behind two specs
+
+SPEC-012 identifies **which token** signed something, not **which client**.
+SPEC-015 rate-limits **per token**, not per client. With one shared credential
+those are the same thing, so both specs are correct today and quietly weaker
+than they look tomorrow: the moment there is a second consumer of the service,
+one shared token is the actual weak point, and neither the audit trail nor the
+rate limit can attribute or bound anything per consumer.
+
+The path, in order:
+1. Multiple named tokens rather than a single `CONTENTAUTH_API_KEY` — `token_id`
+   and the rate-limit buckets already key on the right thing, so most of the
+   machinery exists.
+2. CAWG organisational identity assertions, so the *manifest* carries who
+   produced it rather than only the log. The upstream contract this service
+   mirrors already has `signature_type: cawg_org` (NOTES Step 1); c2pa-node
+   exports `createCawgTrustSettings`, deliberately left out of SPEC-014.
+
+This is the largest remaining piece of design, and the one that turns the
+audit log from "we signed this" into "they asked us to".
