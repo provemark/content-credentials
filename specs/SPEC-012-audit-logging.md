@@ -3,7 +3,7 @@
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
 | Status     | draft                                             |
-| Author     | claude (proposed), maurice (to approve)           |
+| Author     | Maurice van Loon (maintainer)                     |
 | Approved   | — while draft                                     |
 | Supersedes | —                                                 |
 
