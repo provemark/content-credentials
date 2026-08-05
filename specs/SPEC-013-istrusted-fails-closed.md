@@ -134,6 +134,17 @@ covered by a Pest test tagged `->group('SPEC-013')`.
     `digitalSourceTypes()` report what a manifest *claims*, and that acting on
     them requires a verdict from `isSignatureValid()` / `isTrusted()`
 
+- **AC8 — a constant `false` reads as configuration, not as a bug**
+  - Given a deployment whose signing service performs no trust-list
+    verification, i.e. every read returns `validation_state: "Valid"`
+  - When a developer consults the `isTrusted()` docblock or the README
+  - Then both state that trust requires the *service* to be configured with
+    trust anchors, that without that configuration `isTrusted()` is `false` by
+    design and not by failure, and that `isSignatureValid()` is the check that
+    is meaningful in that configuration
+  - And `bin/verify.sh` is named as where authoritative trust verification
+    happens today
+
 ## API sketch
 
 Illustrative only. The change is confined to `src/Core/Reading/ManifestReport.php`;
@@ -164,16 +175,27 @@ remain useful diagnostics, they simply stop being the definition of trust.
 
 ## Open questions
 
-- **Is the positive definition too strict for current deployments?** Because
-  `/v1/read` does no trust-list verification, `isTrusted()` will return `false`
-  for *every* asset until that is addressed — including correctly signed,
-  production-certificate assets. That is honest but may read as a regression.
-  The alternative, minimal fix is `hasManifest() && ! untrusted-code`, which
-  keeps today's behaviour except for the empty case. *Blocker*: the choice
-  decides whether this spec fixes one defect or realigns the method with its
-  name. Leaning **positive**, with the service-side trust verification raised
-  immediately as a follow-up so the method can become useful rather than merely
-  safe.
+- ~~**Is the positive definition too strict for current deployments?**~~
+  **RESOLVED (2026-08-05): the positive definition.** The objection — that
+  `isTrusted()` then returns `false` for every asset — is a property of the
+  *deployment*, not of the API. `ValidationState` already distinguishes the two
+  cases correctly: `Valid` means integrity passed but the certificate is not on
+  a trust list, `Trusted` means it is. So `state === Trusted` is not merely safe,
+  it is the accurate reading of what the reader reported, and it becomes `true`
+  by itself the moment a deployment configures trust anchors — no further code
+  change needed.
+
+  The minimal alternative (`hasManifest() && ! untrusted-code`) was rejected: it
+  preserves a definition that still fails open for every credential failure the
+  one hard-coded code does not name (AC5), and it would leave the method's name
+  promising more than its implementation delivers. Fixing the reported instance
+  while leaving the shape of the defect intact is the worse outcome for a method
+  callers use as a security gate.
+
+  Consequence to carry: until the service verifies trust, `isTrusted()` is
+  *safe but not yet useful*. AC8 requires that this is stated where callers
+  look, so the constant `false` reads as configuration rather than as a bug.
+  Service-side trust verification is raised as a follow-up spec.
 - **Should `isVerifiedAiGenerated()` include `isTrusted()`?** Including it is
   the stricter reading, but with the point above unresolved it would make the
   helper always false, which teaches callers to avoid it. AC6 proposes excluding
@@ -206,3 +228,4 @@ least one test; every source file maps back to this spec.
 | AC5                  | —                           | —                    |
 | AC6                  | —                           | —                    |
 | AC7                  | —                           | —                    |
+| AC8                  | —                           | —                    |
