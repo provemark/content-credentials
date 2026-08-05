@@ -6,6 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Laravel 12 and 13 are now supported and covered by CI.** The Laravel
+  integration was only ever tested against Laravel 11, while nothing stopped an
+  application on 12 or 13 from installing the package — `illuminate/*` sits in
+  `require-dev` and `suggest`, never in `require`, so Composer imposed no
+  constraint on consumers. Anyone on a newer Laravel was therefore running
+  untested code. The dev constraints are now `^11.0|^12.0|^13.0` and the CI
+  matrix runs `composer check` across PHP 8.3/8.4/8.5 × Laravel 11/12/13.
+  No source change was required: the provider, facade, jobs and artisan
+  commands pass unmodified on all three majors.
+
+### Fixed
+
+- **Deprecation notices under Laravel 11 + PHP 8.5.** The artisan command tests
+  emitted `Using null as an array offset is deprecated` from
+  `illuminate/console`. This is upstream code, fixed in Laravel 12; running the
+  suite on 12 or 13 clears it.
+
 ### Service (requires `git pull` + `docker compose up -d --build`)
 
 - **`@contentauth/c2pa-node` 0.8.0 → 0.8.1** in the signing service, which
@@ -19,9 +38,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   through `@contentauth/c2pa-node → unzipper → fstream → rimraf → glob →
   minimatch`. `npm audit` on the service now reports 0 vulnerabilities.
 
-This is a service-side change only. The distributed PHP package (`src/`) is
-unchanged, so installing via Composer makes no difference — update the service
-from a clone of the repository.
+This last section is a service-side change only. The distributed PHP package
+(`src/`) is unchanged, so installing via Composer makes no difference — update
+the service from a clone of the repository.
 
 ## [0.4.2] - 2026-07-29
 
