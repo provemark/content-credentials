@@ -45,6 +45,10 @@ const MAX_BODY = process.env.MAX_BODY_SIZE ?? '50mb';
 // Optional RFC 3161 Time Stamping Authority (SPEC-007). Unset => no timestamp
 // (today's behaviour). When set, signatures carry a trusted timestamp.
 const TSA_URL = process.env.CONTENTAUTH_TSA_URL || undefined;
+// Optional c2pa trust settings document (SPEC-014). Unset => no trust-list
+// verification, i.e. every signed asset reads back as `Valid` with
+// `signingCredential.untrusted`, whatever certificate signed it.
+const TRUST_SETTINGS_PATH = process.env.CONTENTAUTH_TRUST_SETTINGS || undefined;
 
 if (!CERT_PATH || !KEY_PATH) {
   console.error('SIGNING_CERT_PATH and SIGNING_KEY_PATH are required');
@@ -62,6 +66,67 @@ if (!privateKey.toString().includes('PRIVATE KEY')) {
   console.error(`SIGNING_KEY_PATH is not a PEM private key: ${KEY_PATH}`);
   process.exit(1);
 }
+
+/**
+ * Load and vet the trust settings document (SPEC-014 AC4/AC5).
+ *
+ * Both checks fail the process rather than degrading, because trust
+ * verification that is quietly disabled is worse than none: reads keep
+ * answering `Valid` + `signingCredential.untrusted`, which is exactly what a
+ * correctly configured service reports for an untrusted asset. The two are
+ * indistinguishable from outside, so an operator who believes trust is on has
+ * no way to discover that it is not.
+ *
+ * AC5 exists because parsing proves nothing. Verified against the library
+ * (NOTES.md Step 11): `{verify: {verify_trust: true}, trust: {}}` raises no
+ * error and verifies nothing — byte-identical to passing no settings at all.
+ * A malformed PEM does throw, so the dangerous case is the ABSENT one.
+ */
+function loadTrustSettings(path) {
+  let raw;
+  try {
+    raw = fs.readFileSync(path, 'utf8');
+  } catch (err) {
+    console.error(`CONTENTAUTH_TRUST_SETTINGS is not readable: ${path} (${err.code ?? err.message})`);
+    process.exit(1);
+  }
+
+  let settings;
+  try {
+    settings = JSON.parse(raw);
+  } catch (err) {
+    console.error(`CONTENTAUTH_TRUST_SETTINGS is not a JSON settings document: ${path} (${err.message})`);
+    process.exit(1);
+  }
+
+  if (settings === null || typeof settings !== 'object' || Array.isArray(settings)) {
+    console.error(`CONTENTAUTH_TRUST_SETTINGS must be a JSON object: ${path}`);
+    process.exit(1);
+  }
+
+  // AC5: would these settings actually verify anything?
+  const nonEmpty = (value) => typeof value === 'string' && value.trim() !== '';
+  const trust = settings.trust ?? {};
+  const hasMaterial = nonEmpty(trust.trust_anchors) || nonEmpty(trust.allowed_list);
+
+  if (settings.verify?.verify_trust !== true) {
+    console.error(`CONTENTAUTH_TRUST_SETTINGS does not enable verify.verify_trust: ${path}`);
+    process.exit(1);
+  }
+  if (!hasMaterial) {
+    console.error(
+      `CONTENTAUTH_TRUST_SETTINGS carries no trust.trust_anchors or trust.allowed_list: ${path}. `
+      + 'verify_trust without trust material verifies nothing, silently.',
+    );
+    process.exit(1);
+  }
+
+  // Contents, not paths: c2pa parses these fields as PEM/config text, so a path
+  // fails with "could not parse configuration" (NOTES.md Step 11).
+  return settings;
+}
+
+const trustSettings = TRUST_SETTINGS_PATH ? loadTrustSettings(TRUST_SETTINGS_PATH) : undefined;
 
 // Asset types this service will sign/read (SPEC-009 #6). Must track MediaType
 // in the PHP client; revisit when a spec adds asset types.
@@ -97,7 +162,12 @@ app.use('/v1', (req, res, next) => {
 });
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', signing_alg: SIGN_ALG, timestamping: Boolean(TSA_URL) });
+  res.json({
+    status: 'ok',
+    signing_alg: SIGN_ALG,
+    timestamping: Boolean(TSA_URL),
+    trust_verification: Boolean(trustSettings),
+  });
 });
 
 /**
@@ -191,7 +261,12 @@ app.post('/v1/read', async (req, res) => {
   }
   const fileBuffer = Buffer.from(content, 'base64');
   try {
-    const reader = await Reader.fromAsset({ buffer: fileBuffer, mimeType: mime_type });
+    // SPEC-014: with trust settings configured, c2pa-rs verifies the signing
+    // certificate against the trust list and reports validation_state
+    // "Trusted"; without them it stops at "Valid" + signingCredential.untrusted.
+    const reader = trustSettings
+      ? await Reader.fromAsset({ buffer: fileBuffer, mimeType: mime_type }, trustSettings)
+      : await Reader.fromAsset({ buffer: fileBuffer, mimeType: mime_type });
     // SPEC-010: an asset with no C2PA manifest yields a null reader. Absence is
     // an empty manifest store (HTTP 200), never a 500 — the PHP client parses
     // {} into an empty ManifestReport (hasManifest() === false).

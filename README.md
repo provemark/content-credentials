@@ -169,6 +169,34 @@ docker compose up -d --build  # service on http://localhost:3000
 `POST /v1/sign` and `POST /v1/read` are Bearer-authenticated with
 `CONTENTAUTH_API_KEY`; `GET /health` is public.
 
+### Trust-list verification
+
+By default the service does **not** verify the signing certificate against a
+trust list. A signed asset then reads back as `Valid` with
+`signingCredential.untrusted`, and `ManifestReport::isTrusted()` is `false` **by
+design, not by failure** — the read simply never established trust. Signature
+validity is unaffected: use `isSignatureValid()` for the integrity verdict.
+
+Set `CONTENTAUTH_TRUST_SETTINGS` to a c2pa settings document to switch it on;
+Docker Compose mounts the bundled **test** anchors ready to use:
+
+```dotenv
+CONTENTAUTH_TRUST_SETTINGS=/run/secrets/c2pa-trust.settings.json
+```
+
+`GET /health` then reports `"trust_verification": true`, and a certificate the
+anchors cover reads back as `Trusted` with `isTrusted() === true`.
+
+The service **refuses to start** if the document is unreadable, does not parse,
+or could not actually verify — `verify.verify_trust` plus a non-empty
+`trust.trust_anchors` or `trust.allowed_list`. That last check matters:
+`verify_trust` without trust material verifies nothing *silently*, producing
+reads indistinguishable from having configured nothing at all. Failing at
+startup is what stops you believing trust is on when it is not.
+
+The bundled anchors trust only the c2pa-rs **test** certificates. Replace them
+with the trust list your verifier uses before production.
+
 ## Verifying the output
 
 `bin/verify.sh` runs [`c2patool`](https://github.com/contentauth/c2pa-rs) with
