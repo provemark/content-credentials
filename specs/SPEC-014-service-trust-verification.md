@@ -114,23 +114,39 @@ criteria in the integration group (they need a live service).
   - When the service starts
   - Then it exits non-zero with a message naming the problem and the path, and
     does **not** start serving — mirroring the existing cert/key startup checks
-  - And it never starts with trust verification silently disabled
 
-- **AC5 — trust status is observable**
+- **AC5 — settings that would not actually verify are rejected at startup**
+  *(error path; the experiment's key finding)*
+  - Given a settings document that parses but cannot verify trust: `verify_trust`
+    absent or false, or **no non-empty** `trust.trust_anchors` /
+    `trust.allowed_list`
+  - When the service starts
+  - Then it exits non-zero naming which part is missing
+  - Rationale: verified 2026-08-05 that `{ verify: { verify_trust: true },
+    trust: {} }` produces **no error and no verification** — the read returns
+    `Valid` + `signingCredential.untrusted`, byte-identical to configuring
+    nothing at all. A malformed PEM does throw, so the dangerous case is the
+    *absent* one, not the malformed one. Without this check an operator who
+    believes trust is on gets a service that verifies nothing and reports the
+    same `isTrusted() === false` as a correctly-configured service reading an
+    untrusted asset — the two are indistinguishable from the outside, which is
+    exactly the silent failure this spec exists to prevent
+
+- **AC6 — trust status is observable**
   - Given any configuration
   - When `GET /health` is called
   - Then it reports whether trust verification is active, so an operator can
     confirm the mode of a running service without reading its environment
     (consistent with the existing `timestamping` flag)
 
-- **AC6 — a manifest-less asset is unaffected**
+- **AC7 — a manifest-less asset is unaffected**
   - Given trust verification is active
   - When an asset with no C2PA data is read
   - Then the response is still an empty store (HTTP 200, `{}`) per SPEC-010,
     and `isTrusted()` is `false` per SPEC-013 — trust verification must not turn
     absence into an error
 
-- **AC7 — reading stays offline**
+- **AC8 — reading stays offline**
   - Given trust verification is active and no OCSP or timestamp-trust option is
     enabled
   - When an asset is read
@@ -174,23 +190,30 @@ with c2patool — `certs/c2pa-trust.settings.json`:
 
 ## Open questions
 
-- **Do the `trust.*` fields take file *contents* or file *paths*?** This is the
-  single biggest implementation risk and must be settled by experiment before
-  coding. NOTES.md (Step 5) records that **c2patool** settings take the PEM and
-  EKU **contents as strings**, and `certs/c2pa-trust.settings.json` is built that
-  way. The c2pa-node README, by contrast, shows `trustAnchors: "path/to/anchors.pem"`
-  in `createTrustSettings`. Both cannot be true for the same field. *Blocker for
-  the API sketch, not for approval*: if c2pa-node wants paths, either the
-  existing settings file is reused via a different helper, or a second
-  path-shaped document is generated — decided by testing, and the finding
-  recorded in NOTES.md.
-- **Is `trust_config` (permitted EKU OIDs) required?** NOTES.md (Step 5) records
-  that the c2pa-rs test leaf certificate's EKU is E-mail Protection
-  (1.3.6.1.5.5.7.3.4) and that `store.cfg` is what lets the chain pass. If
-  c2pa-node's settings expose no equivalent, AC1 may be unreachable **with the
-  test certificates** even when the anchors are correct — which would be a
-  property of the fixtures, not of the implementation. Must be proven, not
-  assumed. *Non-blocker for approval*, blocking for marking AC1 met.
+- ~~**Do the `trust.*` fields take file *contents* or file *paths*?**~~
+  **RESOLVED by experiment (2026-08-05, NOTES.md Step 11): contents.** A path
+  throws `Invalid settings: bad parameter: could not parse configuration: TOML
+  parse error`. The NOTES Step 5 gotcha holds for c2pa-node exactly as it does
+  for c2patool, and the README's `"path/to/anchors.pem"` is misleading.
+  **`certs/c2pa-trust.settings.json` works verbatim** — passing it straight to
+  `Reader.fromAsset` yields `validation_state: "Trusted"` with an empty
+  `validation_status`. The API sketch below is therefore confirmed as written.
+- ~~**Is `trust_config` (permitted EKU OIDs) required?**~~ **RESOLVED by
+  experiment: no.** `trust.trust_anchors` alone yields `Trusted`; so does
+  `trust.allowed_list` alone. AC1 is reachable with the existing test
+  certificates, so the concern about the E-mail Protection EKU does not apply on
+  this path. `trust_config` stays in the settings document because c2patool needs
+  it and one document serving both is worth more than a minimal one.
+- ~~**Should the exported settings helpers be used?**~~ **RESOLVED by
+  experiment: no — they are a trap.** `createTrustSettings()` /
+  `createVerifySettings()` emit **camelCase** keys (`trustAnchors`,
+  `verifyTrust`), and passing the merged object straight to `Reader.fromAsset`
+  **silently disables trust verification** — no error, `state=Valid`,
+  `signingCredential.untrusted`, indistinguishable from having configured
+  nothing. It only works when routed through `settingsToJson()`, which converts
+  to snake_case. `loadSettingsFromFile()` is broken outright in 0.8.1
+  (`fs.readFile is not a function`). The implementation must use the plain
+  snake_case document and must not depend on these helpers.
 - **Should trust verification become the default once it works?** Leaving it
   opt-in keeps upgrades safe; making it the default makes the secure
   configuration the one you get without reading the docs. *Non-blocker*, leaning
@@ -216,3 +239,4 @@ least one test; every source file maps back to this spec.
 | AC5                  | —                           | —                    |
 | AC6                  | —                           | —                    |
 | AC7                  | —                           | —                    |
+| AC8                  | —                           | —                    |
