@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.4.3] - 2026-08-05
+
+A compatibility and maintenance release. **No change to `src/`**, so the
+installed Composer package is functionally identical to 0.4.0–0.4.2: no API
+change, no behaviour change, nothing to migrate. What changes is the range of
+Laravel versions this package is *tested* against, and the signing service in
+the repository.
+
 ### Added
 
 - **Laravel 12 and 13 are now supported and covered by CI.** The Laravel
@@ -175,7 +185,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.4.2...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.4.3...main
+[0.4.3]: https://github.com/provemark/content-credentials/releases/tag/v0.4.3
 [0.4.2]: https://github.com/provemark/content-credentials/releases/tag/v0.4.2
 [0.4.1]: https://github.com/provemark/content-credentials/releases/tag/v0.4.1
 [0.4.0]: https://github.com/provemark/content-credentials/releases/tag/v0.4.0
