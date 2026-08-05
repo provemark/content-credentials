@@ -237,6 +237,19 @@ php bin/e2e.php                 # signs tests/fixture.png -> out/signed.png, the
 - The `CONTENTAUTH_API_KEY` and service URL come from the environment; the
   library never logs the token or key material.
 - All manifest/service input is treated as untrusted and validated.
+- **The signing service publishes on `127.0.0.1` only.** It speaks plain HTTP
+  and holds the signing key, so it must not be exposed directly. To reach it
+  from another host, put TLS termination in front of it and restrict the network
+  path — do not simply widen the port binding in `docker-compose.yml`.
+- **Treat `CONTENTAUTH_API_KEY` as equivalent to the signing key.** Anyone who
+  can call `/v1/sign` can have assertions signed by your certificate. The
+  service constrains *what* it will attest to (see below), but it cannot tell an
+  authorised caller from a stolen token. Rotate it like a key, scope it per
+  application, and never share one token across environments.
+- **Verify before you trust what you read.** `isAiGenerated()`,
+  `signer()` and `digitalSourceTypes()` report what a manifest *claims* — they
+  do not imply the signature checked out. Gate on `isSignatureValid()` (and
+  `isTrusted()` where trust matters) before acting on a credential.
 
 ## License
 

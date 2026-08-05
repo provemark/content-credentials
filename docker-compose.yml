@@ -5,7 +5,12 @@ services:
     build:
       context: ./service
     ports:
-      - "3000:3000"
+      # Loopback only. "3000:3000" publishes on 0.0.0.0 (and ::), which exposes
+      # the one process holding the signing key to every network that can reach
+      # the host — over plain HTTP, so the bearer token crosses the wire in the
+      # clear. Change this only together with TLS termination and a deliberate
+      # network boundary; see the security note in the README.
+      - "127.0.0.1:3000:3000"
     environment:
       PORT: "3000"
       CONTENTAUTH_API_KEY: "${CONTENTAUTH_API_KEY:?set CONTENTAUTH_API_KEY in .env}"
