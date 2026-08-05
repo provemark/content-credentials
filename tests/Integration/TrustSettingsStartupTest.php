@@ -31,7 +31,7 @@ declare(strict_types=1);
  * parses proves nothing, and an operator who believes trust is on cannot tell
  * from the outside that it is not.
  *
- * Excluded from `composer check`; run with `vendor/bin/pest --group=provenance`.
+ * Excluded from `composer check`; run with `vendor/bin/pest --group=integration`.
  */
 /** The running signing-service container id, or null when it is not up. */
 function spec014ServiceContainer(): ?string

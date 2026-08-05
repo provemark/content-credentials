@@ -53,3 +53,96 @@ jobs:
 
       - name: Architecture (Deptrac)
         run: composer deptrac
+
+  # The signing service and everything hardened around it — assertion limits
+  # (SPEC-011), audit logging (SPEC-012), trust verification (SPEC-014) and rate
+  # limiting (SPEC-015) — live in the `integration` group, which `composer check`
+  # excludes because it needs a running service. Until this job existed those
+  # tests only ran when somebody remembered to run them by hand, which is not a
+  # guarantee: every service-side protection was defended by a suite CI never
+  # executed.
+  #
+  # Several criteria describe service configurations that cannot coexist in one
+  # process (trust on vs off, the AI-marking policy on vs off, a rate limit low
+  # enough to exercise). Each profile below starts the service differently; the
+  # tests gate on what GET /health reports and skip what does not apply, so the
+  # union of the profiles covers the set.
+  integration:
+    name: integration (${{ matrix.profile.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile:
+          # The rate limit is raised out of the way in the first two profiles,
+          # not because the default is wrong but because the suite is denser
+          # than any real client: ~50 signing requests in under a minute,
+          # including SPEC-015's own deliberate bursts. Left at 60/min the
+          # suite trips its own limit and every other group fails with 429.
+          # The concurrency cap stays at its default, which is what SPEC-015
+          # AC3 exercises.
+          - name: defaults
+            env: |
+              RATE_LIMIT_REQUESTS=1000
+            groups: integration
+          - name: hardened
+            env: |
+              RATE_LIMIT_REQUESTS=1000
+              CONTENTAUTH_TRUST_SETTINGS=/run/secrets/c2pa-trust.settings.json
+              REQUIRE_AI_MARKING=true
+            groups: integration
+          # A low rate limit would make every other group collide with it, so
+          # this profile runs SPEC-015 alone.
+          - name: rate-limited
+            env: |
+              RATE_LIMIT_REQUESTS=5
+              RATE_LIMIT_WINDOW_MS=2000
+            groups: SPEC-015
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Install dependencies
+        run: composer update -W --no-interaction --prefer-dist --no-progress
+
+      # The private test key is deliberately not committed (see README); fetch
+      # the c2pa-rs sample. Test material only — never a real key.
+      - name: Fetch the ES256 test signing key
+        run: |
+          curl -sfSL https://raw.githubusercontent.com/contentauth/c2pa-rs/main/cli/sample/es256_private.key \
+            -o certs/es256_private.key
+
+      - name: Configure the service (${{ matrix.profile.name }})
+        run: |
+          {
+            echo "CONTENTAUTH_API_KEY=$(openssl rand -hex 32)"
+            echo "${{ matrix.profile.env }}"
+          } > .env
+
+      - name: Start the signing service
+        run: |
+          docker compose up -d --build
+          for i in $(seq 30); do
+            curl -sf http://127.0.0.1:3000/health && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:3000/health
+
+      - name: Integration tests (${{ matrix.profile.groups }})
+        run: |
+          set -a && . ./.env && set +a
+          vendor/bin/pest --group=${{ matrix.profile.groups }}
+
+      - name: Service logs on failure
+        if: failure()
+        run: docker compose logs --tail 200 service
+
+      - name: Stop the signing service
+        if: always()
+        run: docker compose down

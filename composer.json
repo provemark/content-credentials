@@ -95,7 +95,7 @@
     "scripts-descriptions": {
         "format": "Fix code style with Laravel Pint",
         "analyse": "Static analysis with PHPStan (level max; needs more than PHP's default 128M, which crashes a parallel worker)",
-        "test": "Run the Pest test suite (excludes the service-dependent integration group; run it with: vendor/bin/pest --group=provenance)",
+        "test": "Run the Pest test suite (excludes the service-dependent integration group; run it with: vendor/bin/pest --group=integration)",
         "deptrac": "Enforce architecture boundaries with Deptrac",
         "check": "The single definition of green: format + analyse + test + deptrac"
     }

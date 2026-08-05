@@ -14,7 +14,7 @@ use Provemark\ContentCredentials\Core\Signing\SigningServiceSigner;
 
 /**
  * Shared wiring for the integration suite (the `integration` group, excluded
- * from `composer check`; run with `vendor/bin/pest --group=provenance`).
+ * from `composer check`; run with `vendor/bin/pest --group=integration`).
  *
  * Reads the service URL and API key from the environment, falling back to the
  * repo `.env`, and builds real HTTP-backed signer/reader against the running
