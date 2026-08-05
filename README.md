@@ -33,6 +33,10 @@ in-process native extension, which puts the key on the web server.)
 ## Requirements
 
 - PHP **8.3+**
+- **Laravel 11, 12 or 13** — only if you use the service provider, facade, jobs
+  or artisan commands. The core library is framework-agnostic and needs no
+  Laravel at all; `illuminate/*` is never a runtime dependency of this package.
+  Each major is covered by CI.
 - A **PSR-18 HTTP client** and **PSR-17 factories**. In Laravel these are
   discovered automatically (Guzzle ships with Laravel); in plain PHP you inject
   your own.
