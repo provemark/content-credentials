@@ -41,6 +41,28 @@ sign converts a general signing oracle into a bounded attestation service, and
 costs the legitimate client nothing: `ManifestBuilder` emits exactly one
 `c2pa.actions.v2` assertion (SPEC-001).
 
+**What this spec deliberately does not attempt.** It would be tempting to require
+`digitalSourceType = trainedAlgorithmicMedia` outright, so the service could never
+sign anything claiming to be a camera capture. That is a false gain: the service
+can verify `trainedAlgorithmicMedia` no better than it can verify `digitalCapture`
+— both are client claims. Requiring one does not make the attestation truer, it
+only narrows the direction in which a caller may lie (claiming AI for authentic
+material remains possible, as does lying about `softwareAgent` or submitting
+someone else's asset). The cost is real, though: C2PA's value is not only "this is
+AI" but also "this is authentic", and a hard requirement would permanently exclude
+the second use from any deployment of this service.
+
+The invariant this spec *does* enforce is different in kind. Two actions
+assertions in one signed manifest are contradictory and their resolution is
+verifier-dependent — a correctness defect, not merely an abuse vector, and
+precisely the friction that motivated the divergence from upstream. "At most one"
+is therefore a structural invariant and belongs in the service; "which
+digitalSourceType" is deployment policy and is offered opt-in (AC8).
+
+Attribution — knowing *who* asked for a signature — is the control that addresses
+misuse rather than narrowing it, and is specified separately in SPEC-012
+(audit logging).
+
 Related domain rules that this spec must not break: the first action MUST be
 `c2pa.created` or `c2pa.opened` (claim v2), and the Article 50 marking is that
 same single assertion (CLAUDE.md, Domain rules).
@@ -56,16 +78,25 @@ same single assertion (CLAUDE.md, Domain rules).
 - Bounding `creator_name` length and rejecting non-string values.
 - Returning HTTP 400 with a specific, non-leaking message for each rejection,
   consistent with the SPEC-009 client-error convention.
-- Documenting the limits in the README service section and `.env.example` if
-  they are configurable.
+- An **opt-in, default-off** deployment policy (`REQUIRE_AI_MARKING`) that
+  additionally requires the single actions assertion to carry
+  `digitalSourceType = trainedAlgorithmicMedia`, for deployments whose
+  certificate exists only to mark AI-generated content.
+- Documenting the limits and the policy flag in the README service section and
+  `.env.example`.
 
 **Out of scope** (each needs its own spec before it may be built)
 
-- A label allowlist, or semantic validation of assertion *contents* (e.g.
-  requiring `digitalSourceType` to be an IPTC URI). Structural limits only.
-- Per-token authorisation, scopes, or distinguishing callers.
+- A label allowlist, or semantic validation of assertion *contents* beyond the
+  optional `digitalSourceType` policy of AC8 (e.g. validating `softwareAgent`
+  shape, or checking IPTC URIs against a vocabulary).
+- Per-token authorisation, scopes, or distinguishing callers. Attribution of a
+  signing request is **SPEC-012 (audit logging)**; per-client tokens and CAWG
+  organisational identity assertions need their own spec after that.
 - Rate limiting, request concurrency caps, or body-size changes (a real gap —
   see the review of 2026-08-05 — but a separate concern).
+- Replacing verbatim error echo with a generic message plus correlation id
+  (same review; belongs with SPEC-012, which introduces the correlation id).
 - Any change to `src/`. The PHP client already sends one actions assertion, so
   it should need no modification; if a limit turns out to break it, that is a
   spec contradiction → stop and amend.
@@ -126,6 +157,19 @@ the integration group where a live service is required.
   - Then the message names the violated constraint and its limit, and contains
     no file path, no library internals, and no echo of the submitted payload
 
+- **AC8 — optional AI-marking policy, default off**
+  - Given `REQUIRE_AI_MARKING` is unset or `false` (the default)
+  - When a request carries a single actions assertion with any
+    `digitalSourceType`, or none at all
+  - Then it is signed — the service takes no position on which source type a
+    caller asserts
+  - And given `REQUIRE_AI_MARKING=true`
+  - When the single actions assertion's first action does **not** carry
+    `digitalSourceType = http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia`
+  - Then HTTP **400**, no signing
+  - And `GET /health` reports the effective policy, so an operator can confirm
+    which mode a running service is in without reading its environment
+
 ## API sketch
 
 Illustrative only. The change is confined to `service/server.js`; the request
@@ -139,9 +183,18 @@ const MAX_ASSERTION_BYTES = Number(process.env.MAX_ASSERTION_BYTES ?? 64 * 1024)
 const MAX_ASSERTION_DEPTH = Number(process.env.MAX_ASSERTION_DEPTH ?? 16);
 const MAX_CREATOR_NAME    = Number(process.env.MAX_CREATOR_NAME ?? 256);
 
+// Deployment policy, NOT a structural invariant. Default off: the service takes
+// no position on which digitalSourceType a caller asserts (see Problem).
+const REQUIRE_AI_MARKING  = process.env.REQUIRE_AI_MARKING === 'true';
+
 /** @returns {string|null} the violated constraint, or null when acceptable. */
 function rejectAssertions(assertions) { /* ... */ }
 ```
+
+Note the deliberate asymmetry in defaults: the **structural** limits are
+restrictive by default, because too permissive is the risk there; the
+**semantic** policy is permissive by default, because too strict is the risk
+there — it would silently exclude legitimate authenticity use cases.
 
 The PHP client needs no change: `SigningServiceSigner` already surfaces a
 non-2xx body through `SigningFailedException` with the service message
@@ -157,12 +210,21 @@ non-2xx body through `SigningFailedException` with the service message
   operator widen them back to today's behaviour without noticing. Fixed limits
   are safer but need a release to change. *Non-blocker*, leaning env with the
   defaults documented.
-- **Should `c2pa.actions` be required rather than merely limited to one?**
-  Requiring it would make a manifest without the Art.50 marking impossible to
-  produce — attractive for this project's purpose, but it changes the service
-  from "signs what you ask" to "signs only AI markings", which may be wrong for
-  a general-purpose service. *Blocker for scope*: needs a decision before
-  approval.
+- ~~**Should `c2pa.actions` be required rather than merely limited to one?**~~
+  **RESOLVED (2026-08-05): at most one, not required.** Requiring
+  `trainedAlgorithmicMedia` is a false gain — the service cannot verify it any
+  better than it can verify `digitalCapture`, so the requirement narrows the
+  direction of a possible lie without making the attestation truer, while
+  permanently excluding the authenticity use case. "At most one" stays, because
+  contradictory actions assertions are a correctness defect rather than a policy
+  choice. Deployments whose certificate exists solely to mark AI content can
+  opt in via `REQUIRE_AI_MARKING` (AC8). Reasoning recorded in Problem.
+- **Should `REQUIRE_AI_MARKING` check every action or only the first?** Claim v2
+  requires the first action to be `c2pa.created`/`c2pa.opened`, and the Art.50
+  marking rides on that first action. Checking only the first is simpler and
+  matches the domain rule; checking all would reject a legitimate multi-action
+  history (created → edited). *Non-blocker*, leaning first-action-only, as AC8
+  states.
 - **Does any limit break `bin/e2e.php` or the property-based suites?** Expected
   not — they drive the legitimate path — but AC1 must be proven against a live
   service, not assumed.
@@ -181,3 +243,4 @@ least one test; every source file maps back to this spec.
 | AC5                  | —                           | —                    |
 | AC6                  | —                           | —                    |
 | AC7                  | —                           | —                    |
+| AC8                  | —                           | —                    |
