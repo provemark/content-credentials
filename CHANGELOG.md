@@ -6,7 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Service (requires `git pull` + `docker compose up -d --build`)
+
+- **The signing-service image is now built reproducibly.** The Dockerfile copied
+  only `package.json` and ran `npm install`, so every transitive dependency was
+  re-resolved to whatever was newest-satisfying at build time and
+  `package-lock.json` was ignored entirely — builds were not reproducible, and a
+  security pin recorded in the lockfile never reached the image. It now copies
+  the lockfile and runs `npm ci --omit=dev`, installing exactly the locked tree
+  and failing the build if lockfile and `package.json` have drifted apart.
+  Verified with a `--no-cache` rebuild: identical dependency versions, and
+  signing, read-back, the TSA timestamp path and `bin/verify.sh` all unchanged.
+  No functional change to the running service.
 
 ## [0.4.3] - 2026-08-05
 
