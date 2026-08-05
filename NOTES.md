@@ -839,3 +839,54 @@ The path, in order:
 
 This is the largest remaining piece of design, and the one that turns the
 audit log from "we signed this" into "they asked us to".
+
+---
+
+## Step 17 — The integration suite now runs in CI (2026-08-05)
+
+Every service-side protection built in Steps 12–15 — assertion limits, audit
+logging, trust verification, rate limiting — was defended by tests **CI never
+executed**. `composer check` excludes the `integration` group because it needs a
+running service, and nothing else ran it. Forty-odd tests that only ever ran
+when somebody remembered to.
+
+`.github/workflows/ci.yml` gains an `integration` job with three profiles,
+because several criteria describe service configurations that cannot coexist in
+one process:
+
+| Profile | Service started with | Runs |
+|---|---|---|
+| `defaults` | rate limit raised | `--group=integration` |
+| `hardened` | trust settings + `REQUIRE_AI_MARKING=true` | `--group=integration` |
+| `rate-limited` | `RATE_LIMIT_REQUESTS=5`, window 2000ms | `--group=SPEC-015` |
+
+Verified locally against all three before pushing: 43 passed / 5 skipped,
+44 passed / 4 skipped, 7 passed. The tests gate on what `GET /health` reports
+and skip what does not apply, so the union covers the set.
+
+### ⚠️ `--group=provenance` does NOT run the integration tests
+This is the one to remember. `provenance` is the property-based chain suite —
+**three tests**. The integration tests written in Steps 12–15 are tagged
+`('SPEC-0NN', 'integration')`, so the documented command ran almost none of
+them:
+
+```
+vendor/bin/pest --group=provenance   ->  3 tests
+vendor/bin/pest --group=integration  -> 48 tests
+```
+
+Every docblock, and `composer.json`'s `scripts-descriptions`, said `provenance`.
+Corrected everywhere to `integration`; only the property suite still names its
+own group. The instruction had been copied forward since Step 7 without anyone
+checking that it still selected what it claimed to.
+
+### ⚠️ The suite trips its own rate limit
+Running `--group=integration` against a default service produces a wall of
+`HTTP 429: rate limit exceeded`, and 29 failures that look like broken code and
+are not. The suite makes ~50 signing requests in well under a minute — including
+SPEC-015's deliberate bursts — against a default budget of 60/minute.
+
+Hence the raised limit in the first two CI profiles. Worth knowing beyond CI:
+**60 requests per minute is comfortable for interactive use and tight for batch
+work.** A queue worker signing a hundred assets hits it. The default is a
+starting point, not a recommendation — `RATE_LIMIT_REQUESTS` exists for this.

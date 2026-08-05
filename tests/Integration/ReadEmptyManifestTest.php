@@ -13,7 +13,7 @@ use Provemark\ContentCredentials\Tests\Integration\ServiceHarness;
  * SPEC-010 — reading an asset with no C2PA manifest is absence, not an error.
  *
  * Integration tests against the running service (docker compose up). Excluded
- * from `composer check`; run with `vendor/bin/pest --group=provenance`.
+ * from `composer check`; run with `vendor/bin/pest --group=integration`.
  */
 $skipUnlessReachable = fn () => ! ServiceHarness::reachable()
     ? 'signing service not reachable — start it with docker compose up -d'

@@ -12,7 +12,7 @@ use Provemark\ContentCredentials\Tests\Integration\ServiceHarness;
  * SPEC-014 — trust-list verification in `/v1/read`.
  *
  * Integration tests against the running service (docker compose up). Excluded
- * from `composer check`; run with `vendor/bin/pest --group=provenance`.
+ * from `composer check`; run with `vendor/bin/pest --group=integration`.
  *
  * AC1 and AC3 describe two *different service configurations* — trust
  * verification on and off — which one process cannot hold at once. Each is

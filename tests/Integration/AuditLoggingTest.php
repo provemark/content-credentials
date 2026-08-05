@@ -17,7 +17,7 @@ use Provemark\ContentCredentials\Tests\Integration\ServiceHarness;
  * of AC3: an operator has to be able to get from a client-side failure to the
  * record that explains it.
  *
- * Excluded from `composer check`; run with `vendor/bin/pest --group=provenance`.
+ * Excluded from `composer check`; run with `vendor/bin/pest --group=integration`.
  *
  * @see specs/SPEC-012-audit-logging.md
  */
@@ -312,7 +312,9 @@ node -e '
   const body = {
     content: fs.readFileSync("/tmp/spec012-fixture.png").toString("base64"),
     mime_type: "image/png",
-    extra_assertions: [{label:"c2pa.actions.v2",data:{actions:[{action:"c2pa.created"}]}}],
+    // Carry the AI marking: an instance running with REQUIRE_AI_MARKING=true
+    // (SPEC-011 AC8) refuses anything else, and this probe asserts a 200.
+    extra_assertions: [{label:"c2pa.actions.v2",data:{actions:[{action:"c2pa.created",digitalSourceType:"http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"}]}}],
   };
   const auth = { "Authorization": "Bearer " + process.env.CONTENTAUTH_API_KEY, "Content-Type": "application/json" };
   (async () => {

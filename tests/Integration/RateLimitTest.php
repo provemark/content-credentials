@@ -24,7 +24,7 @@ use Provemark\ContentCredentials\Tests\Integration\ServiceHarness;
  * in reasonable time — start the service with `RATE_LIMIT_REQUESTS=5` — and
  * skips with that instruction otherwise, rather than silently passing.
  *
- * Excluded from `composer check`; run with `vendor/bin/pest --group=provenance`.
+ * Excluded from `composer check`; run with `vendor/bin/pest --group=integration`.
  *
  * @see specs/SPEC-015-rate-limiting.md
  */

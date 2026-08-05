@@ -23,7 +23,7 @@ use Provemark\ContentCredentials\Tests\Integration\ServiceHarness;
  * exactly one well-formed actions assertion. AC1 is the exception — it exists to
  * prove the limits are invisible to the legitimate path.
  *
- * Excluded from `composer check`; run with `vendor/bin/pest --group=provenance`.
+ * Excluded from `composer check`; run with `vendor/bin/pest --group=integration`.
  *
  * @see specs/SPEC-011-assertion-limits.md
  */
