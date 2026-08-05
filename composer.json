@@ -82,7 +82,7 @@
     },
     "scripts": {
         "format": "pint",
-        "analyse": "phpstan analyse",
+        "analyse": "phpstan analyse --memory-limit=512M",
         "test": "pest --exclude-group=integration",
         "deptrac": "deptrac analyse",
         "check": [
@@ -94,7 +94,7 @@
     },
     "scripts-descriptions": {
         "format": "Fix code style with Laravel Pint",
-        "analyse": "Static analysis with PHPStan (level max)",
+        "analyse": "Static analysis with PHPStan (level max; needs more than PHP's default 128M, which crashes a parallel worker)",
         "test": "Run the Pest test suite (excludes the service-dependent integration group; run it with: vendor/bin/pest --group=provenance)",
         "deptrac": "Enforce architecture boundaries with Deptrac",
         "check": "The single definition of green: format + analyse + test + deptrac"
