@@ -70,4 +70,41 @@ final class ServiceHarness
     {
         return (string) file_get_contents(dirname(__DIR__).'/fixture.png');
     }
+
+    /**
+     * The decoded `GET /health` document, or an empty array when unreachable.
+     *
+     * @return array<array-key, mixed>
+     */
+    public static function health(): array
+    {
+        $context = stream_context_create(['http' => ['timeout' => 2, 'ignore_errors' => true]]);
+        $body = @file_get_contents(self::baseUrl().'/health', false, $context);
+
+        if (! is_string($body)) {
+            return [];
+        }
+
+        $decoded = json_decode($body, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * Whether the running service reports trust-list verification as active
+     * (SPEC-014 AC6). Null when the service does not report the flag at all —
+     * i.e. a service predating SPEC-014, which is distinct from "inactive".
+     */
+    public static function trustVerificationActive(): ?bool
+    {
+        $flag = self::health()['trust_verification'] ?? null;
+
+        return is_bool($flag) ? $flag : null;
+    }
+
+    /** Absolute path to the committed test trust-settings document. */
+    public static function trustSettingsPath(): string
+    {
+        return dirname(__DIR__, 2).'/certs/c2pa-trust.settings.json';
+    }
 }
