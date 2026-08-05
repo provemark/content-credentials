@@ -341,7 +341,20 @@ it('answers /health while signing is saturating the cap', function () {
         );
 })->group('SPEC-015', 'integration')
     ->skip($skipUnlessReachable)
-    ->skip(fn () => serviceLimits() === [] ? 'service does not report limits (pre-SPEC-015)' : false);
+    ->skip(function () {
+        if (serviceLimits() === []) {
+            return 'service does not report limits (pre-SPEC-015)';
+        }
+
+        // Saturation cannot be observed if the rate limiter refuses the burst
+        // before anything is signed — the same reason AC3 skips here.
+        $cap = serviceLimit('max_concurrent_signs') ?? 1;
+        $rate = serviceLimit('rate_limit_requests');
+
+        return $rate !== null && $rate < max(20, $cap * 5)
+            ? "rate_limit_requests is {$rate} — the burst is refused before anything is in flight"
+            : false;
+    });
 
 // --- AC5: a stalled client cannot hold a slot -------------------------------
 
