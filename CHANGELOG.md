@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.5.3] - 2026-08-06
+
+A service-and-documentation release. **No change to `src/` or `config/`**, so
+nothing the library does changes. The installed package is not byte-identical to
+0.5.2 — `README.md` ships in the dist and gained two sections — but `composer
+update` changes no behaviour. Update the signing service from a clone of the
+repository.
+
+⚠️ **`GET /health` gains a field, and the service now exits on a certificate it
+cannot parse.** Both are below.
+
 ### Service (requires `git pull` + `docker compose up -d --build`)
 
 - **`GET /health` now reports the loaded signing certificate (SPEC-018).** A new
@@ -482,7 +495,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.5.2...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.5.3...main
+[0.5.3]: https://github.com/provemark/content-credentials/releases/tag/v0.5.3
 [0.5.2]: https://github.com/provemark/content-credentials/releases/tag/v0.5.2
 [0.5.1]: https://github.com/provemark/content-credentials/releases/tag/v0.5.1
 [0.5.0]: https://github.com/provemark/content-credentials/releases/tag/v0.5.0
