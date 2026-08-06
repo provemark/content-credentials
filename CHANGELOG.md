@@ -24,6 +24,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   previous check accepted any file containing the word `CERTIFICATE`, so a
   truncated or corrupt PEM started a service that could not sign.
 
+- **express 4.22.2 → 5.2.1.** A major upgrade, previously deferred for want of
+  evidence. Verified against the full integration suite (55 passed) plus
+  `bin/e2e.php` and `bin/verify.sh`, and specifically on the error paths express
+  5 could have changed: an oversized body still returns 413, malformed JSON still
+  returns 400 with a correlation id, an excess of concurrent signs still returns
+  429, and missing auth still returns 401. No API change.
+
 ### Documentation
 
 - **"Rotating the signing key"** in the README: the three-step procedure, what
