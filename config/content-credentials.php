@@ -5,6 +5,43 @@ declare(strict_types=1);
 return [
     /*
     |--------------------------------------------------------------------------
+    | Reader
+    |--------------------------------------------------------------------------
+    |
+    | How manifests are READ. Signing always goes through the service.
+    |
+    |   service    (default) read over HTTP via the signing service
+    |   extension  read in-process via ext-c2pa; throws if it is not loaded
+    |   auto       use the extension when loaded, the service otherwise
+    |
+    | `auto` is what most people want, and it is deliberately NOT the default:
+    | the two readers carry different c2pa-rs versions (0.89.0 in the extension,
+    | 0.90.4 in the service), so installing the extension for an unrelated reason
+    | must not silently change which engine decides your trust verdicts. Set this
+    | yourself and the choice is visible.
+    |
+    | Install the extension with: pie install ericmann/ext-c2pa
+    */
+    'reader' => env('CONTENTAUTH_READER', 'service'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Trust anchors (extension reader only)
+    |--------------------------------------------------------------------------
+    |
+    | PEM contents, or a path to a PEM file — either works; a path is read for
+    | you. Without anchors a signature can be valid but never trusted, which is
+    | by design, not a failure.
+    |
+    | Applies ONLY to the `extension` reader. The service reader's trust
+    | verification is configured on the service itself, via
+    | CONTENTAUTH_TRUST_SETTINGS. Same concept, two places — if you set this and
+    | the service reader still reports isTrusted() false, that is why.
+    */
+    'trust_anchors' => env('CONTENTAUTH_TRUST_ANCHORS'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Signing service
     |--------------------------------------------------------------------------
     |

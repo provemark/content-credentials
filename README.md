@@ -475,6 +475,39 @@ deliberately does **not** fall back to the service reader: a caller who asked fo
 in-process reading and silently got HTTP cannot tell, and the fallback would need
 a URL and token they never supplied.
 
+### In Laravel
+
+Set the mode in `config/content-credentials.php`; everything resolved from the
+container — the facade, the jobs, the artisan commands — follows it.
+
+```dotenv
+CONTENTAUTH_READER=auto            # service (default) | extension | auto
+CONTENTAUTH_TRUST_ANCHORS=/path/to/anchors.pem   # or the PEM contents
+```
+
+⚠️ **The default is `service`, so installing the extension does nothing until you
+set this.** That is deliberate. The two readers run different c2pa-rs versions,
+and an extension installed for an unrelated reason should not silently change
+which engine decides your trust verdicts. `auto` is the setting most people want
+— but as a choice you made, not one that happened to you.
+
+`php artisan content-credentials:read <file>` prints the mode it resolved, so
+"which engine produced this report?" is answerable without reading config:
+
+```
+reader             : extension
+hasManifest        : true
+```
+
+`CONTENTAUTH_TRUST_ANCHORS` accepts PEM contents **or** a path — a path is read
+for you, because every trust surface underneath this one takes contents and
+silently verifies nothing when handed a path.
+
+It applies to the **extension reader only**. The service reader's trust
+verification is configured on the service, through `CONTENTAUTH_TRUST_SETTINGS`.
+Same concept, two places: if you set `CONTENTAUTH_TRUST_ANCHORS` and the service
+reader still reports `isTrusted()` false, that is why.
+
 ### What you are taking on
 
 - **[`ericmann/ext-c2pa`](https://github.com/ericmann/ext-c2pa) is at `v0.1.0`.**

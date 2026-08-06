@@ -5,11 +5,19 @@ declare(strict_types=1);
 use Illuminate\Config\Repository;
 use Illuminate\Container\Container;
 use Illuminate\Support\Facades\Facade;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Reading\Exception\ExtensionMissingException;
 use Provemark\ContentCredentials\Core\Reading\ExtC2paReader;
+use Provemark\ContentCredentials\Core\Reading\ManifestReport;
 use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
 use Provemark\ContentCredentials\Core\Reading\SigningServiceReader;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Laravel\Console\ReadCommand;
 use Provemark\ContentCredentials\Laravel\ContentCredentialsServiceProvider;
+use Provemark\ContentCredentials\Laravel\Exception\MissingConfigurationException;
 use Provemark\ContentCredentials\Laravel\ReaderFactory;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
 
 /**
  * SPEC-020 — which reader the Laravel container binds.
@@ -47,7 +55,20 @@ $skipIfExtension = fn () => extension_loaded('c2pa')
  */
 function ccReaderApp(?string $reader = null, array $extra = []): Container
 {
-    $app = new Container;
+    // Illuminate's Command::run() calls runningUnitTests() on the application,
+    // which a bare Container does not have. Same shim as SPEC-006's harness.
+    $app = new class extends Container
+    {
+        public function runningUnitTests(): bool
+        {
+            return true;
+        }
+
+        public function runningInConsole(): bool
+        {
+            return true;
+        }
+    };
     Container::setInstance($app);
 
     $config = ['service' => ['base_url' => 'https://sign.test', 'api_key' => 'secret']] + $extra;
@@ -110,7 +131,7 @@ it('binds the reader once', function () {
 
 it('throws when the extension mode is set and the extension is missing', function () {
     ccReaderApp('extension')->make(ReaderInterface::class);
-})->throws(\Provemark\ContentCredentials\Core\Reading\Exception\ExtensionMissingException::class)
+})->throws(ExtensionMissingException::class)
     ->group('SPEC-020')
     ->skip($skipIfExtension);
 
@@ -121,9 +142,9 @@ it('does not quietly fall back to the service reader', function () {
     // for a misconfiguration error unrelated to the extension.
     try {
         $reader = ccReaderApp('extension')->make(ReaderInterface::class);
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
         expect($e)->toBeInstanceOf(
-            \Provemark\ContentCredentials\Core\Reading\Exception\ExtensionMissingException::class,
+            ExtensionMissingException::class,
         );
 
         return;
@@ -153,9 +174,9 @@ it('passes configured trust anchors to the in-process reader', function () {
         $this->markTestSkipped('out/signed.png not present — run php bin/e2e.php first');
     }
 
-    $asset = new \Provemark\ContentCredentials\Core\Signing\Asset(
+    $asset = new Asset(
         (string) file_get_contents($signed),
-        \Provemark\ContentCredentials\Core\Manifest\MediaType::Png,
+        MediaType::Png,
     );
 
     $withAnchors = ccReaderApp('extension', ['trust_anchors' => $anchors])
@@ -181,9 +202,9 @@ it('accepts trust anchors given as a path as well as as contents', function () {
 
     $report = ccReaderApp('extension', ['trust_anchors' => $path])
         ->make(ReaderInterface::class)
-        ->read(new \Provemark\ContentCredentials\Core\Signing\Asset(
+        ->read(new Asset(
             (string) file_get_contents($signed),
-            \Provemark\ContentCredentials\Core\Manifest\MediaType::Png,
+            MediaType::Png,
         ));
 
     expect($report->isTrusted())->toBeTrue('a path was not resolved to PEM contents');
@@ -196,7 +217,7 @@ it('refuses a mode it does not recognise', function (string $mode) {
     // shape this project keeps meeting. An empty string is included because it
     // is what an unset env var produces.
     expect(fn () => ccReaderApp($mode)->make(ReaderInterface::class))
-        ->toThrow(\Provemark\ContentCredentials\Laravel\Exception\MissingConfigurationException::class);
+        ->toThrow(MissingConfigurationException::class);
 })->with([
     'typo' => 'ext',
     'empty string' => '',
@@ -208,7 +229,7 @@ it('names the modes it accepts when refusing', function () {
     try {
         ccReaderApp('ext')->make(ReaderInterface::class);
         $message = '';
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
         $message = $e->getMessage();
     }
 
@@ -232,4 +253,31 @@ it('reports the resolved mode without inspecting class names', function () {
 
 it('reports the mode with no reader configured', function () {
     expect(ccReaderApp()->make(ReaderFactory::class)->mode())->toBe('service');
+})->group('SPEC-020');
+
+it('prints the resolved reader mode in the read command', function () {
+    // The other half of AC6. `mode()` being callable is not the same as anyone
+    // seeing it: the command output is where someone already is when they wonder
+    // which engine produced a report.
+    $app = ccReaderApp('service');
+
+    $app->instance(ReaderInterface::class, new class implements ReaderInterface
+    {
+        public function read(Asset $asset): ManifestReport
+        {
+            return new ManifestReport(null, null, [], [], null);
+        }
+    });
+
+    $file = tempnam(sys_get_temp_dir(), 'spec020').'.png';
+    file_put_contents($file, "\x89PNG\r\n\x1a\n");
+
+    $command = new ReadCommand;
+    $command->setLaravel($app);
+    $output = new BufferedOutput;
+    $command->run(new ArrayInput(['file' => $file]), $output);
+
+    @unlink($file);
+
+    expect($output->fetch())->toContain('reader             : service');
 })->group('SPEC-020');

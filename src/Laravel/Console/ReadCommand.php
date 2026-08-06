@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 use Provemark\ContentCredentials\Core\Manifest\Exception\UnsupportedMediaTypeException;
 use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
 use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Laravel\ReaderFactory;
 
 final class ReadCommand extends Command
 {
@@ -17,7 +18,7 @@ final class ReadCommand extends Command
 
     protected $description = 'Read and report the C2PA credential of an image.';
 
-    public function handle(ReaderInterface $reader): int
+    public function handle(ReaderInterface $reader, ReaderFactory $factory): int
     {
         $file = $this->argument('file');
         if (! is_string($file)) {
@@ -50,6 +51,10 @@ final class ReadCommand extends Command
         $report = $reader->read(new Asset($bytes, $mediaType));
         $signer = $report->signer();
 
+        // SPEC-020 AC6: two c2pa-rs versions are in play — 0.89.0 in the
+        // extension, 0.90.4 in the service — so which engine produced this report
+        // has to be visible where someone is already standing when they wonder.
+        $this->line('reader             : '.$factory->mode());
         $this->line('hasManifest        : '.($report->hasManifest() ? 'true' : 'false'));
         $this->line('isAiGenerated      : '.($report->isAiGenerated() ? 'true' : 'false'));
         $this->line('digitalSourceTypes : '.(implode(', ', $report->digitalSourceTypes()) ?: '(none)'));

@@ -2,22 +2,28 @@
 
 declare(strict_types=1);
 
+use Http\Mock\Client as MockClient;
+use Illuminate\Config\Repository;
 use Illuminate\Console\Command;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Nyholm\Psr7\Factory\Psr17Factory;
 use Provemark\ContentCredentials\Core\Manifest\Manifest;
 use Provemark\ContentCredentials\Core\Manifest\MediaType;
 use Provemark\ContentCredentials\Core\Reading\ManifestReport;
 use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
 use Provemark\ContentCredentials\Core\Reading\SignerInfo;
+use Provemark\ContentCredentials\Core\Reading\SigningServiceReader;
 use Provemark\ContentCredentials\Core\Reading\ValidationState;
 use Provemark\ContentCredentials\Core\Signing\Asset;
 use Provemark\ContentCredentials\Core\Signing\Exception\SigningTransportException;
 use Provemark\ContentCredentials\Core\Signing\SignedAsset;
 use Provemark\ContentCredentials\Core\Signing\SignerInterface;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
 use Provemark\ContentCredentials\Laravel\Console\ReadCommand;
 use Provemark\ContentCredentials\Laravel\Console\SignCommand;
 use Provemark\ContentCredentials\Laravel\Jobs\SignAssetJob;
+use Provemark\ContentCredentials\Laravel\ReaderFactory;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
@@ -174,6 +180,15 @@ it('read command reports a credential', function () {
             return $this->report;
         }
     });
+
+    // SPEC-020: the command reports which reader produced the report, and takes
+    // the factory as a dependency. This harness builds a bare container rather
+    // than registering the provider, so the binding is supplied here. A harness
+    // gap, not a contract change — the command's output assertions are unchanged.
+    $app->instance(ReaderFactory::class, new ReaderFactory(
+        new Repository(['content-credentials' => ['reader' => 'service']]),
+        new SigningServiceReader(new MockClient, new Psr17Factory, new Psr17Factory, new SigningServiceConfig('https://sign.test', 'k')),
+    ));
 
     [$exit, $output] = h6Run(new ReadCommand, $app, ['file' => h6TempFile('png')]);
 

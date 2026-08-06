@@ -2,7 +2,7 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | approved                                          |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
 | Approved   | Maurice van Loon — 2026-08-06                     |
 | Supersedes | —                                                 |
@@ -202,10 +202,29 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
+| AC1 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "binds the service reader when the mode is service"; "still binds the service reader when the extension is available" | `src/Laravel/ReaderFactory.php` `make()` |
+| AC2 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "binds the in-process reader when the mode is extension" | `src/Laravel/ReaderFactory.php` `make()` |
+| AC3 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "binds the in-process reader under auto when the extension is available"; "falls back to the service reader under auto when the extension is absent"; "defaults to the service reader when no mode is configured"; "binds the reader once" | `src/Laravel/ReaderFactory.php` `mode()`, provider singleton |
+| AC4 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "throws when the extension mode is set and the extension is missing"; "does not quietly fall back to the service reader" | `src/Core/Reading/ExtC2paReader.php` constructor |
+| AC5 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "refuses a mode it does not recognise"; "names the modes it accepts when refusing" | `src/Laravel/ReaderFactory.php` `mode()` |
+| AC6 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "reports the resolved mode without inspecting class names"; "reports the mode with no reader configured"; "prints the resolved reader mode in the read command" | `src/Laravel/ReaderFactory.php` `mode()`, `src/Laravel/Console/ReadCommand.php` |
+| AC7 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "passes configured trust anchors to the in-process reader"; "accepts trust anchors given as a path as well as as contents" | `src/Laravel/ReaderFactory.php` `trustAnchors()`, `config/content-credentials.php` |
+
+### Implementation notes
+
+- **A docblock landed on the wrong method.** Inserting `configRepository()` above
+  `serviceConfig()` orphaned the latter's `@return array{...}` onto it, and
+  PHPStan reported five errors in code that had not been touched. Caught by the
+  analyser, not by review.
+- **One existing test needed a container binding, not a contract change.**
+  `ReadCommand::handle()` now takes `ReaderFactory`, and SPEC-006's harness
+  builds a bare container rather than registering the provider. The binding was
+  added there. The alternative — making the dependency optional so the harness
+  keeps working — would have let a test shape the design, and a missing
+  diagnostic line is exactly what AC6 exists to prevent.
+- **`Command::run()` needs `runningUnitTests()`**, which a bare
+  `Illuminate\Container\Container` does not have. SPEC-006 solved this with a
+  subclass; the same shim is now in this suite's harness.
+- **AC4 cannot be exercised where the extension is installed.** It runs in CI,
+  which has no extension in three of four profiles, and skips locally. Same split
+  as SPEC-019 AC5.
