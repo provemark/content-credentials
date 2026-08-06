@@ -486,6 +486,21 @@ php bin/e2e.php                 # signs tests/fixture.png -> out/signed.png, the
   service constrains *what* it will attest to (see below), but it cannot tell an
   authorised caller from a stolen token. Rotate it like a key, scope it per
   application, and never share one token across environments.
+- **One service, one caller.** The service authenticates a single shared token,
+  so everything derived from it is shared too. Audit records identify *which
+  token* signed something, not which application — with one token that is the
+  same value on every record. The rate limit is likewise one budget for
+  everyone holding it.
+
+  That is fine for the common case of one application per service. It bites the
+  moment two callers share an instance — staging and production pointed at the
+  same service is the usual way this happens, because certificates are not
+  cheap enough to duplicate. Then a runaway job in staging spends production's
+  budget, rotating the token stops both at once, and a leak from either is a
+  leak from both. If that describes your setup, **run a service per caller**, or
+  [open an issue](https://github.com/provemark/content-credentials/issues) —
+  named per-client credentials are specified and waiting for a real deployment
+  to shape them.
 - **Verify before you trust what you read.** `isAiGenerated()`,
   `signer()` and `digitalSourceTypes()` report what a manifest *claims* — they
   do not imply the signature checked out. Gate on `isSignatureValid()` (and
