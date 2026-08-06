@@ -48,9 +48,10 @@ changed which engine decides `isTrusted()` for a production application, the
 resulting support conversation would begin with nobody knowing that anything had
 changed.
 
-So autodetection is offered, because it is genuinely the sensible default for
-most people — but it must be **stated in config, reported at runtime, and
-overridable**.
+So autodetection is offered as a mode, because it is genuinely what most people
+will want — but it is **chosen, not assumed**: stated in config, reported at
+runtime, and overridable. The default stays the service reader, so nothing about
+an existing application changes because an extension appeared on the machine.
 
 ## Scope
 
@@ -70,9 +71,9 @@ overridable**.
 - Any signer selection. `SignerInterface` keeps its single binding; in-process
   signing is refused for the reasons in SPEC-019, and the extension cannot
   timestamp (`tsa_url` is hardcoded `None`).
-- Changing the default from the service reader to autodetection *for existing
-  installs*. See Open questions — this is the one decision with a behaviour
-  consequence.
+- Changing the default away from the service reader. Settled at approval: the
+  default stays `service`, so this spec introduces no behaviour change for any
+  existing install. Revisiting that is a separate decision.
 - Any change to `Core`, to either reader, or to the service.
 - Per-call reader selection (a caller wanting both can resolve them explicitly).
 
@@ -95,12 +96,15 @@ except AC4, which is about absence.
   - Then it is an `ExtC2paReader`, and it is configured with the application's
     trust anchors if any are set
 
-- **AC3 — `auto` follows availability**
+- **AC3 — `auto` follows availability, and is not the default**
   - Given `content-credentials.reader` is `auto`
   - When `ReaderInterface` is resolved
   - Then it is an `ExtC2paReader` where the extension is loaded and a
     `SigningServiceReader` where it is not
   - And resolving twice returns the same instance (the binding stays a singleton)
+  - And with **no** `reader` set at all, the binding is the service reader even
+    where the extension is loaded — installing an extension must not change an
+    existing application's behaviour on its own
 
 - **AC4 — `extension` without the extension fails loudly** *(error path)*
   - Given `content-credentials.reader` is `extension` and the extension is **not**
@@ -165,14 +169,18 @@ final readonly class ReaderFactory
 
 ## Open questions
 
-- **What should `auto` be — the default, or opt-in?** Defaulting to `auto` is
-  friendlier and probably what people expect. But it means an application that
-  installs `ext-c2pa` for an unrelated reason silently changes which c2pa-rs
-  version decides its trust verdicts, on a `composer update` that touched
-  nothing. Leaning **`service` as the default** for existing installs, with
-  `auto` documented as the recommended setting — the same reasoning that made
-  v0.5.0 a minor rather than a patch: no behaviour change nobody asked for.
-  *Blocker for implementation; decide at approval.*
+- **What should `auto` be — the default, or opt-in?** **Settled: `service` is the
+  default.** `auto` is friendlier and probably what people expect, but as a
+  default it means an application that installs `ext-c2pa` for an unrelated
+  reason silently changes which c2pa-rs version decides its trust verdicts, on an
+  update that touched nothing of ours. Same reasoning that made v0.5.0 a minor
+  rather than a patch: no behaviour change nobody asked for. `auto` is documented
+  as the recommended setting, so the choice is made by a person, once, visibly.
+
+  Consequence to accept: **installing the extension does nothing until the
+  application also sets `reader`.** That will read as a bug to someone. The
+  README and the mode reporting from AC6 are what stop it becoming one, so
+  neither is optional garnish.
 - **How does AC6 surface the answer?** A method on `ReaderFactory`, a value
   object, or an artisan command (`content-credentials:doctor`) that also reports
   the service health. Leaning the factory method plus a line in the existing
