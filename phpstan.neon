@@ -3,6 +3,11 @@ parameters:
     paths:
         - src
         - tests
+    # SPEC-019: ext-c2pa's classes exist only when the native extension is
+    # loaded. Scanned, never analysed — see the file for why it is ours rather
+    # than the extension's own GPL stub.
+    scanFiles:
+        - stubs/ext-c2pa.stub.php
     # The property-based suites (tests/{Unit,Integration}/Property/) are excluded
     # from static analysis, not weakened. They are written in the Eris DSL, which
     # is inherently untypeable under level max: Eris\Generators::* factories are

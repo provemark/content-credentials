@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | approved                                          |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — (draft)                                         |
+| Approved   | Maurice van Loon — 2026-08-06                     |
 | Supersedes | —                                                 |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -197,25 +197,33 @@ place for the definition of "trusted" to drift.
 
 ## Open questions
 
+Settled at approval, before any test was written. Recorded as decisions rather
+than deleted, because the reasoning is the useful part.
+
 - **How does PHPStan see a class that only exists when an extension is loaded?**
-  The extension ships `stubs/c2pa.stubs.php`. Either vendor it into
-  `phpstan.neon`'s `scanFiles`, or wrap the calls behind a narrow internal
-  interface. Level max with no un-annotated ignores is not negotiable, so this
-  needs deciding before implementation. *Blocker for implementation, not for
-  approval.*
-- **Is the equivalence test (AC2) run in CI?** It needs both the extension and a
-  running service. The service half already runs (three integration profiles);
-  the extension would need building in the job. If that proves expensive, the
-  fallback is a documented local step — but a drift check nobody runs is worth
-  little. *Non-blocker.*
+  **Author our own stub** at `stubs/ext-c2pa.stub.php`, listed in
+  `phpstan.neon`'s `scanFiles` and `export-ignore`d from the dist. Not the
+  extension's own `stubs/c2pa.stubs.php`: vendoring a GPL-2.0-or-later file into
+  this repository is a licensing question this spec should not answer, and a stub
+  we write is one we can keep minimal — only the members the adapter calls, so an
+  upstream addition cannot silently widen what we type-check against. Level max
+  with no un-annotated ignores stands.
+- **Is the equivalence test (AC2) run in CI?** **Skip-gated, like the rest of the
+  integration suite**, and CI gains an extension install only if PIE provides a
+  prebuilt binary for a PHP minor in the matrix. A drift check nobody runs is
+  worth little, so if it stays local it must be named in `CONTRIBUTING.md` as a
+  step before releasing a reader change — not left to memory.
 - **Does `Settings->withTrustAnchors()` accept the document we already ship?**
-  `certs/c2pa-trust.settings.json` embeds PEM contents, and the extension takes
-  PEM contents, so probably a field extraction rather than a new file. Verify
-  against the extension before writing tests, as with NOTES Step 11.
-  *Non-blocker.*
-- **What happens at v0.2.0?** The extension is young and its own plan lags its
-  code. The adapter is the containment; the question is whether we pin a version
-  in `suggest` and how we learn of a break. *Non-blocker.*
+  Verify against the extension before writing the AC4 test, as with NOTES
+  Step 11 — the trust surface is where this project has been surprised most.
+  `certs/c2pa-trust.settings.json` embeds PEM contents and the extension takes
+  PEM contents, so the expectation is a field extraction, not a new file. The
+  test asserts the observed behaviour, not the expectation.
+- **What happens at v0.2.0?** `suggest` carries a version note rather than a
+  constraint (Composer cannot constrain a suggestion anyway), and Dependabot does
+  not watch extensions. The containment is the adapter plus AC2: a break shows up
+  as the two readers disagreeing, which is a legible failure. Accepted risk,
+  documented in the README.
 
 ## Traceability
 
