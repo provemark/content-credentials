@@ -24,9 +24,17 @@ function spec018Repo(string $relative): string
     return is_string($raw) ? $raw : '';
 }
 
+/**
+ * The README, lowercased and with runs of whitespace collapsed.
+ *
+ * The collapse is what makes phrase matching work at all: prose is hard-wrapped,
+ * so "Generator Product Security Requirements" carries a newline in the middle
+ * and a naive substring search misses it. Reflowing a paragraph must not break a
+ * test, and must not silently stop testing anything either.
+ */
 function spec018Readme(): string
 {
-    return strtolower(spec018Repo('README.md'));
+    return strtolower((string) preg_replace('/\s+/', ' ', spec018Repo('README.md')));
 }
 
 // --- AC4: rotation is documented and confirmable -----------------------------
@@ -34,12 +42,17 @@ function spec018Readme(): string
 it('documents a signing-key rotation procedure', function () {
     $readme = spec018Readme();
 
-    expect($readme)->toContain('rotat');
+    expect($readme)->toContain('rotating the signing key');
 
-    // The three things that make the procedure usable rather than decorative:
-    // what it costs, how it is done, and how you know it worked.
-    expect($readme)->toContain('in-flight', 'the cost of a restart-based rotation is not stated')
-        ->and($readme)->toContain('fingerprint_sha256', 'no way to confirm the rotation took effect');
+    // Two things that make the procedure usable rather than decorative: what it
+    // costs, and how you know it worked.
+    //
+    // NB `toContain()` takes a variadic list of needles, NOT a needle and a
+    // message — passing an explanation as a second argument turns it into a
+    // second thing the README must literally contain. An earlier version of this
+    // test did exactly that and failed against a correct README.
+    expect($readme)->toContain('in-flight requests are lost');
+    expect($readme)->toContain('fingerprint_sha256');
 })->group('SPEC-018');
 
 it('states that restart-based rotation satisfies the requirement', function () {

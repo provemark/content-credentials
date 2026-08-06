@@ -79,17 +79,20 @@ it('reports the identity of the loaded signing certificate on /health', function
         ->and($block)->toHaveKey('fingerprint_sha256')
         ->and($block)->toHaveKey('not_after');
 
+    $fingerprint = $block['fingerprint_sha256'] ?? null;
+    $notAfter = $block['not_after'] ?? null;
+
     // A SHA-256 fingerprint, hex, no colons — 64 characters. Pinned because a
     // shape that varies between services is not an identifier an operator can
     // compare against a recorded value.
-    expect($block['fingerprint_sha256'])->toBeString()
-        ->and($block['fingerprint_sha256'])->toMatch('/^[0-9a-f]{64}$/');
+    expect($fingerprint)->toBeString()
+        ->and($fingerprint)->toMatch('/^[0-9a-f]{64}$/');
 
     // notAfter must be a parseable instant; the exact format is the
     // implementation's choice.
-    expect($block['not_after'])->toBeString();
-    expect(strtotime((string) $block['not_after']))->not->toBeFalse(
-        'not_after is not a parseable date: '.(string) $block['not_after'],
+    expect($notAfter)->toBeString();
+    expect(strtotime(is_string($notAfter) ? $notAfter : ''))->not->toBeFalse(
+        'not_after is not a parseable date',
     );
 })->group('SPEC-018', 'integration')
     ->skip($skipUnlessReachable);
@@ -132,30 +135,46 @@ it('matches the fingerprint of the certificate the service was configured with',
 // Two services, two certificates, one comparison. Without this, AC1 is satisfied
 // by any constant.
 
-it('reports a different fingerprint for a different signing certificate', function () {
-    $container = spec018Container();
-
-    if ($container === null) {
-        $this->markTestSkipped('signing-service container not running');
+/**
+ * Start a second service inside the running container and return its `/health`.
+ *
+ * A port override is essential: without it the second process hits EADDRINUSE
+ * against the live service and dies for the wrong reason, which would make these
+ * tests pass without the feature existing (the same trap SPEC-014's startup
+ * tests document).
+ *
+ * The image carries neither curl nor wget, so the poll is node's own global
+ * fetch. Failure returns the captured output rather than null, so a broken probe
+ * reports why instead of "expected array, got null".
+ *
+ * @param  array<string, string>  $env
+ * @return array{health: array<array-key, mixed>|null, output: string}
+ */
+function spec018Probe(string $container, int $port, array $env = []): array
+{
+    $assignments = '';
+    foreach ($env + ['PORT' => (string) $port] as $name => $value) {
+        $assignments .= $name.'='.escapeshellarg($value).' ';
     }
 
-    // A throwaway signing identity, generated inside the container so nothing is
-    // written to the repository and nothing outlives the test. Note this is a
-    // second TEST certificate: no production key material is created anywhere.
-    $inner = <<<'SH'
-        set -e
-        cd /tmp
-        openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -days 1 -nodes \
-          -subj "/CN=SPEC-018 Rotation Probe" -keyout probe.key -out probe.crt >/dev/null 2>&1
-        cd /app
-        PORT=3997 SIGNING_CERT_PATH=/tmp/probe.crt SIGNING_KEY_PATH=/tmp/probe.key \
-          node server.js >/tmp/probe.log 2>&1 &
-        for i in $(seq 1 40); do
-          if wget -qO- http://127.0.0.1:3997/health 2>/dev/null; then break; fi
-          sleep 0.25
-        done
-        kill %1 2>/dev/null || true
-    SH;
+    $poll = sprintf(
+        'node -e %s',
+        escapeshellarg(
+            'const u="http://127.0.0.1:'.$port.'/health";'
+            .'(async()=>{for(let i=0;i<40;i++){'
+            .'try{const r=await fetch(u);if(r.ok){console.log(await r.text());process.exit(0)}}catch{}'
+            .'await new Promise(s=>setTimeout(s,250))}process.exit(1)})()',
+        ),
+    );
+
+    $inner = sprintf(
+        'cd /app && %s node server.js >/tmp/probe-%d.log 2>&1 & SRV=$!; %s; RC=$?; kill $SRV 2>/dev/null; '
+        .'if [ $RC -ne 0 ]; then echo "PROBE-FAILED"; cat /tmp/probe-%d.log; fi',
+        $assignments,
+        $port,
+        $poll,
+        $port,
+    );
 
     $raw = shell_exec(sprintf(
         'docker exec %s sh -c %s 2>&1',
@@ -163,20 +182,79 @@ it('reports a different fingerprint for a different signing certificate', functi
         escapeshellarg($inner),
     ));
 
-    $decoded = json_decode(trim((string) $raw), true);
+    $output = trim((string) $raw);
+    $decoded = json_decode($output, true);
 
-    expect($decoded)->toBeArray('the probe service did not answer /health: '.trim((string) $raw));
+    return ['health' => is_array($decoded) ? $decoded : null, 'output' => $output];
+}
 
-    $probe = is_array($decoded['signing_cert'] ?? null)
-        ? ($decoded['signing_cert']['fingerprint_sha256'] ?? null)
-        : null;
+/**
+ * The `fingerprint_sha256` from a probe result, or null.
+ *
+ * @param  array{health: array<array-key, mixed>|null, output: string}  $probe
+ */
+function spec018ProbeFingerprint(array $probe): ?string
+{
+    $block = is_array($probe['health']) ? ($probe['health']['signing_cert'] ?? null) : null;
+    $value = is_array($block) ? ($block['fingerprint_sha256'] ?? null) : null;
 
-    expect($probe)->toBeString()
-        ->and($probe)->toMatch('/^[0-9a-f]{64}$/')
-        ->and($probe)->not->toBe(
-            spec018Fingerprint(),
-            'two different certificates reported the same fingerprint — the value does not track the certificate',
-        );
+    return is_string($value) ? $value : null;
+}
+
+it('reports a different fingerprint for a different signing certificate', function () {
+    $container = spec018Container();
+
+    if ($container === null) {
+        $this->markTestSkipped('signing-service container not running');
+    }
+
+    // A throwaway signing identity. Generated on the host (the image has no
+    // openssl) into the gitignored out/, copied in, and removed afterwards.
+    // A second TEST certificate — no production key material is created here.
+    $dir = dirname(__DIR__, 2).'/out/spec018-probe';
+    @mkdir($dir, 0o755, true);
+
+    shell_exec(sprintf(
+        'openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -days 1 -nodes '
+        .'-subj "/CN=SPEC-018 Rotation Probe" -keyout %s -out %s 2>/dev/null',
+        escapeshellarg($dir.'/probe.key'),
+        escapeshellarg($dir.'/probe.crt'),
+    ));
+
+    if (! is_file($dir.'/probe.crt')) {
+        $this->markTestSkipped('openssl not available to generate a second certificate');
+    }
+
+    foreach (['probe.crt', 'probe.key'] as $file) {
+        shell_exec(sprintf(
+            'docker cp %s %s:/tmp/%s 2>&1',
+            escapeshellarg($dir.'/'.$file),
+            escapeshellarg($container),
+            $file,
+        ));
+    }
+
+    $probe = spec018Probe($container, 3997, [
+        'SIGNING_CERT_PATH' => '/tmp/probe.crt',
+        'SIGNING_KEY_PATH' => '/tmp/probe.key',
+    ]);
+
+    @unlink($dir.'/probe.crt');
+    @unlink($dir.'/probe.key');
+    @rmdir($dir);
+
+    expect($probe['health'])->toBeArray('the probe service did not answer: '.$probe['output']);
+
+    $fingerprint = spec018ProbeFingerprint($probe);
+
+    expect($fingerprint)->toBeString()
+        ->and($fingerprint)->toMatch('/^[0-9a-f]{64}$/');
+
+    // The assertion the whole test exists for.
+    expect($fingerprint)->not->toBe(
+        spec018Fingerprint(),
+        'two different certificates reported the same fingerprint — the value does not track the certificate',
+    );
 })->group('SPEC-018', 'integration')
     ->skip($skipUnlessReachable)
     ->skip($skipUnlessReported);
@@ -191,31 +269,11 @@ it('reports the same fingerprint across a restart with the same certificate', fu
         $this->markTestSkipped('signing-service container not running');
     }
 
-    $inner = <<<'SH'
-        cd /app
-        PORT=3996 node server.js >/tmp/same.log 2>&1 &
-        for i in $(seq 1 40); do
-          if wget -qO- http://127.0.0.1:3996/health 2>/dev/null; then break; fi
-          sleep 0.25
-        done
-        kill %1 2>/dev/null || true
-    SH;
+    $probe = spec018Probe($container, 3996);
 
-    $raw = shell_exec(sprintf(
-        'docker exec %s sh -c %s 2>&1',
-        escapeshellarg($container),
-        escapeshellarg($inner),
-    ));
+    expect($probe['health'])->toBeArray('the second instance did not answer: '.$probe['output']);
 
-    $decoded = json_decode(trim((string) $raw), true);
-
-    expect($decoded)->toBeArray('the second instance did not answer /health: '.trim((string) $raw));
-
-    $second = is_array($decoded['signing_cert'] ?? null)
-        ? ($decoded['signing_cert']['fingerprint_sha256'] ?? null)
-        : null;
-
-    expect($second)->toBe(
+    expect(spec018ProbeFingerprint($probe))->toBe(
         spec018Fingerprint(),
         'the same certificate produced a different fingerprint in a new process',
     );

@@ -2,7 +2,7 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | approved                                          |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
 | Approved   | Maurice van Loon — 2026-08-06                     |
 | Supersedes | —                                                 |
@@ -238,10 +238,26 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
+| AC1 | `tests/Integration/SigningKeyIdentityTest.php` :: "reports the identity of the loaded signing certificate on /health"; "matches the fingerprint of the certificate the service was configured with" | `service/server.js` `signingCertIdentity`, `GET /health` |
+| AC2 | `tests/Integration/SigningKeyIdentityTest.php` :: "reports a different fingerprint for a different signing certificate"; "reports the same fingerprint across a restart with the same certificate" | `service/server.js` `signingCertIdentity` |
+| AC3 | `tests/Integration/SigningKeyIdentityTest.php` :: "exposes no key material or filesystem paths in the certificate identity" | `service/server.js` `GET /health` |
+| AC4 | `tests/Unit/Level1AlignmentTest.php` :: "documents a signing-key rotation procedure"; "states that restart-based rotation satisfies the requirement" | `README.md` "Rotating the signing key" |
+| AC5 | `tests/Unit/Level1AlignmentTest.php` :: "configures automated dependency updates for every ecosystem that reaches signing"; "runs a scheduled audit that reports advisories with no fix available"; "does not turn main red on an advisory it cannot act on" | `.github/dependabot.yml`, `.github/workflows/audit.yml` |
+| AC6 | `tests/Unit/Level1AlignmentTest.php` :: "states the remediation obligation and names the scanning tools" | `SECURITY.md` "Dependency vulnerabilities" |
+| AC7 | `tests/Unit/Level1AlignmentTest.php` :: "tells a reader that their deployment, not this library, is the Generator Product"; "maps the service key handling onto the Level 1 requirements it satisfies" | `README.md` "Conformance alignment" |
+
+### Implementation notes
+
+- **One guard beyond the criteria.** The existing certificate check accepted any
+  file containing the word `CERTIFICATE`, so a truncated or corrupt PEM started a
+  service that could not sign. AC1 cannot be satisfied for such a file — there is
+  no identity to report — so the service now exits instead. Recorded here rather
+  than left implicit, because it is a startup-behaviour change this spec's
+  criteria do not literally require.
+- **Two test defects found while implementing**, both of the shape NOTES.md
+  Step 20 records. `toContain()` takes a *variadic list of needles*, not a needle
+  and a message, so an explanatory second argument became a second string the
+  README had to contain — the test failed against correct documentation. And a
+  phrase match against hard-wrapped prose fails on the line break; the README
+  helper now collapses whitespace, so reflowing a paragraph neither breaks a test
+  nor silently stops it testing anything.

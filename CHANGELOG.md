@@ -6,7 +6,47 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Service (requires `git pull` + `docker compose up -d --build`)
+
+- **`GET /health` now reports the loaded signing certificate (SPEC-018).** A new
+  `signing_cert` block carries the SHA-256 fingerprint of the leaf certificate
+  and its `notAfter`. Additive — nothing existing changed, and nothing secret is
+  exposed: a certificate is public by construction, since it travels inside
+  every manifest this service signs.
+
+  This is what makes a key rotation *confirmable*. The service reads its
+  certificate and key once at startup, so rotation is "replace the files and
+  restart" — but until now a mount that did not take, a stale image layer or a
+  path typo left the service signing with the superseded key while looking, from
+  outside, exactly like a successful rotation.
+
+- **The service now refuses to start on a certificate it cannot parse.** The
+  previous check accepted any file containing the word `CERTIFICATE`, so a
+  truncated or corrupt PEM started a service that could not sign.
+
+### Documentation
+
+- **"Rotating the signing key"** in the README: the three-step procedure, what
+  it costs (in-flight requests are lost, and the restart does not drain), and
+  why the confirmation step is not optional.
+- **"Conformance alignment"** in the README, on the C2PA Conformance Program.
+  The short version, because it is easy to get backwards: **a library cannot
+  appear on the Conforming Products List, and neither can any library.** A
+  Generator Product is the deployed system that signs and is always the Signer —
+  that is *your* deployment. The section maps this service's key handling onto
+  the Assurance Level 1 requirements (O.2) so you can describe it in your own
+  Security Architecture document rather than reverse engineer it. It is a
+  mapping to published requirements, not a conformance claim.
+
+### Repository
+
+- **Automated dependency scanning (SPEC-018).** Dependabot covers the `service/`
+  npm tree, the root Composer tree and GitHub Actions; a weekly, deliberately
+  **non-blocking** `audit` workflow additionally reports advisories that have no
+  fix available, which Dependabot cannot act on and which would otherwise go
+  unseen. Before this, the only scan this repository ever had was one run by
+  hand during an unrelated version bump. `SECURITY.md` states the remediation
+  policy for CRITICAL and HIGH.
 
 ## [0.5.2] - 2026-08-06
 
