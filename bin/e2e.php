@@ -20,6 +20,7 @@ use GuzzleHttp\Client;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
 use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Reading\ExtC2paReader;
 use Provemark\ContentCredentials\Core\Reading\SigningServiceReader;
 use Provemark\ContentCredentials\Core\Signing\Asset;
 use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
@@ -154,6 +155,42 @@ echo match (true) {
         ." — reported untrusted, which is correct (SPEC-014 AC2)\n",
     default => "· trust verification off — set CONTENTAUTH_TRUST_SETTINGS to exercise AC1\n",
 };
+
+// --- 3b. the in-process reader, and whether it agrees (SPEC-019) ---
+//
+// The same signed bytes, read a second way: through ext-c2pa, with no HTTP and
+// no service. Two engines are involved — c2pa-rs 0.89.0 in the extension against
+// 0.90.4 in the service — so agreement is a result, not a given. Skipped rather
+// than failed where the extension is absent, which is the normal case.
+if (! ExtC2paReader::isAvailable()) {
+    echo "· ext-c2pa not installed — in-process reading not exercised"
+        ." (pie install ericmann/ext-c2pa)\n";
+} else {
+    $inProcess = (new ExtC2paReader)->read(new Asset($signed->bytes, MediaType::Png));
+
+    // Compared on the accessors a caller acts on. Anything else here would be
+    // agreement by coincidence.
+    $disagreements = array_keys(array_filter([
+        'hasManifest' => $inProcess->hasManifest() !== $report->hasManifest(),
+        'isSignatureValid' => $inProcess->isSignatureValid() !== $report->isSignatureValid(),
+        'isAiGenerated' => $inProcess->isAiGenerated() !== $report->isAiGenerated(),
+        'hasTimestamp' => $inProcess->hasTimestamp() !== $report->hasTimestamp(),
+        'validationState' => $inProcess->validationState() !== $report->validationState(),
+    ]));
+
+    echo $disagreements === []
+        ? "✓ in-process reader agrees with the service reader (SPEC-019 AC2)\n"
+        : '✗ readers disagree on: '.implode(', ', $disagreements)
+            ." — c2pa-rs 0.89.0 vs 0.90.4 may have drifted (SPEC-019 AC2)\n";
+
+    // Trust is NOT compared above, and the reason is worth stating: the two are
+    // configured separately. The service verifies against CONTENTAUTH_TRUST_SETTINGS;
+    // this reader was given no anchors, so it cannot report trusted. Comparing
+    // them would fail on a difference in configuration rather than in engines.
+    echo $inProcess->isTrusted()
+        ? "✗ in-process reader reported trusted with no anchors configured\n"
+        : "· in-process reader given no anchors — isTrusted() false by design (SPEC-019 AC4)\n";
+}
 
 // --- 4. authoritative c2patool verification (trust enabled) ---
 $verify = "$root/bin/verify.sh";

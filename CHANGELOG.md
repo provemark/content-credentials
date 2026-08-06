@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.6.0] - 2026-08-06
+
+**The first release since 0.5.0 to change the installed package.** 0.5.1, 0.5.2
+and 0.5.3 were service and documentation — `composer update` changed nothing you
+could observe. This one adds public API, which is why it is a minor rather than
+a patch. A `^0.5` constraint does not resolve to 0.6.0, so nobody gets it
+unasked.
+
+Nothing is removed and nothing behaves differently. If you do not install the
+extension, this release changes nothing for you.
+
 ### Added
 
 - **`ExtC2paReader` — read credentials without running the signing service
@@ -41,6 +54,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   is unchanged — the code is `SigningServiceReader`'s former private `parse()`,
   moved rather than rewritten. Both readers now answer from one decoder, so
   there is one definition of "trusted" rather than two places for it to drift.
+
+  Stated plainly rather than filed under "no changes": **`SigningServiceReader`
+  itself was edited.** Its public behaviour and constructor are untouched and it
+  is `final`, so there is nothing to subclass and nothing a caller can observe —
+  but the file did change, and a release note claiming otherwise would be wrong.
+
+### Repository
+
+- **A fourth CI integration profile installs `ext-c2pa`** and runs the
+  equivalence check on every push, rather than only where somebody had installed
+  the extension by hand. It asserts that the extension actually loaded and that
+  the comparison actually passed: run without it, the suite reports
+  `9 skipped, 8 passed` and exits 0 — green while testing nothing. The other
+  three profiles deliberately keep running without the extension, because AC5 is
+  about its absence.
 
 ## [0.5.3] - 2026-08-06
 
@@ -529,7 +557,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.5.3...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.6.0...main
+[0.6.0]: https://github.com/provemark/content-credentials/releases/tag/v0.6.0
 [0.5.3]: https://github.com/provemark/content-credentials/releases/tag/v0.5.3
 [0.5.2]: https://github.com/provemark/content-credentials/releases/tag/v0.5.2
 [0.5.1]: https://github.com/provemark/content-credentials/releases/tag/v0.5.1
