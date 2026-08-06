@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.7.0] - 2026-08-06
+
+Completes what 0.6.0 started. That release added `ExtC2paReader` to `Core`, but
+the Laravel container still bound one reader unconditionally — so a Laravel
+application that installed the extension kept getting HTTP from the facade, the
+manager, the jobs and the commands. The capability shipped; the way to reach it
+did not.
+
+Additive: new public API and two config keys, no behaviour change for anyone who
+sets neither. `config/content-credentials.php` gained keys, so republish it
+(`--tag=content-credentials-config`) or add them by hand if you have published a
+copy.
+
 ### Added
 
 - **The Laravel container can bind either reader (SPEC-020).** v0.6.0 shipped
@@ -583,7 +598,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.6.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.7.0...main
+[0.7.0]: https://github.com/provemark/content-credentials/releases/tag/v0.7.0
 [0.6.0]: https://github.com/provemark/content-credentials/releases/tag/v0.6.0
 [0.5.3]: https://github.com/provemark/content-credentials/releases/tag/v0.5.3
 [0.5.2]: https://github.com/provemark/content-credentials/releases/tag/v0.5.2
