@@ -359,6 +359,85 @@ startup is what stops you believing trust is on when it is not.
 The bundled anchors trust only the c2pa-rs **test** certificates. Replace them
 with the trust list your verifier uses before production.
 
+### Rotating the signing key
+
+The service reads `SIGNING_CERT_PATH` and `SIGNING_KEY_PATH` **once at startup**.
+There is no reload endpoint and no file watching, by design: a restart is simple,
+atomic, and cannot half-apply. Rotation is three steps.
+
+```bash
+# 1. Note the certificate you are replacing, so you can tell it changed.
+curl -s localhost:3000/health | jq .signing_cert
+
+# 2. Put the new certificate and key where the mounts point, then restart.
+docker compose up -d --force-recreate service
+
+# 3. Confirm the new certificate is the one now in use.
+curl -s localhost:3000/health | jq .signing_cert
+```
+
+```json
+{
+  "fingerprint_sha256": "6fb5eddb353a82fa8720b1d54a4925eaa20e128b10cc4b3fa4d3e9e920c04001",
+  "not_after": "Aug 26 18:46:40 2030 GMT"
+}
+```
+
+**Step 3 is not optional.** A mount that did not take, a stale image layer, a
+path typo — each leaves the service happily signing with the *old* key while
+looking, from the outside, exactly like a successful rotation. The fingerprint is
+the SHA-256 digest of the loaded leaf certificate; compare it against the one you
+installed (`openssl x509 -in your.crt -noout -fingerprint -sha256`). `not_after`
+is the expiry, so you can see a rotation coming rather than discover it.
+
+Two things to plan for:
+
+- **In-flight requests are lost.** Signing is not resumable, and the restart does
+  not drain. Rotate during a quiet window, or take the instance out of rotation
+  first. A caller sees a connection error, not a corrupt asset.
+- **Assets signed with the old certificate stay valid.** A signature is checked
+  against the certificate embedded in the manifest, not against whatever the
+  service holds today. Rotation does not invalidate history — but if the old
+  certificate was rotated because it was *compromised*, that is exactly the
+  problem, and revocation is a matter for the issuing CA.
+
+This restart-based procedure is what the C2PA Generator Product Security
+Requirements mean by being **capable of rotating** the claim signing key (O.2,
+Assurance Level 1); hot reload is not required.
+
+### Conformance alignment
+
+The C2PA runs a [Conformance Program](https://github.com/c2pa-org/conformance-public)
+with a public **Conforming Products List**. Worth being precise about who that
+applies to, because it is easy to get backwards.
+
+**This library cannot be on that list, and neither can any library.** A
+*Generator Product* is defined as the set of software and configuration that
+works together as a system to produce assets, and it "is always the Signer" and
+the entity named on the list. That is **your deployment** — your application,
+this service, and your certificate. The programme explicitly allows a Generator
+Product to rely on a claim-generator service "created by the Applicant **or by a
+different entity**", which is the role this package plays. You would be the
+applicant; we would be a component.
+
+If you do apply, you must submit a Generator Product Security Architecture
+document. Here is how this service maps onto the Level 1 requirements that
+concern the signing key (**O.2**), so you can describe it rather than reverse
+engineer it:
+
+| Requirement | How this architecture answers it |
+|---|---|
+| The key is held by a discrete component "with an unrelated attack surface" | The signing service is a separate process, in its own container, published on loopback only. The key never enters your PHP application. |
+| Access follows least privilege | Certificate and key are read-only mounts; the service reads them once and exposes no endpoint that returns them. |
+| Capable of rotating the claim signing key | Restart-based rotation, above, with `/health` reporting the live certificate so a rotation is verifiable. |
+
+Dependency scanning (**O.3**) is covered in [SECURITY.md](SECURITY.md).
+
+Two things this does **not** claim. Assurance **Level 2** requires
+hardware-backed key storage and attestation, which a PEM on a mounted volume is
+not. And nothing here has been assessed by the Conformance Program — it is a
+mapping to published requirements, not a conformance claim.
+
 The Quickstart above is the shortest path. These sections are the reference:
 the full set of accessors, and what each one does and does not tell you.
 

@@ -1,0 +1,47 @@
+# SPEC-018 AC5 — automated dependency scanning.
+#
+# C2PA Generator Product Security Requirement O.3 (Assurance Level 1) requires
+# that an SCA or SBOM analysis is performed, and that CRITICAL/HIGH findings are
+# fixed or mitigated. Before this file, the only scan this repository ever had
+# was one run by hand, in passing, during an unrelated version bump (NOTES.md
+# Step 9) — which found a real transitive advisory whose fix reached the
+# container by luck rather than by construction.
+#
+# Three ecosystems, because all three reach the signing path:
+#   service/  npm     ships in the container that holds the private key
+#   /         composer runs inside the consumer's application
+#   /         actions  run with this repository's credentials
+#
+# Dependabot cannot act on an advisory that has no fix available. Those are
+# reported separately by the non-blocking `audit` workflow.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /service
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'chore(service)'
+    # A c2pa-node bump is never routine here: it carries c2pa-rs, and the async
+    # TSA path is the main regression risk. Grouping is deliberately avoided so
+    # each one arrives as its own reviewable PR.
+
+  - package-ecosystem: composer
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+    # illuminate/* lives in require-dev and its supported range is defined by
+    # the CI matrix, not by a constraint. Let Dependabot propose; widening
+    # support is a matrix change and stays a human decision.
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci

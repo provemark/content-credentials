@@ -79,6 +79,41 @@ if (!privateKey.toString().includes('PRIVATE KEY')) {
 }
 
 /**
+ * Identify the certificate actually loaded (SPEC-018 AC1).
+ *
+ * Key material is read once, here, and never re-read: rotation is "replace the
+ * files and restart", which satisfies C2PA Generator Product Security
+ * Requirement O.2 ("SHALL be capable of rotating the claim signing key"). What
+ * that leaves missing is any way to tell from outside WHICH certificate is
+ * live. A mount that did not take, a stale image layer, a path typo — each
+ * leaves the service signing with the superseded key while looking identical to
+ * one that rotated successfully. So the identity is published on /health and an
+ * operator can compare it against what they expect.
+ *
+ * The leaf, not the chain: it is what signs and what rotates. A chain digest
+ * would also change when an intermediate is renewed without the signing key
+ * changing, reporting a rotation that did not happen.
+ *
+ * Nothing secret is exposed (AC3). A certificate is public by construction — it
+ * travels inside every manifest this service signs — and a fingerprint is a
+ * digest of it, not of the key.
+ */
+let signingCertIdentity;
+try {
+  const leaf = new crypto.X509Certificate(certificate);
+  signingCertIdentity = {
+    fingerprint_sha256: leaf.fingerprint256.replace(/:/g, '').toLowerCase(),
+    not_after: leaf.validTo,
+  };
+} catch (err) {
+  // The header check above passes for anything containing the word CERTIFICATE,
+  // so a truncated or corrupt PEM lands here. Fail closed: a service that
+  // signs with a certificate it cannot parse is not one anybody should trust.
+  console.error(`SIGNING_CERT_PATH is not a parseable X.509 certificate: ${CERT_PATH} (${err.message})`);
+  process.exit(1);
+}
+
+/**
  * Load and vet the trust settings document (SPEC-014 AC4/AC5).
  *
  * Both checks fail the process rather than degrading, because trust
@@ -434,6 +469,9 @@ app.get('/health', (_req, res) => {
     timestamping: Boolean(TSA_URL),
     trust_verification: Boolean(trustSettings),
     require_ai_marking: REQUIRE_AI_MARKING,
+    // SPEC-018 AC1: which certificate is actually loaded, so a rotation can be
+    // confirmed rather than assumed.
+    signing_cert: signingCertIdentity,
     audit_degraded: auditDegraded,
     // SPEC-015 AC4: signing does not block the event loop, so this endpoint
     // stays fast however saturated the service is — which is exactly why it has

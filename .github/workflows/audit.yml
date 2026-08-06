@@ -1,0 +1,50 @@
+# SPEC-018 AC5 — the half of dependency scanning Dependabot cannot do.
+#
+# Dependabot opens a pull request when a fix exists. When one does not — no
+# patched release yet, or the advisory sits in a transitive dependency nobody
+# has updated — it stays silent, and that is exactly the case an operator most
+# needs to know about. This job reports it.
+#
+# Deliberately NON-BLOCKING (`continue-on-error`), and deliberately outside the
+# `all checks passed` aggregate that branch protection requires (NOTES.md
+# Step 18). An advisory with no available fix must be visible without turning
+# `main` red and blocking unrelated work on something nobody can act on.
+name: audit
+
+on:
+  schedule:
+    # Weekly, Monday morning UTC. The window between a publication and the next
+    # run is bounded by Dependabot's own weekly scan, which fires independently.
+    - cron: '0 7 * * 1'
+  # So a change to this file can be verified without waiting a week.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: dependency advisories
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+
+      # The service tree: this is the one that ships in the container holding
+      # the private key. --omit=dev matches how the image is built (npm ci
+      # --omit=dev, NOTES.md Step 10), so the report covers what actually runs.
+      - name: npm audit (service)
+        working-directory: service
+        run: npm audit --omit=dev --audit-level=high
+
+      # The library tree: this runs inside the consumer's application.
+      - name: composer audit
+        run: |
+          composer update --no-interaction --no-progress --prefer-dist
+          composer audit --no-interaction
