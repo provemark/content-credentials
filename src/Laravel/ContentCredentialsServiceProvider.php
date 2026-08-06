@@ -7,6 +7,7 @@ namespace Provemark\ContentCredentials\Laravel;
 use GuzzleHttp\Client;
 use Http\Discovery\Psr17FactoryDiscovery;
 use Http\Discovery\Psr18ClientDiscovery;
+use Illuminate\Config\Repository;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Console\Kernel as ConsoleKernel;
 use Illuminate\Contracts\Container\Container;
@@ -64,12 +65,28 @@ final class ContentCredentialsServiceProvider extends ServiceProvider
             $app->make(SigningServiceConfig::class),
         ));
 
-        $container->singleton(ReaderInterface::class, fn (Container $app): SigningServiceReader => new SigningServiceReader(
+        // The HTTP reader is always constructible; SPEC-020 decides whether it is
+        // the one bound. Registered under its own name so ReaderFactory can take
+        // it as a dependency without rebuilding the client wiring.
+        $container->singleton(SigningServiceReader::class, fn (Container $app): SigningServiceReader => new SigningServiceReader(
             $this->resolveClient($app),
             $this->resolveRequestFactory($app),
             $this->resolveStreamFactory($app),
             $app->make(SigningServiceConfig::class),
         ));
+
+        $container->singleton(ReaderFactory::class, fn (Container $app): ReaderFactory => new ReaderFactory(
+            $this->configRepository($app),
+            $app->make(SigningServiceReader::class),
+        ));
+
+        // SPEC-020: `service` (default), `extension`, or `auto`. Autodetection is
+        // a mode rather than the default, so installing ext-c2pa never changes an
+        // existing application's engine on its own.
+        $container->singleton(
+            ReaderInterface::class,
+            fn (Container $app): ReaderInterface => $app->make(ReaderFactory::class)->make(),
+        );
 
         $container->singleton(ContentCredentialsManager::class, fn (Container $app): ContentCredentialsManager => new ContentCredentialsManager(
             $app->make(SignerInterface::class),
@@ -103,6 +120,19 @@ final class ContentCredentialsServiceProvider extends ServiceProvider
     private function container(): Container
     {
         return $this->app;
+    }
+
+    /**
+     * The config repository, or an empty one when the application has none.
+     *
+     * ReaderFactory takes a repository rather than an array so `mode()` stays
+     * answerable at any time (SPEC-020 AC6), not only at bind time.
+     */
+    private function configRepository(Container $app): ConfigRepository
+    {
+        $config = $app->make('config');
+
+        return $config instanceof ConfigRepository ? $config : new Repository;
     }
 
     /**

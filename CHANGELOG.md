@@ -6,7 +6,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **The Laravel container can bind either reader (SPEC-020).** v0.6.0 shipped
+  `ExtC2paReader` in `Core` only, so a Laravel application that installed
+  `ext-c2pa` still got HTTP everywhere the container was involved — facade,
+  manager, jobs, commands. A `reader` config key now selects it:
+
+  ```dotenv
+  CONTENTAUTH_READER=auto            # service (default) | extension | auto
+  CONTENTAUTH_TRUST_ANCHORS=/path/to/anchors.pem   # or the PEM contents
+  ```
+
+  ⚠️ **`service` is the default, so installing the extension changes nothing
+  until you set this.** Deliberate: the two readers carry different c2pa-rs
+  versions (0.89.0 and 0.90.4), and an extension installed for an unrelated
+  reason must not silently change which engine decides your trust verdicts.
+
+  `extension` throws when the extension is absent rather than falling back to
+  HTTP, and an unrecognised mode is refused rather than defaulted — a typo that
+  quietly becomes `auto` is the same invisible switch in a different costume.
+
+- **`php artisan content-credentials:read` reports the reader it used**, so
+  "which engine produced this report?" is answerable in a bug report.
+
+- **`trust_anchors` accepts PEM contents or a path** (extension reader only).
+  Every trust surface underneath takes contents and silently verifies nothing
+  when handed a path; this layer absorbs that rather than letting you find it.
 
 ## [0.6.0] - 2026-08-06
 
