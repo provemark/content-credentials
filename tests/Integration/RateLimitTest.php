@@ -233,13 +233,33 @@ it('signs a normal sequence of requests without interference', function () {
 it('refuses the excess when more signs arrive than the cap allows', function () {
     $cap = serviceLimit('max_concurrent_signs') ?? 0;
 
-    // Measured: at 12 the service drains fast enough that the cap is never
-    // reached; at ~40 both outcomes appear. Scale off the cap but keep a floor.
-    $counts = parallelSigns(max(20, $cap * 5));
+    // Retried rather than fired once. A single burst is a race: whether the cap
+    // is reached depends on how fast the clients start relative to how fast the
+    // service drains, and on a quick enough runner 20 requests can arrive
+    // spread out enough that nothing ever exceeds it. Observed failing exactly
+    // that way in CI on a run whose predecessor passed with identical code.
+    //
+    // Retrying does not weaken the criterion — it establishes the precondition
+    // the criterion needs, that the cap was actually exceeded. Exits on the
+    // first burst that shows both outcomes; only a service that never refuses
+    // anything pays the full deadline.
+    $accepted = 0;
+    $refused = 0;
+    $deadline = microtime(true) + 60;
+
+    while (microtime(true) < $deadline) {
+        $counts = parallelSigns(max(30, $cap * 8));
+        $accepted += $counts[200] ?? 0;
+        $refused += $counts[429] ?? 0;
+
+        if ($accepted > 0 && $refused > 0) {
+            break;
+        }
+    }
 
     // A burst must degrade by refusing the excess, not by failing everything.
-    expect($counts[429] ?? 0)->toBeGreaterThan(0, 'nothing was refused above the concurrency cap')
-        ->and($counts[200] ?? 0)->toBeGreaterThan(0, 'the cap refused everything, including requests within it');
+    expect($refused)->toBeGreaterThan(0, 'nothing was refused above the concurrency cap')
+        ->and($accepted)->toBeGreaterThan(0, 'the cap refused everything, including requests within it');
 })->group('SPEC-015', 'integration')
     ->skip($skipUnlessReachable)
     ->skip(function () {

@@ -1076,3 +1076,19 @@ Verified across all three. Same failure shape as the rest of this session — a
 check going red for the wrong reason — except this one failed loudly on a
 correct setup rather than passing quietly on a broken one, which is the
 direction you want to be wrong in.
+
+### And a flaky concurrency test, again
+SPEC-015 AC3 failed on the `hardened` CI profile for a change that touched only
+`bin/e2e.php`. Same cause as AC4 before it: a single burst is a race. Whether
+the cap is reached depends on how fast the clients start relative to how fast
+the service drains, and on a quick enough runner 20 requests arrive spread out
+enough that nothing exceeds it.
+
+Fixed the same way AC4 was — retry the burst to a deadline and stop on the
+first one showing both outcomes. That does not weaken the criterion; it
+establishes the precondition the criterion needs, namely that the cap was
+actually exceeded. Burst also raised to `max(30, cap * 8)`.
+
+The lesson, twice over now: a test that asserts something about concurrency
+cannot assume it achieved concurrency. Assert it, or retry until you observe
+it.

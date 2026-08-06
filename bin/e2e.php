@@ -13,18 +13,17 @@ declare(strict_types=1);
  *
  *   php bin/e2e.php
  */
-
 $root = dirname(__DIR__);
 require "$root/vendor/autoload.php";
 
+use GuzzleHttp\Client;
+use Nyholm\Psr7\Factory\Psr17Factory;
 use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
 use Provemark\ContentCredentials\Core\Manifest\MediaType;
 use Provemark\ContentCredentials\Core\Reading\SigningServiceReader;
 use Provemark\ContentCredentials\Core\Signing\Asset;
 use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
 use Provemark\ContentCredentials\Core\Signing\SigningServiceSigner;
-use GuzzleHttp\Client;
-use Nyholm\Psr7\Factory\Psr17Factory;
 
 function fail(string $message): never
 {
@@ -151,7 +150,7 @@ echo match (true) {
         var_export($untrusted, true),
     ),
     $trustEnabled && $report->isTrusted() => "✓ certificate trusted via the library path (SPEC-014 AC1)\n",
-    $trustEnabled => "· trust verification on, but these anchors do not cover this certificate"
+    $trustEnabled => '· trust verification on, but these anchors do not cover this certificate'
         ." — reported untrusted, which is correct (SPEC-014 AC2)\n",
     default => "· trust verification off — set CONTENTAUTH_TRUST_SETTINGS to exercise AC1\n",
 };
