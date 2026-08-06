@@ -9,6 +9,6 @@
   "scripts": { "start": "node server.js" },
   "dependencies": {
     "@contentauth/c2pa-node": "0.8.1",
-    "express": "^4.21.0"
+    "express": "^5.2.1"
   }
 }
