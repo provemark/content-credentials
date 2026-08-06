@@ -6,7 +6,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Service (requires `git pull` + `docker compose up -d --build`)
+
+- **`MAX_BODY_SIZE` now defaults to 20 MB, was 50 MB (SPEC-017).** ⚠️ **A body
+  above the limit is now refused with 413.** Base64 inflates an asset by a
+  third, so 20 MB of body carries roughly a 15 MB image — well above the
+  11.4 MB a 2000×2000 PNG of incompressible pixels measures. If you sign larger
+  assets, raise `MAX_BODY_SIZE`, and raise the container's memory with it.
+
+  The old default was a hazard. Measured at the concurrency cap against an idle
+  baseline of 17.6 MiB, a signing request costs about **7× the asset** in
+  memory — not the "roughly four copies" previously documented. At 50 MB that
+  meant a ~37 MB asset and a peak near 1 GB, in a container many people would
+  give 512 MB. The concurrency cap cannot help: the body is buffered *before*
+  any limit is consulted.
+
+  `GET /health` now reports `max_body_bytes`, and the README documents the
+  measured multiplier with the sizing formula, so the limit can be computed for
+  a given container rather than guessed.
+
+### Fixed
+
+- **The correlation id is assigned before the body is parsed.** A request that
+  failed to parse — oversized, or malformed JSON — was answered with no
+  correlation id, which is exactly when a caller most needs one to quote.
+- **Body-parser failures are handled and recorded.** They previously fell
+  through to express's default error page with nothing written to the audit
+  trail. They now return 413 or 400 with the correlation id, and are recorded.
 
 ## [0.5.1] - 2026-08-05
 

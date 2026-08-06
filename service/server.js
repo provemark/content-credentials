@@ -42,7 +42,17 @@ const API_KEY = process.env.CONTENTAUTH_API_KEY ?? '';
 const SIGN_ALG = (process.env.CONTENTAUTH_SIGN_ALG ?? 'es256').toLowerCase();
 const CERT_PATH = process.env.SIGNING_CERT_PATH;
 const KEY_PATH = process.env.SIGNING_KEY_PATH;
-const MAX_BODY = process.env.MAX_BODY_SIZE ?? '50mb';
+// SPEC-017. Measured 2026-08-06 at the concurrency cap, against a 17.6 MiB idle
+// baseline: a signing request costs about 7x the asset in memory, not the four
+// copies previously documented (12.1x at 1 MB, 8.7x at 4.1 MB, 6.9x at 11.4 MB
+// -- fixed per-request overhead amortising). At 50mb a body carries a ~37 MB
+// asset, and four of those in flight peaked near 1 GB.
+//
+// 20mb carries ~15 MB after base64 overhead, comfortably above the 11.4 MB a
+// 2000x2000 incompressible PNG measured, and peaks around 420 MB at the cap.
+// The concurrency cap cannot substitute for this: express buffers the body
+// before any limit is consulted, so the allocation happens either way.
+const MAX_BODY = process.env.MAX_BODY_SIZE ?? '20mb';
 // Optional RFC 3161 Time Stamping Authority (SPEC-007). Unset => no timestamp
 // (today's behaviour). When set, signatures carry a trusted timestamp.
 const TSA_URL = process.env.CONTENTAUTH_TSA_URL || undefined;
@@ -342,16 +352,67 @@ function isValidBase64(value) {
   return typeof value === 'string' && value.length > 0 && value.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(value);
 }
 
+/**
+ * The configured body limit in bytes, so `GET /health` can report a number an
+ * operator can compute with rather than a string like "20mb" (SPEC-017 AC3).
+ */
+function maxBodyBytes() {
+  const match = /^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb)?$/i.exec(String(MAX_BODY).trim());
+  if (!match) return null;
+
+  const units = { b: 1, kb: 1024, mb: 1024 ** 2, gb: 1024 ** 3 };
+
+  return Math.round(Number(match[1]) * (units[(match[2] ?? 'b').toLowerCase()] ?? 1));
+}
+
 const app = express();
-app.use(express.json({ limit: MAX_BODY }));
 
 // One correlation id per request, echoed to the client so a caller can quote it
 // (SPEC-012 AC3). It is what makes a generic error message acceptable: the
 // detail is recorded, and this is the key to find it by.
+//
+// This runs BEFORE the body parser deliberately. It used to run after, so a
+// request that failed to parse -- an oversized body, malformed JSON -- was
+// answered with no correlation id at all, which is precisely when a caller
+// most needs one (SPEC-017 AC2).
 app.use((req, res, next) => {
   req.cid = crypto.randomUUID();
   res.setHeader('X-Correlation-Id', req.cid);
   next();
+});
+
+app.use(express.json({ limit: MAX_BODY }));
+
+/**
+ * Body-parser failures (SPEC-017 AC2/AC4).
+ *
+ * Without this, an oversized body gets express's default error page and a
+ * stack trace, and nothing is recorded. The refusal happens inside the parser,
+ * before any route, so it can only be audited from here.
+ *
+ * Note what the record cannot say: auth runs after the parser, so there is no
+ * verified caller to attribute this to. Recording an unverified token would let
+ * anyone write arbitrary token_ids into the log, so the field is simply absent.
+ */
+app.use((err, req, res, next) => {
+  if (!err || !err.type) return next(err);
+
+  const tooLarge = err.type === 'entity.too.large';
+  const status = tooLarge ? 413 : 400;
+  const reason = tooLarge
+    ? `request body too large (max ${MAX_BODY})`
+    : 'request body is not valid JSON';
+
+  audit({
+    ts: new Date().toISOString(),
+    cid: req.cid,
+    event: req.path === '/v1/read' ? 'read' : 'sign',
+    outcome: 'rejected',
+    reason,
+    // Deliberately no token_id and no body: see above.
+  });
+
+  return res.status(status).json({ error: reason, cid: req.cid });
 });
 
 // Bearer-token auth on /v1/* — mirrors the upstream service.
@@ -385,6 +446,7 @@ app.get('/health', (_req, res) => {
       rate_limit_window_ms: RATE_LIMIT_WINDOW_MS,
       request_timeout_ms: REQUEST_TIMEOUT_MS,
       headers_timeout_ms: HEADERS_TIMEOUT_MS,
+      max_body_bytes: maxBodyBytes(),
     },
   });
 });
