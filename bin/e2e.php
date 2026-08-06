@@ -115,18 +115,44 @@ echo match (true) {
 // no signed_content (not automated here — it requires a deliberately bad TSA).
 
 // SPEC-014 AC1: when the service verifies against a trust list, the library
-// path must reach the same verdict c2patool reaches below. Without trust
-// settings isTrusted() is false BY DESIGN, not by failure — the read simply
-// stops at "Valid" (see SPEC-013).
+// path must reach a verdict that is consistent with what it was given.
+//
+// Note what this deliberately does NOT assert: that trust verification being on
+// implies this asset is trusted. That only holds when the configured anchors
+// cover the signing certificate. Verified 2026-08-06 against the official
+// C2PA trust list (c2pa-org/conformance-public): the test certificate reads
+// back Valid + signingCredential.untrusted, and isTrusted() === false is the
+// CORRECT answer there. An earlier version of this check asserted
+// isTrusted() === $trustEnabled and reported a failure for that entirely
+// healthy configuration.
+//
+// What must hold in every configuration: trusted implies the reader saw the
+// Trusted verdict and reported no untrusted code, and untrusted-under-
+// verification is explained by a status code rather than by silence.
 $trustEnabled = is_array($healthData) && (bool) ($healthData['trust_verification'] ?? false);
-$trustOk = $report->isTrusted() === $trustEnabled;
+$untrusted = in_array('signingCredential.untrusted', $report->validationStatusCodes(), true);
+$trustState = $report->validationState()?->value ?? '(none)';
+
+$trustOk = match (true) {
+    // Trust off: false by design, and the reader should say why.
+    ! $trustEnabled => $report->isTrusted() === false,
+    // Trust on and the anchors cover this certificate.
+    $report->isTrusted() => $trustState === 'Trusted' && ! $untrusted,
+    // Trust on and they do not — legitimate, but it must be explained.
+    default => $untrusted,
+};
+
 echo match (true) {
     ! $trustOk => sprintf(
-        "✗ trust mismatch: service trust_verification=%s but isTrusted()=%s (SPEC-014 AC1)\n",
+        "✗ inconsistent trust verdict: trust_verification=%s, isTrusted()=%s, state=%s, untrusted-code=%s (SPEC-014 AC1)\n",
         var_export($trustEnabled, true),
         var_export($report->isTrusted(), true),
+        $trustState,
+        var_export($untrusted, true),
     ),
-    $trustEnabled => "✓ certificate trusted via the library path (SPEC-014 AC1)\n",
+    $trustEnabled && $report->isTrusted() => "✓ certificate trusted via the library path (SPEC-014 AC1)\n",
+    $trustEnabled => "· trust verification on, but these anchors do not cover this certificate"
+        ." — reported untrusted, which is correct (SPEC-014 AC2)\n",
     default => "· trust verification off — set CONTENTAUTH_TRUST_SETTINGS to exercise AC1\n",
 };
 
