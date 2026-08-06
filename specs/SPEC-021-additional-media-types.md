@@ -148,6 +148,15 @@ covered by a Pest test tagged `->group('SPEC-021')`.
   - *(Shipping `video/mp4` without this would be the most misleading thing in
     this spec.)*
 
+- **AC7 — an oversized video is refused for the right reason** *(error path)*
+  - Given an `video/mp4` asset above `MAX_BODY_SIZE`
+  - When it is offered to `/v1/sign`
+  - Then the 413 names the limit **and** says that video is bounded by it, rather
+    than reporting a generic body-size error
+  - *(This is the criterion that makes shipping `video/mp4` honest. Without it,
+    the first person to try a real video learns that this library "supports MP4"
+    and then that it does not, in two steps, from an error about bytes.)*
+
 - **AC6 — the service reports what it accepts**
   - Given a running service
   - When `GET /health` is called
@@ -183,21 +192,24 @@ const SUPPORTED_MIME = new Set([
 
 ## Open questions
 
-- **Should `video/mp4` ship at all in this spec?** It works, and refusing a
-  format that works is its own kind of wrong. But shipping it invites someone to
-  try a 200 MB file and meet a 413 — with a message about body size rather than
-  about video. Leaning **yes, with AC5 carrying its weight**, and a specific
-  error message when a video exceeds the limit. *Blocker: decide at approval.*
-- **`audio/mpeg` versus `audio/mp3`.** The registered type is `audio/mpeg`;
-  browsers and libraries emit both. Leaning accepting both strings and mapping
-  them to one case, since `MediaType::fromMime()` already normalises input.
-  *Non-blocker.*
-- **How does AC2 compare a PHP enum with a JavaScript `Set`?** Simplest is
-  parsing `server.js` for the literal, which is brittle. Alternative: the service
-  reports its list on `/health` (AC6 provides it), and the test compares against
-  a live service — making AC2 an integration test that cannot run in
-  `composer check`. Leaning the `/health` comparison, because it tests the
-  running deployment rather than the source text. *Non-blocker.*
+All three settled before approval. Recorded rather than deleted, because the
+reasoning is the useful part.
+
+- **Should `video/mp4` ship at all?** **Yes.** It works, and refusing a format
+  that works is its own kind of wrong. The risk it carries — someone tries a
+  200 MB file and meets a 413 about body size rather than about video — is
+  answered by AC5 and by **AC7 below**, which requires the refusal to say what is
+  actually wrong.
+- **`audio/mpeg` versus `audio/mp3`.** Accept both strings, mapped to one case.
+  `MediaType::fromMime()` already normalises input, and `audio/mp3` is what a
+  good deal of software emits despite `audio/mpeg` being the registered type.
+  Rejecting it would be pedantry with a support cost.
+- **How does AC2 compare a PHP enum with a JavaScript `Set`?** Through
+  **`/health`** (AC6), against a running service — not by parsing `server.js` for
+  a literal. It tests the deployment rather than the source text, which is the
+  thing that can actually be wrong. Consequence: AC2 is an integration test and
+  does not run in `composer check`. Accepted; the drift it guards against is a
+  deployment property, not a compile-time one.
 
 ## Traceability
 
@@ -212,3 +224,4 @@ least one test; every source file maps back to this spec.
 | AC4                  | —                           | —                    |
 | AC5                  | —                           | —                    |
 | AC6                  | —                           | —                    |
+| AC7                  | —                           | —                    |
