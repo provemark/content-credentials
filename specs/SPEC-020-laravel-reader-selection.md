@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | approved                                          |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — (draft)                                         |
+| Approved   | Maurice van Loon — 2026-08-06                     |
 | Supersedes | —                                                 |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -181,15 +181,19 @@ final readonly class ReaderFactory
   application also sets `reader`.** That will read as a bug to someone. The
   README and the mode reporting from AC6 are what stop it becoming one, so
   neither is optional garnish.
-- **How does AC6 surface the answer?** A method on `ReaderFactory`, a value
-  object, or an artisan command (`content-credentials:doctor`) that also reports
-  the service health. Leaning the factory method plus a line in the existing
-  artisan output, and leaving a doctor command to its own spec. *Non-blocker.*
-- **Where do trust anchors come from in Laravel?** The service reader gets trust
-  verification from the *service*'s configuration, not the application's, so this
-  key only affects the extension reader. That asymmetry is real and needs
-  documenting rather than hiding — the two readers are configured in different
-  places for the same concept. *Non-blocker, but it must be in the README.*
+- **How does AC6 surface the answer?** **`ReaderFactory::mode()`**, plus the mode
+  printed by `content-credentials:read` (`src/Laravel/Console/ReadCommand.php`),
+  which is where someone is already standing when they wonder which engine
+  answered. A `content-credentials:doctor` command is a reasonable idea and gets
+  its own spec if it is ever wanted; it is not needed to satisfy this criterion.
+- **Where do trust anchors come from in Laravel?** A `trust_anchors` config key,
+  accepting PEM **contents** or a path this package reads for the caller. It
+  affects the **extension reader only** — the service reader's trust verification
+  is configured on the *service*, via `CONTENTAUTH_TRUST_SETTINGS`, and the
+  application cannot influence it. Two readers, one concept, two configuration
+  locations. Documented in the README and in the config file's comment rather
+  than smoothed over: someone who sets `trust_anchors` and keeps getting
+  `isTrusted() === false` from the service reader must be able to find out why.
 
 ## Traceability
 
