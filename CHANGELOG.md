@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.5.2] - 2026-08-06
+
+A service-side release. **No change to `src/` or `config/`**, so the installed
+Composer package behaves exactly as 0.5.0 and 0.5.1 did — `composer update`
+changes nothing you can observe. Update the signing service from a clone of the
+repository.
+
 ### Service (requires `git pull` + `docker compose up -d --build`)
 
 - **`MAX_BODY_SIZE` now defaults to 20 MB, was 50 MB (SPEC-017).** ⚠️ **A body
@@ -426,7 +435,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.5.1...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.5.2...main
+[0.5.2]: https://github.com/provemark/content-credentials/releases/tag/v0.5.2
 [0.5.1]: https://github.com/provemark/content-credentials/releases/tag/v0.5.1
 [0.5.0]: https://github.com/provemark/content-credentials/releases/tag/v0.5.0
 [0.4.3]: https://github.com/provemark/content-credentials/releases/tag/v0.4.3
