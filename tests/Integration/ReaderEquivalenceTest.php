@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
 use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Reading\Exception\ReadFailedException;
 use Provemark\ContentCredentials\Core\Reading\ExtC2paReader;
 use Provemark\ContentCredentials\Core\Reading\ManifestReport;
 use Provemark\ContentCredentials\Core\Signing\Asset;
@@ -158,12 +159,23 @@ it('throws the same exception type as the service reader on malformed input', fu
     // A caller must be able to swap readers without changing error handling —
     // otherwise the interface is a shape, not a contract.
     expect(fn () => (new ExtC2paReader)->read(new Asset($bytes, $type)))
-        ->toThrow(\Provemark\ContentCredentials\Core\Reading\Exception\ReadFailedException::class);
+        ->toThrow(ReadFailedException::class);
 })->with([
     'not an image at all' => ['definitely not a png', MediaType::Png],
     'truncated png header' => ["\x89PNG\r\n\x1a\n", MediaType::Png],
-    'png bytes declared as jpeg' => ["\x89PNG\r\n\x1a\nrest", MediaType::Jpeg],
 ])->group('SPEC-019', 'integration')->skip($skipUnlessExtension);
+
+// A third case belongs in AC2 instead, and the move is the point. It was first
+// written here as "png bytes declared as jpeg must throw" — which is an
+// assumption I made, not a requirement the spec states, and measured 2026-08-06
+// it is wrong: BOTH readers accept it and read the manifest, because c2pa-rs
+// recognises the format from the bytes and treats the declared media type as
+// advisory. (The 400 our service returns for `image/gif` comes from SPEC-009's
+// own allow-list, not from c2pa.)
+//
+// So it is not an error path at all — it is shared behaviour, which makes it
+// something AC2 should pin. Deleting the case would have left the agreement
+// untested; asserting it here would have failed against correct code.
 
 // --- AC2: the two readers agree ----------------------------------------------
 
@@ -190,6 +202,26 @@ it('agrees with the signing-service reader on every public accessor', function (
             ),
         );
     }
+})->group('SPEC-019', 'integration')->skip($skipUnlessBoth);
+
+it('agrees that a declared media type is advisory, not enforced', function () {
+    // Measured 2026-08-06: a signed PNG offered as image/jpeg is read by both,
+    // because c2pa-rs recognises the format from the bytes. Pinned so that if
+    // one engine ever starts enforcing it — the extension carries c2pa-rs 0.89.0
+    // against the service's 0.90.4 — we learn it here rather than from a user
+    // whose uploads suddenly stop verifying.
+    $asset = new Asset(spec019SignedAsset(), MediaType::Jpeg);
+
+    [, $serviceReader] = ServiceHarness::signerAndReader();
+
+    $viaExtension = (new ExtC2paReader)->read($asset);
+    $viaService = $serviceReader->read($asset);
+
+    expect($viaExtension->hasManifest())->toBe(
+        $viaService->hasManifest(),
+        'readers disagree on whether a mismatched media type is readable',
+    );
+    expect(spec019Accessors($viaExtension))->toBe(spec019Accessors($viaService));
 })->group('SPEC-019', 'integration')->skip($skipUnlessBoth);
 
 it('agrees on an unsigned asset too', function () {

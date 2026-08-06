@@ -441,6 +441,57 @@ mapping to published requirements, not a conformance claim.
 The Quickstart above is the shortest path. These sections are the reference:
 the full set of accessors, and what each one does and does not tell you.
 
+## Reading without the signing service
+
+**Verification needs no signing service.** It needs no private key and no
+certificate either — checking a credential is a function of the asset bytes plus,
+optionally, a trust list. Until now it needed a service anyway, because reading
+and signing shared one transport. `ExtC2paReader` removes that.
+
+```bash
+pie install ericmann/ext-c2pa      # https://github.com/php/pie
+```
+
+```php
+use Provemark\ContentCredentials\Core\Reading\ExtC2paReader;
+
+$reader = new ExtC2paReader($anchorsPem);   // PEM contents, not a path
+$report = $reader->read(new Asset($bytes, MediaType::Png));
+
+$report->isVerifiedAiGenerated();   // no HTTP, no service, no key
+```
+
+Both readers implement `ReaderInterface` and return the same `ManifestReport`,
+so choosing between them is an installation decision, not an API one:
+
+```php
+$reader = ExtC2paReader::isAvailable()
+    ? new ExtC2paReader($anchorsPem)
+    : new SigningServiceReader($client, $factory, $factory, $config);
+```
+
+Construction throws `ExtensionMissingException` when the extension is absent. It
+deliberately does **not** fall back to the service reader: a caller who asked for
+in-process reading and silently got HTTP cannot tell, and the fallback would need
+a URL and token they never supplied.
+
+### What you are taking on
+
+- **[`ericmann/ext-c2pa`](https://github.com/ericmann/ext-c2pa) is at `v0.1.0`.**
+  It is an Automattic VIP product built for a WordPress plugin, not neutral
+  infrastructure, and its API may move. The adapter is the containment: a break
+  is one class to fix, and callers see nothing.
+- **The two readers run different engines.** The extension carries **c2pa-rs
+  0.89.0**; the signing service carries **0.90.4**. They agree today — an
+  integration test compares both readers accessor by accessor on the same asset,
+  and that test is what would tell us they had stopped. Run it with
+  `vendor/bin/pest --group=SPEC-019` before relying on a mixed setup.
+- **Signing still goes through the service.** The extension can sign too, and
+  this library does not expose that: it would put the private key in your web
+  process, which is the one thing this architecture exists to avoid. Reading
+  in-process while signing through the service is a supported, and probably the
+  best, combination.
+
 ## Usage (Laravel)
 
 ```php

@@ -2,7 +2,7 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | approved                                          |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
 | Approved   | Maurice van Loon — 2026-08-06                     |
 | Supersedes | —                                                 |
@@ -232,10 +232,40 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
+| AC1 | `tests/Integration/ReaderEquivalenceTest.php` :: "reads a signed asset in-process, with no service involved" | `src/Core/Reading/ExtC2paReader.php` `read()` |
+| AC2 | `tests/Integration/ReaderEquivalenceTest.php` :: "agrees with the signing-service reader on every public accessor"; "agrees on an unsigned asset too"; "agrees that a declared media type is advisory, not enforced" | `src/Core/Reading/ManifestStoreParser.php` |
+| AC3 | `tests/Integration/ReaderEquivalenceTest.php` :: "returns an empty report for an asset with no C2PA data" | `src/Core/Reading/ExtC2paReader.php` `hasManifest()` guard |
+| AC4 | `tests/Integration/ReaderEquivalenceTest.php` :: "reports trusted when the anchors cover the signing certificate"; "reports untrusted, with a reason, when the anchors do not cover it" | `src/Core/Reading/ExtC2paReader.php` `settings()` |
+| AC5 | `tests/Unit/Reading/ExtC2paReaderTest.php` :: "throws at construction when the extension is not loaded"; "names the extension and how to install it"; "does not fall back to the signing service" | `src/Core/Reading/Exception/ExtensionMissingException.php` |
+| AC6 | `tests/Integration/ReaderEquivalenceTest.php` :: "throws the same exception type as the service reader on malformed input" | `src/Core/Reading/ExtC2paReader.php` catch/rethrow |
+| AC7 | `tests/Unit/Reading/ExtC2paReaderTest.php` :: "documents that verification needs no signing service"; "states how the extension is installed and that it is young"; "warns that the two readers carry different c2pa-rs versions"; "states that signing is deliberately unaffected" | `README.md` "Reading without the signing service" |
+
+### Implementation notes
+
+- **One judgement call on scope, stated rather than buried.** "In scope" says to
+  reuse the existing decoder; "out of scope" says no change to
+  `SigningServiceReader`. The decoder lived inside it as a private method, so
+  both could not hold. Read as *no change to its behaviour or contract*, and the
+  decoder was extracted verbatim into `ManifestStoreParser`. Duplicating it
+  instead would have contradicted this spec's own reasoning — two decoders are
+  two places for the definition of "trusted" to drift.
+- **The extension behaved better than assumed**, verified before implementing
+  (2026-08-06, ext-c2pa v0.1.0): `withTrustAnchors()` accepts
+  `certs/trust_anchors.pem` contents directly, an unsigned asset yields a Reader
+  with `hasManifest() === false` rather than the null that caused the SPEC-010
+  crash, garbage bytes raise a catchable `C2paException`, and `json()` emits the
+  same store keys our decoder already reads.
+- **One acceptance criterion was written wrong and moved rather than deleted.**
+  AC6 first included "png bytes declared as jpeg must throw". Measured, BOTH
+  readers accept it — c2pa-rs recognises the format from the bytes and treats
+  the declared media type as advisory. That is shared behaviour, not an error
+  path, so it became an AC2 case. Deleting it would have left the agreement
+  untested.
+- **PHPStan caught a vacuous test of mine, again.** An assertion that
+  `ExtC2paReader implements ReaderInterface` was rejected as
+  `function.alreadyNarrowedType`: the `implements` clause is enforced by the type
+  system, so the test exercised the compiler. Removed, not silenced.
+- **AC5 cannot be exercised on a machine where the extension is installed** — it
+  is about absence. It runs in CI, which has no extension, and skips locally.
+  That is the correct split, and the reason not to install the extension in CI by
+  default.

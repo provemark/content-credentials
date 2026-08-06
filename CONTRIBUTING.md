@@ -34,7 +34,30 @@ merged (CI runs it on PHP 8.3, 8.4 and 8.5).
 ```bash
 docker compose up -d --build   # signing service (test certs); older setups: docker-compose
 php bin/e2e.php                 # library -> service -> verify with c2patool
+
+# The integration suite makes ~50 signing requests in well under a minute, which
+# trips the service's own default rate limit of 60/minute and produces a wall of
+# 429s that look like broken code. Raise it, as the CI profiles do:
+RATE_LIMIT_REQUESTS=1000 docker compose up -d
+vendor/bin/pest --group=integration    # NOT --group=provenance, which is 3 tests
 ```
+
+### Before releasing a change to either reader
+
+There are two `ReaderInterface` implementations, running two different engines:
+`SigningServiceReader` (c2pa-rs **0.90.4**, via the service) and `ExtC2paReader`
+(c2pa-rs **0.89.0**, via `ext-c2pa`). SPEC-019 AC2 compares them accessor by
+accessor on the same asset, and it is the only thing that would catch the two
+drifting apart. It needs both installed, so it **skips** where the extension is
+absent — including in CI.
+
+```bash
+pie install ericmann/ext-c2pa    # https://github.com/php/pie
+vendor/bin/pest --group=SPEC-019
+```
+
+A skipped equivalence check is not a passing one. If the run reports skips for
+SPEC-019, the drift is simply untested.
 
 ## Cutting a release (maintainer)
 

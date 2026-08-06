@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
+use Provemark\ContentCredentials\Core\Reading\Exception\ExtensionMissingException;
 use Provemark\ContentCredentials\Core\Reading\ExtC2paReader;
-use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
 
 /**
  * SPEC-019 AC5/AC7 — the half that needs neither the extension nor a service.
@@ -20,11 +20,12 @@ $skipIfExtensionLoaded = fn () => extension_loaded('c2pa')
 
 // --- AC5: a missing extension fails loudly at construction -------------------
 
-it('is an implementation of the reader interface, not a new concept', function () {
-    // The whole point: callers keep programming against ReaderInterface, and the
-    // choice of reader is an installation decision rather than an API decision.
-    expect(is_subclass_of(ExtC2paReader::class, ReaderInterface::class))->toBeTrue();
-})->group('SPEC-019');
+// There was a test here asserting that ExtC2paReader implements ReaderInterface.
+// PHPStan rejected it as `function.alreadyNarrowedType` — always true — and it
+// was right: the `implements` clause is enforced by the type system, so the
+// assertion tested the compiler rather than the code. Removed rather than
+// silenced. What actually needs proving is that the two readers are
+// interchangeable in behaviour, and that is SPEC-019 AC2's equivalence test.
 
 it('reports whether it can be used at all', function () {
     // Callers need to ask before constructing, because construction throws.
@@ -33,7 +34,7 @@ it('reports whether it can be used at all', function () {
 
 it('throws at construction when the extension is not loaded', function () {
     new ExtC2paReader;
-})->throws(\Provemark\ContentCredentials\Core\Reading\Exception\ExtensionMissingException::class)
+})->throws(ExtensionMissingException::class)
     ->group('SPEC-019')
     ->skip($skipIfExtensionLoaded);
 
@@ -43,7 +44,7 @@ it('names the extension and how to install it', function () {
     try {
         new ExtC2paReader;
         $message = '';
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
         $message = $e->getMessage();
     }
 
@@ -59,13 +60,13 @@ it('does not fall back to the signing service', function () {
     try {
         new ExtC2paReader;
         $thrown = null;
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
         $thrown = $e;
     }
 
     expect($thrown)->not->toBeNull('construction succeeded without the extension');
     expect($thrown)->toBeInstanceOf(
-        \Provemark\ContentCredentials\Core\Reading\Exception\ExtensionMissingException::class,
+        ExtensionMissingException::class,
     );
 })->group('SPEC-019')->skip($skipIfExtensionLoaded);
 
