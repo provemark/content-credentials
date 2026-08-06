@@ -794,15 +794,12 @@ All six findings of the security review are closed, and SPEC-001..015 are
 implemented. What follows is what a next session should pick up, with enough
 context to act without re-deriving it.
 
-### 1. Pending release decision: v0.5.1
+### 1. ~~Pending release decision: v0.5.1~~ — DONE (2026-08-05)
 
-`[Unreleased]` holds one Service section (SPEC-015). It does not touch `src/`,
-so the Composer dist is identical to v0.5.0 — but it **is** a behaviour change
-for anyone running the service: a client that fans out hard gets 429s after a
-rebuild. That argues against leaving it sitting on `main` unannounced.
-
-Either tag v0.5.1 or let it ride to the next substantive change. The entry is
-written; only the version heading and the compare links need moving.
+Released as v0.5.1, with the reasoning that mattered: the dist is unchanged, but
+it *is* a behaviour change for anyone running the service — a client that fans
+out now gets 429s, and a stalled connection is closed. Leaving that unannounced
+on `main` is how someone discovers it from a support ticket.
 
 ### 2. `MAX_BODY_SIZE` is still 50 MB
 
@@ -839,6 +836,46 @@ The path, in order:
 
 This is the largest remaining piece of design, and the one that turns the
 audit log from "we signed this" into "they asked us to".
+
+### 4. Where the PHP users actually are (researched 2026-08-06)
+
+Not a task, a finding to keep. Looked into who could realistically use this, and
+what else exists.
+
+**Competition is one package.** [`jrglasgow/c2patool`](https://packagist.org/packages/jrglasgow/c2patool)
+— 0.5.2, **1,775 installs**, 0 dependents, 0 stars, last published Feb 2026. It
+wraps the `c2patool` binary through `symfony/process`, so the private key sits
+on the web server and the PHP process shells out. That is the exact trade
+ADR-0003 rejected. There is no official CAI library for PHP; they maintain Rust,
+JavaScript and Python.
+
+**The PHP mass is WordPress, not Laravel.** AI Engine alone has 80,000+ active
+installs and generates images; AI Power / AI Puffer 10,000+; AIOSEO 3M+ with
+image generation as a feature. On the credential side only a *viewer* plugin
+exists — reading and displaying, not signing.
+
+**Laravel orchestrates, it does not generate.** Prism handles images as *input*;
+generation goes through `openai-php/laravel` or the Laravel AI SDK against
+DALL·E/Gemini. So the target is not "a product that generates in PHP" — it is a
+PHP product whose feature is generation, implemented against an API.
+
+Worth knowing: OpenAI already attaches C2PA credentials to its image output, and
+a PHP app that thumbnails or re-encodes that image **destroys** it. That is both
+the risk and the argument — such an app must either preserve the upstream
+credential (hard in a normal image pipeline) or re-sign under its own identity,
+which is what this package is for.
+
+**A WordPress plugin: viewer yes, signer probably not.** Typical WordPress
+hosting cannot run a second process, so a signing plugin would have to either
+shell out to a binary (the key back on the web server, ADR-0003 again) or call a
+remote service (which filters out most of that 80,000). A **viewer** plugin has
+none of those problems: no keys, no service, no liability, and it reuses
+`SigningServiceReader` almost unchanged. That is the cheap way into the
+WordPress ecosystem without compromising the architecture — the signing side
+stays where it belongs, with people who can run a service.
+
+Not a decision, just the map. The Core is framework-agnostic and needs only
+PSR-18, so nothing is lost by waiting.
 
 ---
 
