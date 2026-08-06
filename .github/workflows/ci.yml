@@ -98,6 +98,15 @@ jobs:
               RATE_LIMIT_REQUESTS=5
               RATE_LIMIT_WINDOW_MS=2000
             groups: SPEC-015
+          # SPEC-019's equivalence check needs BOTH readers, so this is the only
+          # profile that installs ext-c2pa. Deliberately not added to the others:
+          # AC5 is about the extension being ABSENT, and installing it everywhere
+          # would delete the only place that criterion is exercised.
+          - name: ext-c2pa
+            env: |
+              RATE_LIMIT_REQUESTS=1000
+            groups: SPEC-019
+            ext: true
 
     steps:
       - uses: actions/checkout@v7
@@ -134,10 +143,35 @@ jobs:
           done
           curl -sf http://127.0.0.1:3000/health
 
+      # SPEC-019. The install is verified rather than assumed: PIE reports
+      # success on paths that do not end with a loaded extension, and a profile
+      # whose extension quietly failed to load would SKIP every criterion it
+      # exists to run and report green.
+      - name: Install ext-c2pa (PIE)
+        if: matrix.profile.ext
+        run: |
+          curl -sfSL https://github.com/php/pie/releases/latest/download/pie.phar -o /tmp/pie.phar
+          sudo php /tmp/pie.phar install ericmann/ext-c2pa --auto-install-build-tools
+          php -r 'exit(extension_loaded("c2pa") ? 0 : 1);' \
+            || { echo "::error::ext-c2pa installed but not loaded"; php -m; exit 1; }
+          php --ri c2pa
+
       - name: Integration tests (${{ matrix.profile.groups }})
         run: |
           set -a && . ./.env && set +a
-          vendor/bin/pest --group=${{ matrix.profile.groups }}
+          vendor/bin/pest --group=${{ matrix.profile.groups }} | tee /tmp/pest.out
+          exit "${PIPESTATUS[0]}"
+
+      # A skipped equivalence check is not a passing one, and the difference is
+      # invisible in an exit code. This profile exists for exactly one test, so
+      # it asserts that that test actually ran.
+      - name: Assert the equivalence check ran
+        if: matrix.profile.ext
+        run: |
+          grep -q 'agrees with the signing-service reader on every public accessor' /tmp/pest.out \
+            || { echo "::error::SPEC-019 AC2 did not run — the two readers were never compared"; exit 1; }
+          grep -q '✓.*agrees with the signing-service reader' /tmp/pest.out \
+            || { echo "::error::SPEC-019 AC2 was skipped rather than passed"; sed -n '1,80p' /tmp/pest.out; exit 1; }
 
       - name: Service logs on failure
         if: failure()
