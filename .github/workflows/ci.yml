@@ -21,7 +21,7 @@ jobs:
         laravel: ['11', '12', '13']
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -100,7 +100,7 @@ jobs:
             groups: SPEC-015
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
