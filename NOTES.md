@@ -837,6 +837,20 @@ The path, in order:
 This is the largest remaining piece of design, and the one that turns the
 audit log from "we signed this" into "they asked us to".
 
+**The trigger is not adoption.** Worth stating precisely, because it is easy to
+get wrong: every Composer install is a *separate* deployment running its own
+service with its own token, so a hundred installs still means a hundred
+one-caller setups and SPEC-016 helps none of them. What matters is topology
+inside a single deployment — more than one caller on the same instance. The
+realistic first case is a user pointing staging and production at one service,
+because certificates are not cheap enough to duplicate.
+
+So this is a feature for *users*, and the signal to build it is a user saying
+they share an instance — asking how to tell environments apart in the audit
+log, or why staging is spending production's rate limit. Until then the design
+has no real deployment to shape it. The README now states the limitation and
+invites exactly that report, which costs nothing and produces the signal.
+
 ### 4. Where the PHP users actually are (researched 2026-08-06)
 
 Not a task, a finding to keep. Looked into who could realistically use this, and
