@@ -6,7 +6,41 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **`ExtC2paReader` — read credentials without running the signing service
+  (SPEC-019).** Verification needs no private key, no certificate and no
+  service; it needed one until now only because reading and signing shared a
+  transport. With [`ericmann/ext-c2pa`](https://github.com/ericmann/ext-c2pa)
+  installed (`pie install ericmann/ext-c2pa`), reading happens in-process.
+
+  ```php
+  $reader = ExtC2paReader::isAvailable()
+      ? new ExtC2paReader($anchorsPem)
+      : new SigningServiceReader($client, $factory, $factory, $config);
+  ```
+
+  Both implement `ReaderInterface` and return the same `ManifestReport`, so the
+  choice is an installation decision rather than an API one. Construction throws
+  `ExtensionMissingException` when the extension is absent and deliberately does
+  **not** fall back to HTTP — a caller who asked for in-process reading and
+  silently got a network call cannot tell.
+
+  Two things to know before depending on it: the extension is at **v0.1.0**, and
+  it carries **c2pa-rs 0.89.0** against the service's **0.90.4**. An integration
+  test compares both readers accessor by accessor on the same asset; they agree
+  today, and that test is what would report it if they stopped.
+
+  **Signing is unaffected and stays with the service.** The extension can sign,
+  and this library does not expose that: it would put the private key in the web
+  process, which is what this architecture exists to avoid.
+
+### Changed
+
+- **Manifest-store decoding moved to a shared `ManifestStoreParser`.** Behaviour
+  is unchanged — the code is `SigningServiceReader`'s former private `parse()`,
+  moved rather than rewritten. Both readers now answer from one decoder, so
+  there is one definition of "trusted" rather than two places for it to drift.
 
 ## [0.5.3] - 2026-08-06
 

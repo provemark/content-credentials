@@ -8,6 +8,7 @@
 /out                export-ignore
 /service            export-ignore
 /specs              export-ignore
+/stubs              export-ignore
 /tests              export-ignore
 /.editorconfig      export-ignore
 /.env.example       export-ignore

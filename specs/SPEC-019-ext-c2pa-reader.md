@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — (draft)                                         |
+| Approved   | Maurice van Loon — 2026-08-06                     |
 | Supersedes | —                                                 |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -197,25 +197,33 @@ place for the definition of "trusted" to drift.
 
 ## Open questions
 
+Settled at approval, before any test was written. Recorded as decisions rather
+than deleted, because the reasoning is the useful part.
+
 - **How does PHPStan see a class that only exists when an extension is loaded?**
-  The extension ships `stubs/c2pa.stubs.php`. Either vendor it into
-  `phpstan.neon`'s `scanFiles`, or wrap the calls behind a narrow internal
-  interface. Level max with no un-annotated ignores is not negotiable, so this
-  needs deciding before implementation. *Blocker for implementation, not for
-  approval.*
-- **Is the equivalence test (AC2) run in CI?** It needs both the extension and a
-  running service. The service half already runs (three integration profiles);
-  the extension would need building in the job. If that proves expensive, the
-  fallback is a documented local step — but a drift check nobody runs is worth
-  little. *Non-blocker.*
+  **Author our own stub** at `stubs/ext-c2pa.stub.php`, listed in
+  `phpstan.neon`'s `scanFiles` and `export-ignore`d from the dist. Not the
+  extension's own `stubs/c2pa.stubs.php`: vendoring a GPL-2.0-or-later file into
+  this repository is a licensing question this spec should not answer, and a stub
+  we write is one we can keep minimal — only the members the adapter calls, so an
+  upstream addition cannot silently widen what we type-check against. Level max
+  with no un-annotated ignores stands.
+- **Is the equivalence test (AC2) run in CI?** **Skip-gated, like the rest of the
+  integration suite**, and CI gains an extension install only if PIE provides a
+  prebuilt binary for a PHP minor in the matrix. A drift check nobody runs is
+  worth little, so if it stays local it must be named in `CONTRIBUTING.md` as a
+  step before releasing a reader change — not left to memory.
 - **Does `Settings->withTrustAnchors()` accept the document we already ship?**
-  `certs/c2pa-trust.settings.json` embeds PEM contents, and the extension takes
-  PEM contents, so probably a field extraction rather than a new file. Verify
-  against the extension before writing tests, as with NOTES Step 11.
-  *Non-blocker.*
-- **What happens at v0.2.0?** The extension is young and its own plan lags its
-  code. The adapter is the containment; the question is whether we pin a version
-  in `suggest` and how we learn of a break. *Non-blocker.*
+  Verify against the extension before writing the AC4 test, as with NOTES
+  Step 11 — the trust surface is where this project has been surprised most.
+  `certs/c2pa-trust.settings.json` embeds PEM contents and the extension takes
+  PEM contents, so the expectation is a field extraction, not a new file. The
+  test asserts the observed behaviour, not the expectation.
+- **What happens at v0.2.0?** `suggest` carries a version note rather than a
+  constraint (Composer cannot constrain a suggestion anyway), and Dependabot does
+  not watch extensions. The containment is the adapter plus AC2: a break shows up
+  as the two readers disagreeing, which is a legible failure. Accepted risk,
+  documented in the README.
 
 ## Traceability
 
@@ -224,10 +232,40 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
+| AC1 | `tests/Integration/ReaderEquivalenceTest.php` :: "reads a signed asset in-process, with no service involved" | `src/Core/Reading/ExtC2paReader.php` `read()` |
+| AC2 | `tests/Integration/ReaderEquivalenceTest.php` :: "agrees with the signing-service reader on every public accessor"; "agrees on an unsigned asset too"; "agrees that a declared media type is advisory, not enforced" | `src/Core/Reading/ManifestStoreParser.php` |
+| AC3 | `tests/Integration/ReaderEquivalenceTest.php` :: "returns an empty report for an asset with no C2PA data" | `src/Core/Reading/ExtC2paReader.php` `hasManifest()` guard |
+| AC4 | `tests/Integration/ReaderEquivalenceTest.php` :: "reports trusted when the anchors cover the signing certificate"; "reports untrusted, with a reason, when the anchors do not cover it" | `src/Core/Reading/ExtC2paReader.php` `settings()` |
+| AC5 | `tests/Unit/Reading/ExtC2paReaderTest.php` :: "throws at construction when the extension is not loaded"; "names the extension and how to install it"; "does not fall back to the signing service" | `src/Core/Reading/Exception/ExtensionMissingException.php` |
+| AC6 | `tests/Integration/ReaderEquivalenceTest.php` :: "throws the same exception type as the service reader on malformed input" | `src/Core/Reading/ExtC2paReader.php` catch/rethrow |
+| AC7 | `tests/Unit/Reading/ExtC2paReaderTest.php` :: "documents that verification needs no signing service"; "states how the extension is installed and that it is young"; "warns that the two readers carry different c2pa-rs versions"; "states that signing is deliberately unaffected" | `README.md` "Reading without the signing service" |
+
+### Implementation notes
+
+- **One judgement call on scope, stated rather than buried.** "In scope" says to
+  reuse the existing decoder; "out of scope" says no change to
+  `SigningServiceReader`. The decoder lived inside it as a private method, so
+  both could not hold. Read as *no change to its behaviour or contract*, and the
+  decoder was extracted verbatim into `ManifestStoreParser`. Duplicating it
+  instead would have contradicted this spec's own reasoning — two decoders are
+  two places for the definition of "trusted" to drift.
+- **The extension behaved better than assumed**, verified before implementing
+  (2026-08-06, ext-c2pa v0.1.0): `withTrustAnchors()` accepts
+  `certs/trust_anchors.pem` contents directly, an unsigned asset yields a Reader
+  with `hasManifest() === false` rather than the null that caused the SPEC-010
+  crash, garbage bytes raise a catchable `C2paException`, and `json()` emits the
+  same store keys our decoder already reads.
+- **One acceptance criterion was written wrong and moved rather than deleted.**
+  AC6 first included "png bytes declared as jpeg must throw". Measured, BOTH
+  readers accept it — c2pa-rs recognises the format from the bytes and treats
+  the declared media type as advisory. That is shared behaviour, not an error
+  path, so it became an AC2 case. Deleting it would have left the agreement
+  untested.
+- **PHPStan caught a vacuous test of mine, again.** An assertion that
+  `ExtC2paReader implements ReaderInterface` was rejected as
+  `function.alreadyNarrowedType`: the `implements` clause is enforced by the type
+  system, so the test exercised the compiler. Removed, not silenced.
+- **AC5 cannot be exercised on a machine where the extension is installed** — it
+  is about absence. It runs in CI, which has no extension, and skips locally.
+  That is the correct split, and the reason not to install the extension in CI by
+  default.

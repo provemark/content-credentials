@@ -67,143 +67,15 @@ final class SigningServiceReader implements ReaderInterface
         return $this->parse($responseBody);
     }
 
+    /**
+     * Decoding is delegated to the shared ManifestStoreParser (SPEC-019), which
+     * this method's body became. There is now a second way to obtain the same
+     * c2pa-rs store JSON — in-process, via ext-c2pa — and two decoders would be
+     * two places for the definition of "trusted" to drift.
+     */
     private function parse(string $body): ManifestReport
     {
-        try {
-            $store = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException $e) {
-            throw new ReadResponseException('Read service returned a non-JSON response.', previous: $e);
-        }
-
-        if (! is_array($store)) {
-            throw new ReadResponseException('Read service response was not a manifest store object.');
-        }
-
-        $activeLabel = isset($store['active_manifest']) && is_string($store['active_manifest'])
-            ? $store['active_manifest']
-            : null;
-
-        $manifests = isset($store['manifests']) && is_array($store['manifests']) ? $store['manifests'] : [];
-        $active = $activeLabel !== null && isset($manifests[$activeLabel]) && is_array($manifests[$activeLabel])
-            ? $manifests[$activeLabel]
-            : null;
-
-        $state = isset($store['validation_state']) && is_string($store['validation_state'])
-            ? ValidationState::tryFrom($store['validation_state'])
-            : null;
-
-        if ($active === null) {
-            return new ManifestReport(null, null, [], $this->validationCodes($store), $state);
-        }
-
-        return new ManifestReport(
-            $activeLabel,
-            $this->parseSigner($active),
-            $this->parseAssertions($active),
-            $this->validationCodes($store),
-            $state,
-            $this->parseHasTimestamp($active),
-        );
-    }
-
-    /**
-     * True iff the active manifest's `signature_info.time` is present and parses
-     * as a date-time (SPEC-007 D1/D3). Untrusted input: a missing, empty,
-     * non-string or unparseable value yields false, never an exception.
-     *
-     * @param  array<array-key, mixed>  $manifest
-     */
-    private function parseHasTimestamp(array $manifest): bool
-    {
-        $info = $manifest['signature_info'] ?? null;
-        if (! is_array($info)) {
-            return false;
-        }
-
-        $time = $info['time'] ?? null;
-        if (! is_string($time) || $time === '') {
-            return false;
-        }
-
-        try {
-            new \DateTimeImmutable($time);
-        } catch (\Exception) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * @param  array<array-key, mixed>  $manifest
-     */
-    private function parseSigner(array $manifest): ?SignerInfo
-    {
-        $info = $manifest['signature_info'] ?? null;
-        if (! is_array($info)) {
-            return null;
-        }
-
-        $issuer = $info['issuer'] ?? null;
-        if (! is_string($issuer)) {
-            return null;
-        }
-
-        $commonName = isset($info['common_name']) && is_string($info['common_name']) ? $info['common_name'] : null;
-        $algorithm = isset($info['alg']) && is_string($info['alg']) ? $info['alg'] : null;
-
-        return new SignerInfo($issuer, $commonName, $algorithm);
-    }
-
-    /**
-     * @param  array<array-key, mixed>  $manifest
-     * @return list<array{label: string, data: array<array-key, mixed>}>
-     */
-    private function parseAssertions(array $manifest): array
-    {
-        $assertions = $manifest['assertions'] ?? null;
-        if (! is_array($assertions)) {
-            return [];
-        }
-
-        $out = [];
-        foreach ($assertions as $assertion) {
-            if (! is_array($assertion)) {
-                continue;
-            }
-
-            $label = $assertion['label'] ?? null;
-            if (! is_string($label)) {
-                continue;
-            }
-
-            $data = $assertion['data'] ?? [];
-
-            $out[] = ['label' => $label, 'data' => is_array($data) ? $data : []];
-        }
-
-        return $out;
-    }
-
-    /**
-     * @param  array<array-key, mixed>  $store
-     * @return list<string>
-     */
-    private function validationCodes(array $store): array
-    {
-        $status = $store['validation_status'] ?? null;
-        if (! is_array($status)) {
-            return [];
-        }
-
-        $codes = [];
-        foreach ($status as $entry) {
-            if (is_array($entry) && isset($entry['code']) && is_string($entry['code'])) {
-                $codes[] = $entry['code'];
-            }
-        }
-
-        return $codes;
+        return ManifestStoreParser::fromJson($body);
     }
 
     private function extractError(string $body): string
