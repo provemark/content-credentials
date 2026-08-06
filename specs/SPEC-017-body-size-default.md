@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — while draft                                     |
+| Approved   | Maurice van Loon — 2026-08-06                     |
 | Supersedes | — (completes an item SPEC-015 put out of scope)   |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -146,8 +146,8 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
+| AC1 | `tests/Integration/BodySizeLimitTest.php` :: "still signs a large but realistic PNG" | `service/server.js` `MAX_BODY` |
+| AC2 | `tests/Integration/BodySizeLimitTest.php` :: "refuses an oversized body with 413 rather than an unhandled error"; "names the limit and carries a correlation id when refusing for size" | `service/server.js` body-parser error handler |
+| AC3 | `tests/Integration/BodySizeLimitTest.php` :: "reports the effective body limit on /health"; "defaults to a limit sized for the assets it signs, not 50mb" | `service/server.js` `maxBodyBytes()`, `GET /health` |
+| AC4 | `tests/Integration/BodySizeLimitTest.php` :: "records a size refusal without recording the body" | `service/server.js` body-parser error handler `audit()` |
+| AC5 | `tests/Unit/BodySizeGuidanceTest.php` :: "states the measured memory multiplier"; "gives the relationship needed to size a container" | `README.md` "Sizing the container" |

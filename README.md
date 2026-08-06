@@ -279,11 +279,41 @@ Limits are **on by default**; a protection that ships off is one nobody turns
 on. Setting one to `0` disables it explicitly, and `/health` says so.
 
 Tune with `MAX_CONCURRENT_SIGNS`, `RATE_LIMIT_REQUESTS`, `RATE_LIMIT_WINDOW_MS`,
-`REQUEST_TIMEOUT_MS` and `HEADERS_TIMEOUT_MS`. One caveat worth knowing: the
-request body is buffered before any limit is consulted, so a concurrency cap
-bounds *signing work*, not the memory spent admitting a request it then refuses.
-If you sign only small assets, lowering `MAX_BODY_SIZE` (default 50 MB) does
-more than any other setting here.
+`REQUEST_TIMEOUT_MS` and `HEADERS_TIMEOUT_MS`.
+
+### Sizing the container
+
+Signing is memory-hungry in a way that is easy to underestimate. A request holds
+the parsed base64 string, the decoded buffer, the signed file read back from
+disk, and its base64 in the response — and measured against an idle baseline of
+about 18 MiB, the real cost is roughly **7×** the asset, not the four copies
+that suggests:
+
+| Asset | Peak at 4 concurrent | Per request | Multiplier |
+|---|---|---|---|
+| 1.0 MB | 66 MiB | 12.1 MiB | 12.1× |
+| 4.1 MB | 161 MiB | 35.9 MiB | 8.7× |
+| 11.4 MB | 332 MiB | 78.6 MiB | 6.9× |
+
+The ratio falls as assets grow, because fixed per-request overhead amortises.
+So, to size a container:
+
+```
+peak memory ≈ MAX_CONCURRENT_SIGNS × 7 × largest asset you accept
+```
+
+`MAX_BODY_SIZE` (default **20 MB**) is what caps that last term. Base64 inflates
+an asset by a third, so 20 MB of body carries roughly a 15 MB asset — well above
+the 11.4 MB a 2000×2000 PNG of incompressible pixels measures — and peaks around
+420 MB at the default concurrency cap. The previous default of 50 MB carried a
+~37 MB asset and peaked near 1 GB, which does not fit in the 512 MB container
+many people would give it.
+
+A body over the limit is refused with **413** before it reaches the signing
+path. Raise `MAX_BODY_SIZE` if you sign larger assets, but raise the container's
+memory with it — the concurrency cap will not save you, because the body is
+buffered *before* any limit is consulted. That is also why lowering this setting
+does more for memory than anything else here.
 
 ### Assertion limits
 
