@@ -42,7 +42,117 @@ in-process native extension, which puts the key on the web server.)
   your own.
 - The **signing service** running (see [Signing service](#signing-service)).
 
-## Installation
+## Quickstart
+
+Ten minutes from nothing to a signed image you can verify. Two pieces are
+involved: a **signing service** that holds the private key, and the **PHP
+library** that talks to it. The service comes first — without it, the library
+has nothing to call.
+
+### 1. Run the signing service
+
+It lives in this repository, not in the Composer package, so clone the repo:
+
+```bash
+git clone https://github.com/provemark/content-credentials.git
+cd content-credentials
+
+cp .env.example .env
+# Generate a shared secret and put it in .env as CONTENTAUTH_API_KEY:
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# The private test key is deliberately not committed. Fetch the c2pa-rs sample —
+# test material only, never a real key:
+curl -sfSL https://raw.githubusercontent.com/contentauth/c2pa-rs/main/cli/sample/es256_private.key \
+  -o certs/es256_private.key
+
+docker compose up -d --build
+curl -s http://127.0.0.1:3000/health
+```
+
+You should see `{"status":"ok","signing_alg":"es256",...}`. If not, stop here —
+nothing below will work.
+
+### 2. Install the library in your application
+
+```bash
+composer require provemark/content-credentials
+```
+
+In **Laravel** the service provider and facade register automatically. Point it
+at the service with the same secret you generated above:
+
+```dotenv
+CONTENTAUTH_SERVICE_URL=http://localhost:3000
+CONTENTAUTH_API_KEY=the-value-from-your-.env
+```
+
+### 3. Sign an image
+
+```php
+use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Laravel\ContentCredentials;
+
+$manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+    ->withSoftwareAgent('ACME GenAI Image Model', '3.1.0')
+    ->build();
+
+$signed = ContentCredentials::sign(
+    new Asset(file_get_contents('image.png'), MediaType::Png),
+    $manifest,
+);
+
+file_put_contents('signed.png', $signed->bytes);
+```
+
+> ⚠️ **Write those bytes as they are.** Any re-encode, resize, optimiser or CDN
+> image transform invalidates the credential — the signature covers the file's
+> bytes. This is the single most common way a working integration breaks, and it
+> fails silently: the image still displays, the credential is simply gone.
+
+### 4. Check that it worked
+
+```php
+$report = ContentCredentials::read(new Asset($signed->bytes, MediaType::Png));
+
+$report->isVerifiedAiGenerated();  // true — marked AND the signature checked out
+$report->signer()?->issuer;        // "C2PA Test Signing Cert"
+```
+
+Or from the repository, using the authoritative tool:
+
+```bash
+bin/verify.sh signed.png
+```
+```
+Signed by      : C2PA Test Signing Cert / CN=C2PA Signer [Es256]
+Signature valid: PASS (claimSignature.validated)
+Cert trusted   : PASS (signingCredential.trusted)
+AI Art.50 mark : PASS (digitalSourceType=trainedAlgorithmicMedia)
+Remaining status/failures: none
+```
+
+`Cert trusted: PASS` here means the bundled **test** anchors trust the bundled
+**test** certificate — `bin/verify.sh` passes them to c2patool deliberately. A
+public verifier, using the production trust list, will say untrusted. That is
+correct and expected; see below.
+
+### What you have, and what you do not
+
+The signature is **cryptographically valid**, and the image carries the EU AI
+Act Article 50 marking: a `c2pa.actions.v2` assertion with
+`digitalSourceType = trainedAlgorithmicMedia`.
+
+What you do not have yet is a certificate anyone else trusts. The bundled one is
+c2pa-rs **test** material — public verifiers will report the signature as valid
+and the certificate as untrusted. Replacing it is the one step between this and
+production; see [Going to production](#going-to-production).
+
+## Installation and configuration
+
+The Quickstart covers the short version. This section is the full set of knobs.
 
 ```bash
 composer require provemark/content-credentials
@@ -78,83 +188,6 @@ These timeouts apply to the HTTP client this package builds for you. If you bind
 your own PSR-18 client into the container, that client owns its timeouts — PSR-18
 has no timeout API, so the package cannot set one on a client it did not
 construct.
-
-## Quick start (Laravel)
-
-```php
-use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
-use Provemark\ContentCredentials\Core\Manifest\MediaType;
-use Provemark\ContentCredentials\Core\Signing\Asset;
-use Provemark\ContentCredentials\Laravel\ContentCredentials;
-
-$bytes = file_get_contents('image.png');
-
-// 1. Describe the asset as AI-generated (EU AI Act Art. 50 marking).
-$manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
-    ->withSoftwareAgent('ACME GenAI Image Model', '3.1.0')
-    ->withClaimGenerator(config('app.name'), '1.0.0')
-    ->build();
-
-// 2. Sign it via the service.
-$signed = ContentCredentials::sign(new Asset($bytes, MediaType::Png), $manifest);
-file_put_contents('signed.png', $signed->bytes); // never re-encode these bytes
-
-// 3. Read the credential back.
-$report = ContentCredentials::read(new Asset($signed->bytes, MediaType::Png));
-
-// The marking, verified: true only if the signature also checked out.
-$report->isVerifiedAiGenerated(); // true
-
-// The individual pieces. Note isAiGenerated() reports what the manifest
-// CLAIMS — it does not imply the signature verified, so gate on
-// isSignatureValid() before acting on it.
-$report->isSignatureValid();     // true — integrity verdict
-$report->isAiGenerated();        // true — the claim
-$report->digitalSourceTypes();   // ['http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia']
-$report->signer()?->issuer;      // e.g. "C2PA Test Signing Cert"
-$report->hasTimestamp();         // true when signed with a trusted timestamp (see "Going to production")
-$report->isTrusted();            // true only when the service verified against a trust list
-```
-
-> **Claims versus verdicts.** `isAiGenerated()`, `signer()` and
-> `digitalSourceTypes()` describe what a manifest *asserts*; they answer for a
-> tampered or unverifiable manifest too. `isSignatureValid()` and `isTrusted()`
-> are the verdicts. `isVerifiedAiGenerated()` combines the marking with the
-> signature verdict, so the safe check is also the short one to write.
-
-## Quick start (plain PHP / any framework)
-
-Core depends only on PSR interfaces — inject any PSR-18 client and PSR-17
-factories:
-
-```php
-use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
-use Provemark\ContentCredentials\Core\Manifest\MediaType;
-use Provemark\ContentCredentials\Core\Signing\Asset;
-use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
-use Provemark\ContentCredentials\Core\Signing\SigningServiceSigner;
-use GuzzleHttp\Client;                       // any PSR-18 client
-use Nyholm\Psr7\Factory\Psr17Factory;        // any PSR-17 factory
-
-$factory = new Psr17Factory();
-$signer = new SigningServiceSigner(
-    new Client(),
-    $factory,
-    $factory,
-    new SigningServiceConfig('http://localhost:3000', getenv('CONTENTAUTH_API_KEY')),
-);
-
-$manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Jpeg)
-    ->withSoftwareAgent('ACME GenAI Image Model', '3.1.0')
-    ->build();
-
-$signed = $signer->sign(new Asset(file_get_contents('in.jpg'), MediaType::Jpeg), $manifest);
-file_put_contents('out.jpg', $signed->bytes);
-```
-
-Reading works the same way with `SigningServiceReader` → `ManifestReport`.
-
-Supported formats in this version: **PNG and JPEG**.
 
 ## Signing service
 
@@ -295,6 +328,86 @@ startup is what stops you believing trust is on when it is not.
 
 The bundled anchors trust only the c2pa-rs **test** certificates. Replace them
 with the trust list your verifier uses before production.
+
+The Quickstart above is the shortest path. These sections are the reference:
+the full set of accessors, and what each one does and does not tell you.
+
+## Usage (Laravel)
+
+```php
+use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Laravel\ContentCredentials;
+
+$bytes = file_get_contents('image.png');
+
+// 1. Describe the asset as AI-generated (EU AI Act Art. 50 marking).
+$manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+    ->withSoftwareAgent('ACME GenAI Image Model', '3.1.0')
+    ->withClaimGenerator(config('app.name'), '1.0.0')
+    ->build();
+
+// 2. Sign it via the service.
+$signed = ContentCredentials::sign(new Asset($bytes, MediaType::Png), $manifest);
+file_put_contents('signed.png', $signed->bytes); // never re-encode these bytes
+
+// 3. Read the credential back.
+$report = ContentCredentials::read(new Asset($signed->bytes, MediaType::Png));
+
+// The marking, verified: true only if the signature also checked out.
+$report->isVerifiedAiGenerated(); // true
+
+// The individual pieces. Note isAiGenerated() reports what the manifest
+// CLAIMS — it does not imply the signature verified, so gate on
+// isSignatureValid() before acting on it.
+$report->isSignatureValid();     // true — integrity verdict
+$report->isAiGenerated();        // true — the claim
+$report->digitalSourceTypes();   // ['http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia']
+$report->signer()?->issuer;      // e.g. "C2PA Test Signing Cert"
+$report->hasTimestamp();         // true when signed with a trusted timestamp (see "Going to production")
+$report->isTrusted();            // true only when the service verified against a trust list
+```
+
+> **Claims versus verdicts.** `isAiGenerated()`, `signer()` and
+> `digitalSourceTypes()` describe what a manifest *asserts*; they answer for a
+> tampered or unverifiable manifest too. `isSignatureValid()` and `isTrusted()`
+> are the verdicts. `isVerifiedAiGenerated()` combines the marking with the
+> signature verdict, so the safe check is also the short one to write.
+
+## Usage (plain PHP / any framework)
+
+Core depends only on PSR interfaces — inject any PSR-18 client and PSR-17
+factories:
+
+```php
+use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
+use Provemark\ContentCredentials\Core\Signing\SigningServiceSigner;
+use GuzzleHttp\Client;                       // any PSR-18 client
+use Nyholm\Psr7\Factory\Psr17Factory;        // any PSR-17 factory
+
+$factory = new Psr17Factory();
+$signer = new SigningServiceSigner(
+    new Client(),
+    $factory,
+    $factory,
+    new SigningServiceConfig('http://localhost:3000', getenv('CONTENTAUTH_API_KEY')),
+);
+
+$manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Jpeg)
+    ->withSoftwareAgent('ACME GenAI Image Model', '3.1.0')
+    ->build();
+
+$signed = $signer->sign(new Asset(file_get_contents('in.jpg'), MediaType::Jpeg), $manifest);
+file_put_contents('out.jpg', $signed->bytes);
+```
+
+Reading works the same way with `SigningServiceReader` → `ManifestReport`.
+
+Supported formats in this version: **PNG and JPEG**.
 
 ## Verifying the output
 
