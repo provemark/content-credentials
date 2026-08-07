@@ -17,7 +17,8 @@ declare(strict_types=1);
  */
 function cc23Readme(): string
 {
-    $path = dirname(__DIR__, 2).'/README.md';
+    // Moved with its text by SPEC-027.
+    $path = dirname(__DIR__, 2).'/docs/marking.md';
     $raw = file_get_contents($path);
 
     if (! is_string($raw)) {

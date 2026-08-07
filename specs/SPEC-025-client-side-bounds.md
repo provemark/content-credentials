@@ -223,7 +223,7 @@ least one test; every source file maps back to this spec.
 | AC3 | `tests/Unit/Signing/ClientBoundsTest.php` :: "recognises which base URLs send the token in clear"; `tests/Unit/Laravel/ClientBoundsWiringTest.php` :: "warns when the service is reached over plain HTTP across a network", "stays silent for loopback over plain HTTP", "refuses to build the config when strict transport is required", "does not crash when the application has no logger" | `src/Core/Signing/SigningServiceConfig.php` `usesInsecureTransport()`, `src/Laravel/ContentCredentialsServiceProvider.php` `warnOnInsecureTransport()` |
 | AC4 | `tests/Unit/Signing/ClientBoundsTest.php` :: "caps the service error text it copies into an exception", "still reports a short service error in full" | `src/Core/Signing/SigningServiceSigner.php` `extractError()` |
 | AC5 | `tests/Unit/Laravel/ClientBoundsWiringTest.php` :: "leaves no temporary file behind after a successful write", "writes nothing at all when the destination directory does not exist", "replaces an existing file without an intermediate empty state" | `src/Laravel/Support/AtomicWrite.php`, `src/Laravel/Jobs/SignAssetJob.php`, `src/Laravel/Console/SignCommand.php` |
-| AC6 | `tests/Unit/ReaderTradeOffGuidanceTest.php` :: "says where the extension reader parses untrusted input", "ties the trade-off back to the decision it mirrors" | `README.md` § Which reader, `docs/c2pa-primer.md` §9 |
+| AC6 | `tests/Unit/ReaderTradeOffGuidanceTest.php` :: "says where the extension reader parses untrusted input", "ties the trade-off back to the decision it mirrors" | `docs/readers.md` § Which reader, `docs/c2pa-primer.md` §9 |
 
 ## Implementation notes (2026-08-07)
 
@@ -246,3 +246,6 @@ least one test; every source file maps back to this spec.
 - **The warning must survive a missing logger.** A bare container has no `log`
   binding, and a protection that crashes when it cannot warn is worse than one
   that is absent.
+
+> Documentation sources moved from `README.md` by SPEC-027 (2026-08-07);
+> the text is unchanged.

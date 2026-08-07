@@ -32,15 +32,20 @@ function spec018Repo(string $relative): string
  * and a naive substring search misses it. Reflowing a paragraph must not break a
  * test, and must not silently stop testing anything either.
  */
-function spec018Readme(): string
+/**
+ * SPEC-027 split the README: the rotation procedure moved to the service page,
+ * the Conformance Program mapping to the production page. Each criterion now
+ * reads the page that owns its text.
+ */
+function spec018Page(string $page): string
 {
-    return strtolower((string) preg_replace('/\s+/', ' ', spec018Repo('README.md')));
+    return strtolower((string) preg_replace('/\s+/', ' ', spec018Repo($page)));
 }
 
 // --- AC4: rotation is documented and confirmable -----------------------------
 
 it('documents a signing-key rotation procedure', function () {
-    $readme = spec018Readme();
+    $readme = spec018Page('docs/service.md');
 
     expect($readme)->toContain('rotating the signing key');
 
@@ -58,7 +63,7 @@ it('documents a signing-key rotation procedure', function () {
 it('states that restart-based rotation satisfies the requirement', function () {
     // Without this a reader goes looking for a reload endpoint that deliberately
     // does not exist (SPEC-018 scope: hot reload is out of scope, not missing).
-    $readme = spec018Readme();
+    $readme = spec018Page('docs/service.md');
 
     expect($readme)->toContain('restart')
         ->and($readme)->toContain('capable of rotating');
@@ -152,7 +157,7 @@ it('states the remediation obligation and names the scanning tools', function ()
 // --- AC7: the Level 1 mapping is documented ----------------------------------
 
 it('tells a reader that their deployment, not this library, is the Generator Product', function () {
-    $readme = spec018Readme();
+    $readme = spec018Page('docs/production.md');
 
     // The single most load-bearing sentence for anyone who reads about the
     // Conforming Products List and assumes a library can be on it.
@@ -161,7 +166,10 @@ it('tells a reader that their deployment, not this library, is the Generator Pro
 })->group('SPEC-018');
 
 it('maps the service key handling onto the Level 1 requirements it satisfies', function () {
-    $readme = spec018Readme();
+    // Key handling is documented where the key is operated — the rotation
+    // procedure cites the requirement it satisfies. The Conforming Products List
+    // question above is a different page for a different reader.
+    $readme = spec018Page('docs/service.md');
 
     // Enough for a reader to locate the requirements and see which ones this
     // architecture answers — the raw material for their own GPSA document.

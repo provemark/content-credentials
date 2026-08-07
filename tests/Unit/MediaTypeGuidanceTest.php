@@ -23,7 +23,8 @@ use Provemark\ContentCredentials\Core\Manifest\MediaType;
  */
 function cc21Readme(): string
 {
-    $path = dirname(__DIR__, 2).'/README.md';
+    // Moved with its text by SPEC-027.
+    $path = dirname(__DIR__, 2).'/docs/marking.md';
     $raw = file_get_contents($path);
 
     if (! is_string($raw)) {

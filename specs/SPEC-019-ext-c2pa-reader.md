@@ -238,7 +238,7 @@ least one test; every source file maps back to this spec.
 | AC4 | `tests/Integration/ReaderEquivalenceTest.php` :: "reports trusted when the anchors cover the signing certificate"; "reports untrusted, with a reason, when the anchors do not cover it" | `src/Core/Reading/ExtC2paReader.php` `settings()` |
 | AC5 | `tests/Unit/Reading/ExtC2paReaderTest.php` :: "throws at construction when the extension is not loaded"; "names the extension and how to install it"; "does not fall back to the signing service" | `src/Core/Reading/Exception/ExtensionMissingException.php` |
 | AC6 | `tests/Integration/ReaderEquivalenceTest.php` :: "throws the same exception type as the service reader on malformed input" | `src/Core/Reading/ExtC2paReader.php` catch/rethrow |
-| AC7 | `tests/Unit/Reading/ExtC2paReaderTest.php` :: "documents that verification needs no signing service"; "states how the extension is installed and that it is young"; "warns that the two readers carry different c2pa-rs versions"; "states that signing is deliberately unaffected" | `README.md` "Reading without the signing service" |
+| AC7 | `tests/Unit/Reading/ExtC2paReaderTest.php` :: "documents that verification needs no signing service"; "states how the extension is installed and that it is young"; "warns that the two readers carry different c2pa-rs versions"; "states that signing is deliberately unaffected" | `docs/readers.md` "Reading without the signing service" |
 
 ### Implementation notes
 
@@ -269,3 +269,6 @@ least one test; every source file maps back to this spec.
   is about absence. It runs in CI, which has no extension, and skips locally.
   That is the correct split, and the reason not to install the extension in CI by
   default.
+
+> Documentation sources moved from `README.md` by SPEC-027 (2026-08-07);
+> the text is unchanged.

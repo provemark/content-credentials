@@ -304,7 +304,7 @@ least one test; every source file maps back to this spec.
 | AC3 | `tests/Unit/Manifest/DigitalSourceTypeTest.php` :: "leaves the AI-generated manifest byte-identical to what SPEC-001 fixes" | `src/Core/Manifest/ManifestBuilder.php` `forAiGenerated()` |
 | AC4 | `tests/Unit/Manifest/DigitalSourceTypeTest.php` :: "refuses a source type that describes an operation on an existing asset", "names ingredients as the missing capability when refusing", "refuses rather than emitting a created action for an editing term" | `src/Core/Manifest/DigitalSourceType.php` `requiresIngredient()`, `src/Core/Manifest/Exception/UnsupportedSourceTypeException.php` |
 | AC5 | `tests/Integration/DigitalSourceTypeTest.php` :: "refuses algorithmicMedia when the service requires AI marking", "still signs trainedAlgorithmicMedia when the service requires AI marking" | `service/server.js` `REQUIRE_AI_MARKING` (unchanged) |
-| AC6 | `tests/Unit/SourceTypeGuidanceTest.php` :: all five | `README.md` § What you are claiming, `docs/c2pa-primer.md` §10 |
+| AC6 | `tests/Unit/SourceTypeGuidanceTest.php` :: all five | `docs/marking.md` § What you are claiming, `docs/c2pa-primer.md` §10 |
 | AC7 | `tests/Unit/Reading/GenerativeAiDetectionTest.php` :: all four; `tests/Integration/DigitalSourceTypeTest.php` :: "reads a compositeSynthetic asset as generative but not AI-generated", "reads an algorithmicMedia asset as neither" | `src/Core/Reading/ManifestReport.php` `involvesGenerativeAi()`, `src/Core/Manifest/DigitalSourceType.php` `involvesGenerativeAi()` |
 
 ## Implementation notes (2026-08-07)
@@ -333,3 +333,6 @@ least one test; every source file maps back to this spec.
 - **The AC6 phrases were checked against `origin/main` before trusting the
   green**, the same way SPEC-025 AC6 was: all six were absent, so the tests would
   have failed on the previous revision.
+
+> Documentation sources moved from `README.md` by SPEC-027 (2026-08-07);
+> the text is unchanged.

@@ -29,12 +29,12 @@ it('says where the extension reader parses untrusted input', function (string $f
 
     expect($text)->toContain('untrusted')
         ->and($text)->toContain('application process');
-})->with(['README.md', 'docs/c2pa-primer.md'])->group('SPEC-025');
+})->with(['docs/readers.md', 'docs/c2pa-primer.md'])->group('SPEC-025');
 
 it('ties the trade-off back to the decision it mirrors', function () {
     // Not a free operational win: it is the same boundary ADR-0003 draws for the
     // key, drawn the other way. A reader who knows that can decide; one who is
     // told only "no second process" cannot.
-    expect(cc25Doc('README.md'))->toContain('adr-0003')
-        ->and(cc25Doc('README.md'))->toContain('separate, disposable process');
+    expect(cc25Doc('docs/readers.md'))->toContain('adr-0003')
+        ->and(cc25Doc('docs/readers.md'))->toContain('separate, disposable process');
 })->group('SPEC-025');

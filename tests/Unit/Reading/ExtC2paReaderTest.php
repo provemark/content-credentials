@@ -74,7 +74,8 @@ it('does not fall back to the signing service', function () {
 
 function spec019Readme(): string
 {
-    $raw = @file_get_contents(dirname(__DIR__, 3).'/README.md');
+    // Moved with its text by SPEC-027.
+    $raw = @file_get_contents(dirname(__DIR__, 3).'/docs/readers.md');
 
     // Whitespace collapsed so a phrase survives a hard-wrapped paragraph — the
     // lesson from SPEC-018, where the match failed on a line break.

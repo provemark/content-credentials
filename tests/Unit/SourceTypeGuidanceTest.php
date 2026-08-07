@@ -26,7 +26,7 @@ function cc26Doc(string $file): string
 }
 
 it('lists every emittable source type in the README', function () {
-    $readme = cc26Doc('README.md');
+    $readme = cc26Doc('docs/marking.md');
 
     foreach ([
         DigitalSourceType::TrainedAlgorithmicMedia,
@@ -41,14 +41,14 @@ it('states the difference between the two composite terms', function () {
     // The one people will get wrong: compositeWithTrainedAlgorithmicMedia is an
     // EDIT, compositeSynthetic is a new asset made of parts. Their names give no
     // hint of that, so the definition has to be on the page.
-    $readme = cc26Doc('README.md');
+    $readme = cc26Doc('docs/marking.md');
 
     expect($readme)->toContain('compositewithtrainedalgorithmicmedia')
         ->and($readme)->toContain('already existed');
 })->group('SPEC-026');
 
 it('explains why the editing terms cannot be built', function () {
-    $readme = cc26Doc('README.md');
+    $readme = cc26Doc('docs/marking.md');
 
     expect($readme)->toContain('ingredient')
         ->and($readme)->toContain('c2pa.opened');
@@ -59,7 +59,7 @@ it('documents what the two reading predicates mean', function (string $file) {
 
     expect($text)->toContain('isaigenerated()')
         ->and($text)->toContain('involvesgenerativeai()');
-})->with(['README.md', 'docs/c2pa-primer.md'])->group('SPEC-026');
+})->with(['docs/marking.md', 'docs/c2pa-primer.md'])->group('SPEC-026');
 
 it('warns that the guidance misspells the IPTC term', function () {
     // The primer is where someone implementing from a C2PA document will look.
