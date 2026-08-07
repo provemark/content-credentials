@@ -86,7 +86,8 @@
         "analyse": "phpstan analyse --memory-limit=512M",
         "test": "pest --exclude-group=integration",
         "deptrac": "deptrac analyse",
-        "check": [
+        "check": "bin/check.sh",
+        "check:run": [
             "@format",
             "@analyse",
             "@test",
@@ -98,6 +99,7 @@
         "analyse": "Static analysis with PHPStan (level max; needs more than PHP's default 128M, which crashes a parallel worker)",
         "test": "Run the Pest test suite (excludes the service-dependent integration group; run it with: vendor/bin/pest --group=integration)",
         "deptrac": "Enforce architecture boundaries with Deptrac",
-        "check": "The single definition of green: format + analyse + test + deptrac"
+        "check": "The single definition of green: format + analyse + test + deptrac. Keeps the output of a FAILING run at out/check-<stamp>.log; a green run leaves nothing.",
+        "check:run": "The check sequence itself, without the failure-capture wrapper. Use `check`."
     }
 }
