@@ -2309,5 +2309,33 @@ cameras — and a PHP web application asserting that it captured a photograph is
 asserting something it cannot know. Cheap to support, and it may invite a use
 this package is not positioned for.
 
+### Open question 3, settled the same day: no authenticity claims here
+
+Answered: **not in this package, not now** — and the consequence is wider than
+the one term that prompted it. `digitalCapture` and `computationalCapture` claim
+a device recorded something; `digitalCreation` claims a human made it without
+generative tools; the film and print terms claim a physical original. **A PHP web
+application cannot know any of them.** It receives bytes. Whatever it asserts
+about their origin it is repeating something it was told — and a C2PA assertion
+is signed with a certificate, which turns hearsay into attestation.
+
+Not an argument against ever supporting them, but against supporting them as
+"an enum case you can pass". The caller would have to be the capture device or
+vouch for it, and the package would have to say so loudly. That is a different
+product decision, and nothing is asking for it.
+
+What remains is coherent, and sharper than the draft was: this package marks
+**synthetic** media. `trainedAlgorithmicMedia` (exists), `compositeSynthetic`
+(a mix containing generative AI), and `algorithmicMedia` (purely algorithmic,
+not trained on sampled data). The last is worth having precisely because it is a
+*negative* claim about AI — it distinguishes procedural output from generative
+output instead of leaving both unmarked.
+
+The draft narrowed accordingly: two new cases instead of five, `forCaptured()`
+dropped before it existed, and SPEC-026 AC5 now tests `REQUIRE_AI_MARKING`
+against `algorithmicMedia` rather than `digitalCapture` — synthetic but
+explicitly not trained, which is the sharpest test of a policy that names
+`trainedAlgorithmicMedia`.
+
 Sources: C2PA Implementation Guidance 2.4; IPTC Digital Source Type NewsCodes;
 CAI open-source documentation on writing assertions and actions.

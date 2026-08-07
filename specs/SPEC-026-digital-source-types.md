@@ -23,9 +23,10 @@ content; paragraph 4 adds the deepfake disclosure obligation, which is squarely
 about manipulation of existing material. An application that edits a real
 photograph with a generative model has an obligation and no way to meet it here.
 
-The authenticity direction is missing too: a captured photograph
-(`digitalCapture`) is the case that motivates C2PA in the first place, and this
-package cannot express it.
+The authenticity direction — a captured photograph — is the case that motivates
+C2PA in the first place, and this package cannot express it. That turns out to be
+correct rather than a gap; see Open questions, where it is settled that a web
+application cannot honestly make that claim about bytes it was handed.
 
 ## What the research found, and why it reshapes this spec
 
@@ -109,12 +110,13 @@ Retired, and therefore never to be emitted: `minorHumanEdits`, `digitalArt`,
 
 **In scope**
 
-- `DigitalSourceType` gains the **created-time** cases: the ones that describe
-  how an asset came into being and therefore ride on the existing single
-  `c2pa.created` action — `compositeSynthetic`, `algorithmicMedia`,
-  `digitalCapture`, `computationalCapture`, `digitalCreation`.
+- `DigitalSourceType` gains the two **created-time synthetic** cases:
+  `compositeSynthetic` (a mix, at least one element generative AI) and
+  `algorithmicMedia` (purely algorithmic, not trained on sampled data). Both
+  describe how an asset came into being, so both ride on the existing single
+  `c2pa.created` action.
 - Named constructors in the form settled in NOTES Step 26:
-  `ManifestBuilder::forCaptured()`, `::forSynthetic()`, and a general
+  `ManifestBuilder::forSynthetic()`, `::forAlgorithmic()`, and a general
   `::forSourceType(DigitalSourceType, MediaType)` behind them.
 - The service's `REQUIRE_AI_MARKING` policy, which today tests for exactly
   `trainedAlgorithmicMedia`, must keep meaning what it says.
@@ -128,6 +130,12 @@ Retired, and therefore never to be emitted: `minorHumanEdits`, `digitalArt`,
   existing asset, so all three need `c2pa.opened` + an ingredient +
   `c2pa.edited`. That is ingredient support, and it is a larger piece of work
   than this whole spec.
+- **Every authenticity claim** — `digitalCapture`, `computationalCapture`,
+  `digitalCreation`, the film and print terms. Settled before approval: they do
+  not belong in this package. See Open questions; the short version is that this
+  package exists to mark AI involvement, and a PHP web application asserting that
+  a photograph was *captured*, or that a human made something without generative
+  tools, is asserting something it has no way to know.
 - Ingredients generally: a second asset as input, its hash, `parentOf`
   relationships, and what the service does with them.
 - Multiple actions in one manifest. `ManifestBuilder` emits one, and every
@@ -176,8 +184,11 @@ covered by a Pest test tagged `->group('SPEC-026')`.
 
 - **AC5 — `REQUIRE_AI_MARKING` still means what it says**
   - Given a service configured with `REQUIRE_AI_MARKING=true`
-  - When a manifest with `digitalCapture` is offered
+  - When a manifest with `algorithmicMedia` is offered
   - Then it is refused
+  - *(`algorithmicMedia` is synthetic but explicitly **not** trained on sampled
+    data, so it is the sharpest test of that policy: near enough to AI marking to
+    be mistaken for it, and not what the policy names.)*
   - *(The policy exists for deployments whose certificate marks AI content only.
     Widening the enum must not quietly widen what that policy accepts.)*
 
@@ -200,17 +211,15 @@ enum DigitalSourceType: string
     case TrainedAlgorithmicMedia = 'http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia';
     case CompositeSynthetic = 'http://cv.iptc.org/newscodes/digitalsourcetype/compositeSynthetic';
     case AlgorithmicMedia = 'http://cv.iptc.org/newscodes/digitalsourcetype/algorithmicMedia';
-    case DigitalCapture = 'http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture';
-    case ComputationalCapture = 'http://cv.iptc.org/newscodes/digitalsourcetype/computationalCapture';
-    case DigitalCreation = 'http://cv.iptc.org/newscodes/digitalsourcetype/digitalCreation';
+    // No capture or human-authorship terms: see Scope.
 }
 ```
 
 ```php
 ManifestBuilder::forAiGenerated(MediaType::Png)   // unchanged, SPEC-022
-ManifestBuilder::forCaptured(MediaType::Jpeg)     // digitalCapture
 ManifestBuilder::forSynthetic(MediaType::Png)     // compositeSynthetic
-ManifestBuilder::forSourceType(DigitalSourceType::AlgorithmicMedia, MediaType::Png)
+ManifestBuilder::forAlgorithmic(MediaType::Png)   // algorithmicMedia
+ManifestBuilder::forSourceType(DigitalSourceType::CompositeSynthetic, MediaType::Png)
 ```
 
 ## Open questions
@@ -228,12 +237,31 @@ ManifestBuilder::forSourceType(DigitalSourceType::AlgorithmicMedia, MediaType::P
   only — means a new constructor for every term IPTC registers, and IPTC has
   registered three new ones since 2024.
 
-- **Does the authenticity case belong to this package at all?** Everything here
-  is built around Article 50 and AI marking; `digitalCapture` is the opposite
-  claim, made by cameras and capture software. It is cheap to support and it may
-  invite use this package is not positioned for — a PHP web application asserting
-  that it captured a photograph is asserting something it cannot know. Worth a
-  deliberate answer before approval, not after someone ships it.
+- ~~**Does the authenticity case belong to this package at all?**~~ **Settled
+  before approval, 2026-08-07: no, not in this package, not now.**
+
+  The consequence is larger than the one term that prompted the question.
+  `digitalCapture` and `computationalCapture` are claims that a real device
+  recorded something; `digitalCreation` is a claim that a human made something
+  without generative tools; the film and print terms are claims about a physical
+  original. **A PHP web application cannot know any of them.** It receives bytes.
+  Whatever it asserts about their origin, it is repeating something it was told —
+  and a C2PA assertion is signed with a certificate, which turns hearsay into
+  attestation.
+
+  That is not an argument against ever supporting them. It is an argument that
+  they need a different position than "an enum case you can pass": the caller
+  would have to be the capture device or vouch for it, and this package would
+  have to say so loudly. Until something is asking for that, the enum stays
+  restricted to what an application generating media can honestly assert about
+  its own output.
+
+  What remains is coherent: this package marks **synthetic** media. AI-generated
+  (`trainedAlgorithmicMedia`), a mix containing generative AI
+  (`compositeSynthetic`), and purely algorithmic without training data
+  (`algorithmicMedia`) — the last of which is useful precisely because it is a
+  *negative* claim about AI involvement, distinguishing procedural output from
+  generative output rather than letting both go unmarked.
 
 ## Traceability
 
