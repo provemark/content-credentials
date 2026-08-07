@@ -6,8 +6,54 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added
+_Nothing yet._
 
+## [0.8.0] - 2026-08-07
+
+The largest release since 0.5.0, and the first in a while to change `src/`
+substantially. Three things happened, in this order: what the engine could
+already do was measured and shipped, the API was corrected where that widening
+made it wrong, and a full review of the codebase closed the gaps it found.
+
+**Media types went from two to thirteen.** PNG and JPEG were never a c2pa-rs
+limitation — they were hand-written allow-lists nobody had re-examined since the
+spike. Every added type was measured signing, reading back `Valid`, keeping the
+Article 50 marking, and confirmed with `c2patool`.
+
+**What you can claim went from one thing to three.** Alongside
+`trainedAlgorithmicMedia` you can now mark a mix containing generative AI, and
+purely algorithmic output — the latter being a *negative* claim about AI, which
+is the useful part.
+
+**Two paths that were unbounded are bounded**, and two defects in the signing
+service are fixed. Both were found by reviewing code nobody had read end to end
+in a while, rather than by anything failing.
+
+Additive for Composer, but not free: **four upgrade notes below**, one of which
+(an exhaustive `match` over `MediaType`) can throw at runtime in code that
+compiles today.
+
+### Upgrading
+- **`max_response_bytes` drops from 96 MiB to 32 MiB.** It was documented as
+  "headroom over the service's 50 MB request cap", and SPEC-017 lowered that cap
+  to 20 MB — so the guard permitted about five times what a correct service can
+  send, and sat far above the `memory_limit = 128M` many deployments run. If you
+  raised `MAX_BODY_SIZE` on the service, raise `CONTENTAUTH_MAX_RESPONSE_BYTES`
+  and `CONTENTAUTH_MAX_REQUEST_BYTES` with it.
+
+- **Verification traffic is now rate-limited.** If a deployment reads more than
+  240 assets per minute per token, or runs more than 4 verifications at once, it
+  will start seeing **429** where it never did. Raise `READ_RATE_LIMIT_REQUESTS`
+  and `MAX_CONCURRENT_READS`, and raise the container's memory with them.
+
+- **An exhaustive `match` over `MediaType` is no longer exhaustive.** Eleven
+  cases were added across SPEC-021 and SPEC-023, so code like `match ($asset->mediaType) { MediaType::Png => …,
+  MediaType::Jpeg => … }` with no `default` arm now throws
+  `\UnhandledMatchError` the first time it meets a WEBP. Composer sees this
+  release as additive and it is — but adding cases to an enum a consumer matches
+  on is not free. Add a `default`, or handle the new cases.
+
+### Added
 - **Seven more media types (SPEC-021).** This package signed and read PNG and
   JPEG. That was never a c2pa-rs limitation — it was two hand-written
   allow-lists, and they have not been re-examined since v1 scope was set by the
@@ -128,42 +174,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   service reader keeps that in a separate one. That is the mirror image of
   ADR-0003's key-isolation argument, and worth deciding on purpose.
 
-### Fixed
-
-- **A deeply nested assertion crashed past its own guard.** SPEC-011's depth
-  check ran *behind* the size check, and the size check is `JSON.stringify`,
-  which overflows the stack at ~10 000 levels. Such a request answered 500 with
-  an HTML body and wrote no audit record, so SPEC-011's bound and SPEC-012's
-  "every request is recorded" held only for payloads small enough not to need
-  them. The two checks are now the other way round.
-- **Unanticipated errors reached express's default handler**, answering HTML
-  with no correlation id in the body and writing nothing to the audit stream.
-  There is now a catch-all that audits and answers `{error, cid}` like every
-  other refusal.
-
-### Upgrading
-
-- **`max_response_bytes` drops from 96 MiB to 32 MiB.** It was documented as
-  "headroom over the service's 50 MB request cap", and SPEC-017 lowered that cap
-  to 20 MB — so the guard permitted about five times what a correct service can
-  send, and sat far above the `memory_limit = 128M` many deployments run. If you
-  raised `MAX_BODY_SIZE` on the service, raise `CONTENTAUTH_MAX_RESPONSE_BYTES`
-  and `CONTENTAUTH_MAX_REQUEST_BYTES` with it.
-
-- **Verification traffic is now rate-limited.** If a deployment reads more than
-  240 assets per minute per token, or runs more than 4 verifications at once, it
-  will start seeing **429** where it never did. Raise `READ_RATE_LIMIT_REQUESTS`
-  and `MAX_CONCURRENT_READS`, and raise the container's memory with them.
-
-- **An exhaustive `match` over `MediaType` is no longer exhaustive.** Eleven
-  cases were added across SPEC-021 and SPEC-023, so code like `match ($asset->mediaType) { MediaType::Png => …,
-  MediaType::Jpeg => … }` with no `default` arm now throws
-  `\UnhandledMatchError` the first time it meets a WEBP. Composer sees this
-  release as additive and it is — but adding cases to an enum a consumer matches
-  on is not free. Add a `default`, or handle the new cases.
-
 ### Changed
-
 - **`ManifestBuilder::forAiGenerated()` is the entry point (SPEC-022).** The old
   name, `forAiGeneratedImage()`, predates the media types above — it now reads as
   a contradiction for `MediaType::Mp4`. It **keeps working, indefinitely**: it
@@ -181,6 +192,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   types rather than two, and `UnsupportedMediaTypeException` derives its message
   from the enum. Both lists used to be written out by hand, which is how they
   went stale in the first place.
+
+### Fixed
+- **A deeply nested assertion crashed past its own guard.** SPEC-011's depth
+  check ran *behind* the size check, and the size check is `JSON.stringify`,
+  which overflows the stack at ~10 000 levels. Such a request answered 500 with
+  an HTML body and wrote no audit record, so SPEC-011's bound and SPEC-012's
+  "every request is recorded" held only for payloads small enough not to need
+  them. The two checks are now the other way round.
+- **Unanticipated errors reached express's default handler**, answering HTML
+  with no correlation id in the body and writing nothing to the audit stream.
+  There is now a catch-all that audits and answers `{error, cid}` like every
+  other refusal.
 
 ## [0.7.0] - 2026-08-06
 
@@ -773,6 +796,7 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
 [Unreleased]: https://github.com/provemark/content-credentials/compare/v0.7.0...main
+[0.8.0]: https://github.com/provemark/content-credentials/releases/tag/v0.8.0
 [0.7.0]: https://github.com/provemark/content-credentials/releases/tag/v0.7.0
 [0.6.0]: https://github.com/provemark/content-credentials/releases/tag/v0.6.0
 [0.5.3]: https://github.com/provemark/content-credentials/releases/tag/v0.5.3
