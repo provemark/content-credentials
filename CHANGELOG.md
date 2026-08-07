@@ -6,7 +6,43 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **Seven more media types (SPEC-021).** This package signed and read PNG and
+  JPEG. That was never a c2pa-rs limitation — it was two hand-written
+  allow-lists, and they have not been re-examined since v1 scope was set by the
+  spike. Now supported, each measured signing, reading back `Valid` and keeping
+  the Article 50 marking, and independently confirmed with `c2patool`:
+
+  | | |
+  |---|---|
+  | images | `image/png`, `image/jpeg`, `image/webp`, `image/avif`, `image/gif`, `image/tiff` |
+  | audio | `audio/wav`, `audio/mpeg` (`audio/mp3` accepted as an input spelling) |
+  | video | `video/mp4` — see the qualification below |
+
+  This matters beyond convenience: WEBP and AVIF are what the modern web serves
+  and what several generators emit, so an application that optimises its images
+  could not sign its own output. And Article 50(2) covers audio and video, not
+  images alone.
+
+  The artisan commands accept the matching extensions (`.webp`, `.avif`,
+  `.gif`, `.tif`/`.tiff`, `.wav`, `.mp3`, `.mp4`), and a running service now
+  publishes what it accepts at `GET /health` (`media_types`).
+
+  ⚠️ **`video/mp4` is supported as a container, and bounded to small files.** It
+  signs and verifies exactly like an image, but `MAX_BODY_SIZE` (20 MB) and the
+  ~7× memory multiplier apply to every media type — and the transport is base64
+  in one HTTP body. A 64×64 one-second clip signs fine; a real video does not.
+  An oversized body is refused with a **413 that says this**, rather than a
+  generic byte count. Streaming or path-based signing is what would change it,
+  and that is a separate piece of work.
+
+### Changed
+
+- The service's `400` for an unsupported `mime_type` now names all nine accepted
+  types rather than two, and `UnsupportedMediaTypeException` derives its message
+  from the enum. Both lists used to be written out by hand, which is how they
+  went stale in the first place.
 
 ## [0.7.0] - 2026-08-06
 

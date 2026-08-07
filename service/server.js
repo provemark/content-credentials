@@ -174,9 +174,21 @@ function loadTrustSettings(path) {
 
 const trustSettings = TRUST_SETTINGS_PATH ? loadTrustSettings(TRUST_SETTINGS_PATH) : undefined;
 
-// Asset types this service will sign/read (SPEC-009 #6). Must track MediaType
-// in the PHP client; revisit when a spec adds asset types.
-const SUPPORTED_MIME = new Set(['image/png', 'image/jpeg']);
+// Asset types this service will sign/read (SPEC-009 #6, widened by SPEC-021).
+// Must track MediaType in the PHP client; kept in the same order as the enum,
+// published on /health (AC6) and asserted equal to the enum against a running
+// service (AC2), because two hand-maintained lists in different languages are
+// exactly the thing that drifts.
+//
+// video/mp4 is a container this service accepts, not support for real video:
+// MAX_BODY (20mb, SPEC-017) and the ~7x memory multiplier bound it to small
+// files. See the 413 below and the README.
+const SUPPORTED_MIME = new Set([
+  'image/png', 'image/jpeg', 'image/webp', 'image/avif', 'image/gif',
+  'image/tiff', 'audio/wav', 'audio/mpeg', 'video/mp4',
+]);
+
+const SUPPORTED_MIME_LIST = [...SUPPORTED_MIME].join(', ');
 
 // --- SPEC-011: structural limits on what this service will attest to --------
 // Restrictive by default: too permissive is the risk for structure. The
@@ -434,8 +446,14 @@ app.use((err, req, res, next) => {
 
   const tooLarge = err.type === 'entity.too.large';
   const status = tooLarge ? 413 : 400;
+  // SPEC-021 AC7: the parser refuses before any route, so this message cannot
+  // depend on the declared media type -- which is exactly why it names video
+  // unconditionally. video/mp4 is accepted as a container, and the first person
+  // to try a real video must learn that here, from one error, rather than
+  // learning "MP4 is supported" and then meeting a bare byte count.
   const reason = tooLarge
-    ? `request body too large (max ${MAX_BODY})`
+    ? `request body too large (max ${MAX_BODY}); the limit applies to every media type, `
+      + 'and video/mp4 is accepted as a container but bounded to small files by it'
     : 'request body is not valid JSON';
 
   audit({
@@ -473,6 +491,10 @@ app.get('/health', (_req, res) => {
     // confirmed rather than assumed.
     signing_cert: signingCertIdentity,
     audit_degraded: auditDegraded,
+    // SPEC-021 AC6: what this deployment accepts, so an operator and a client
+    // can see it without reading the source -- and so AC2 can compare it with
+    // the PHP enum against a running service rather than a source literal.
+    media_types: [...SUPPORTED_MIME],
     // SPEC-015 AC4: signing does not block the event loop, so this endpoint
     // stays fast however saturated the service is — which is exactly why it has
     // to say how busy it is. Otherwise an orchestrator cannot tell a saturated
@@ -556,7 +578,7 @@ app.post('/v1/sign', async (req, res) => {
 
   if (!content || !mime_type) return reject('content and mime_type are required');
   if (!SUPPORTED_MIME.has(mime_type)) {
-    return reject(`unsupported mime_type "${cap(mime_type, 64)}" (supported: image/png, image/jpeg)`);
+    return reject(`unsupported mime_type "${cap(mime_type, 64)}" (supported: ${SUPPORTED_MIME_LIST})`);
   }
   if (!isValidBase64(content)) return reject('content is not valid base64');
 
@@ -669,7 +691,7 @@ app.post('/v1/read', async (req, res) => {
   }
   if (!SUPPORTED_MIME.has(mime_type)) {
     return res.status(400).json({
-      error: `unsupported mime_type "${cap(mime_type, 64)}" (supported: image/png, image/jpeg)`,
+      error: `unsupported mime_type "${cap(mime_type, 64)}" (supported: ${SUPPORTED_MIME_LIST})`,
       cid: req.cid,
     });
   }

@@ -68,17 +68,20 @@ it('supports JPEG and omits an unset software-agent version', function () {
 })->group('SPEC-001');
 
 // --- AC3: rejects an unsupported media type (error path) -------------------
+// The examples moved off image/gif and image/webp when SPEC-021 widened the
+// enum: they are supported now. The criterion is unchanged — something outside
+// the set is refused — so it needs types that are still outside it.
 
 it('rejects an unsupported media type', function (string $mime) {
     expect(fn () => MediaType::fromMimeType($mime))
         ->toThrow(UnsupportedMediaTypeException::class);
-})->with(['image/gif', 'image/webp', 'application/pdf'])->group('SPEC-001');
+})->with(['image/bmp', 'application/pdf', 'text/plain'])->group('SPEC-001');
 
 it('unsupported-type exception implements the Core exception interface', function () {
     // Note: Pest's toThrow() treats an interface name as a message (class_exists
     // is false for interfaces), so assert the instance type explicitly.
     try {
-        MediaType::fromMimeType('image/gif');
+        MediaType::fromMimeType('image/bmp');
         throw new RuntimeException('expected UnsupportedMediaTypeException was not thrown');
     } catch (UnsupportedMediaTypeException $e) {
         expect($e)->toBeInstanceOf(ContentCredentialsException::class);
@@ -87,10 +90,10 @@ it('unsupported-type exception implements the Core exception interface', functio
 
 it('names the offending type in the unsupported-type error', function () {
     try {
-        MediaType::fromMimeType('image/gif');
+        MediaType::fromMimeType('image/bmp');
         throw new RuntimeException('expected UnsupportedMediaTypeException was not thrown');
     } catch (UnsupportedMediaTypeException $e) {
-        expect($e->getMessage())->toContain('image/gif');
+        expect($e->getMessage())->toContain('image/bmp');
     }
 })->group('SPEC-001');
 

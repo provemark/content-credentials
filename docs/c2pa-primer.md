@@ -130,10 +130,31 @@ manifest. Applies to code paths AND documentation examples.
 - PHP target is ^8.3; dev machines may run 8.5. Use no 8.4/8.5-only features.
   `curl_close()` is a deprecated no-op — do not call it.
 
+## 8. Supported asset types (SPEC-021, measured 2026-08-06/07)
+
+The engine was never limited to PNG and JPEG; two hand-written allow-lists
+were. Each type below was signed, read back `Valid` with the Article 50 marking
+intact, and confirmed with `c2patool` under trust settings:
+
+`image/png`, `image/jpeg`, `image/webp`, `image/avif`, `image/gif`,
+`image/tiff`, `audio/wav`, `audio/mpeg`, `video/mp4`.
+
+- `audio/mp3` is accepted as an input spelling and normalised to `audio/mpeg`.
+- The declared media type is **advisory in both engines**: c2pa-rs recognises
+  the format from the bytes, so a WAV offered as `image/webp` signs as a WAV.
+  The 400 the service returns for e.g. `image/bmp` comes from our own
+  allow-list, not from c2pa.
+- **`video/mp4` is a container, not video support.** `MAX_BODY_SIZE` (20 MB) and
+  the ~7× memory multiplier apply to every type, and the transport is base64 in
+  one HTTP body. Small clips only; the 413 says so.
+- Three lists must agree: `MediaType`, `SUPPORTED_MIME` in `service/server.js`
+  (compared through `GET /health`), and the extension map in `InfersMediaType`.
+- Unmeasured, therefore undeclared: SVG, PDF, DNG, AVI, MOV, WEBM.
+
 ## Open items (spec required before touching)
 
 - `c2pa.actions` vs `c2pa.actions.v2` naming in public API/docs wording.
-- Asset types beyond PNG/JPEG (MP4, WAV).
 
-Closed since the spike: **TSA timestamping** (SPEC-007, implemented — see §4)
-and **manifest-less reads** (SPEC-010, implemented — see §4).
+Closed since the spike: **TSA timestamping** (SPEC-007, implemented — see §4),
+**manifest-less reads** (SPEC-010, implemented — see §4) and **asset types
+beyond PNG/JPEG** (SPEC-021, implemented — see §8).

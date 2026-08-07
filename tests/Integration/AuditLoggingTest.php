@@ -154,7 +154,9 @@ it('records a successful signature', function () {
 // --- AC2: a rejected request is recorded ------------------------------------
 
 it('records a rejected request with the reason', function () {
-    $result = auditedSign(['mime_type' => 'image/gif']);
+    // image/gif became a supported type in SPEC-021; image/bmp is still
+    // outside the allow-list, which is what this case needs.
+    $result = auditedSign(['mime_type' => 'image/bmp']);
     expect($result['status'])->toBe(400);
 
     $record = auditRecordFor($result['cid']);
@@ -172,7 +174,7 @@ it('returns a correlation id on success and on failure', function () {
     $ok = auditedSign();
     expect($ok['cid'])->not->toBe('');
 
-    $bad = auditedSign(['mime_type' => 'image/gif']);
+    $bad = auditedSign(['mime_type' => 'image/bmp']);
     expect($bad['cid'])->not->toBe('')
         ->and($bad['body']['cid'] ?? null)->toBe($bad['cid'])
         ->and($bad['cid'])->not->toBe($ok['cid']);

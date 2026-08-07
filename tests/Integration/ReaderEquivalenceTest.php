@@ -170,8 +170,9 @@ it('throws the same exception type as the service reader on malformed input', fu
 // assumption I made, not a requirement the spec states, and measured 2026-08-06
 // it is wrong: BOTH readers accept it and read the manifest, because c2pa-rs
 // recognises the format from the bytes and treats the declared media type as
-// advisory. (The 400 our service returns for `image/gif` comes from SPEC-009's
-// own allow-list, not from c2pa.)
+// advisory. (The 400 our service returns for a type like `image/bmp` comes from
+// SPEC-009's own allow-list, not from c2pa. It read `image/gif` until SPEC-021
+// made that a supported type.)
 //
 // So it is not an error path at all — it is shared behaviour, which makes it
 // something AC2 should pin. Deleting the case would have left the agreement
