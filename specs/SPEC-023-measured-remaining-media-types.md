@@ -32,6 +32,28 @@ trust settings, and re-read through `ExtC2paReader` (c2pa-rs 0.89.0):
 | AVI | `video/x-msvideo` | ok | `Valid` | present | PASS | agrees |
 | FLAC | `audio/flac` | ok | `Valid` | present | PASS | agrees |
 
+### SVG survives signing, and not much else (measured 2026-08-07)
+
+The manifest lands in `<metadata><c2pa:manifest>` as base64. Two ordinary
+operations were run against a signed SVG and read back:
+
+| Operation | Result | What a verifier sees |
+|---|---|---|
+| SVGO, default settings | 17.7 KiB → 0.1 KiB | `hasManifest() === false` — **silently gone** |
+| Any XML re-serialisation | 18.1 KiB, payload still present | **`error parsing SVG: invalid file`** |
+
+SVGO's `preset-default` includes `removeMetadata`, so it deletes the element
+outright and the image renders identically afterwards: indistinguishable from an
+SVG that was never signed. The second case is subtler — re-serialising renames
+the namespace prefix (`c2pa:` → `ns1:`), the bytes survive, and c2pa-rs then
+refuses to parse the file at all.
+
+The immutability rule (`docs/c2pa-primer.md` §6) already covers "post-sign
+mutation invalidates". SVG is different in *who decides*: re-encoding a JPEG is
+something a developer chooses, while SVGO runs because an SVG was added to a
+build — every common bundler invokes it with default settings. That is why AC4
+requires this measurement in the README rather than a general caveat.
+
 FLAC was not on SPEC-021's list at all. It surfaced from the parser names inside
 the native binary and turned out to work end to end, so it belongs here rather
 than in a third round.
@@ -61,6 +83,8 @@ than in a third round.
 - `image/svg+xml`, `video/quicktime`, `video/x-msvideo` and `audio/flac` added to
   `MediaType`, to `SUPPORTED_MIME` in `service/server.js`, and to the extension
   map in `InfersMediaType` (`.svg`, `.mov`, `.avi`, `.flac`).
+- Two alias spellings, settled before approval: `audio/x-flac` → `audio/flac` and
+  `video/avi` → `video/x-msvideo`. Same reasoning as SPEC-021's `audio/mp3`.
 - A test per format that signs and reads back, asserting the Article 50 marking
   survives — the same bar SPEC-021 set.
 - **The oversized-body refusal, which SPEC-021 wrote around `video/mp4` alone.**
@@ -115,16 +139,19 @@ covered by a Pest test tagged `->group('SPEC-023')`.
     Two more make the current wording quietly wrong: someone sending a MOV would
     read a sentence about MP4 and reasonably conclude it does not apply to them.)*
 
-- **AC4 — the README says what SVG signing actually means**
+- **AC4 — the README states the measured fate of a signed SVG**
   - Given the README
   - When someone plans to sign SVG
-  - Then it states that SVG is text, that any minifier or optimiser (SVGO and
-    friends) invalidates the manifest, and that inlining the SVG into HTML
-    discards it entirely
-  - *(The general immutability rule already covers "post-sign mutation
-    invalidates". For SVG that is not a caveat but the normal pipeline: SVG is
-    routinely optimised and inlined by build tooling, so the rule bites where
-    nobody is thinking about it.)*
+  - Then it states what was measured, not a general caveat: that **SVGO with its
+    default preset removes the manifest entirely and silently**, leaving a file a
+    verifier cannot distinguish from one that was never signed; that **any tool
+    which re-serialises the XML** renames the namespace prefix and leaves a file
+    c2pa-rs refuses to parse; and therefore that SVG should be signed **as a
+    final deliverable, not as a build asset**
+  - *(Both failure modes are worse than the usual one. A re-encoded JPEG at least
+    fails loudly on verification; a bundled SVG fails by simply not being signed
+    any more, and the bundler ran because SVG is a build asset, not because
+    anyone decided to modify it.)*
 
 - **AC5 — the README states the size limit in FLAC terms**
   - Given the README, which says the limit "comfortably covers images and short
@@ -160,6 +187,12 @@ enum MediaType: string
     case Mov = 'video/quicktime';
     case Avi = 'video/x-msvideo';
     case Flac = 'audio/flac';
+
+    private const ALIASES = [
+        'audio/mp3'   => 'audio/mpeg',      // SPEC-021
+        'audio/x-flac' => 'audio/flac',     // SPEC-023
+        'video/avi'   => 'video/x-msvideo', // SPEC-023
+    ];
 }
 ```
 
@@ -174,27 +207,29 @@ const SUPPORTED_MIME = new Set([
 
 ## Open questions
 
-For the maintainer at approval time.
+All three settled before approval, 2026-08-07. Recorded rather than deleted,
+because the reasoning is the useful part.
 
-- **Which aliases, if any?** SPEC-021 settled exactly one (`audio/mp3` →
-  `audio/mpeg`) on the grounds that rejecting what real software emits is
-  pedantry with a support cost. The same argument reaches `audio/x-flac` (the
-  pre-registration spelling, still widely emitted) and `video/avi` /
-  `video/msvideo` (both common, neither registered). Recommendation: add
-  `audio/x-flac` and `video/avi`, skip the rest — each alias is a line in a map
-  and a case in a test, and the cost is not the code but the claim that we accept
-  a spelling we have not seen in the wild.
-- **Is AVI worth shipping at all?** It works, and refusing a format that works is
-  its own kind of wrong (SPEC-021's reasoning for `video/mp4`). But AVI is legacy
-  and no generator emits it. The counter-argument is that it costs nothing on top
-  of the same spec, and that "we support the video containers c2pa-rs supports"
-  is a simpler sentence than one with an exception in it. Recommendation: ship
-  it, and say nothing special about it.
-- **Does SVG belong with the images?** It signs like one, but it is a text format
-  whose normal build pipeline destroys the manifest (AC4). If the caveat cannot
-  be made clear enough in the README, the honest alternative is not to ship it —
-  a credential that is silently stripped by a bundler is worse than no support,
-  because the failure is invisible until someone verifies.
+- ~~**Which aliases, if any?**~~ **`audio/x-flac` and `video/avi`, and no
+  others.** Both are what software actually emits — `audio/x-flac` predates
+  registration and is still widespread, `video/avi` sits beside the de-facto
+  `video/x-msvideo`. The rest (`video/msvideo`, `image/svg`, `audio/vnd.wave`)
+  stay out on the SPEC-021 principle that the cost of an alias is not the line of
+  code but the claim that we accept a spelling we have never seen in the wild.
+
+- ~~**Is AVI worth shipping at all?**~~ **Yes.** It works in both engines and is
+  confirmed by c2patool, it costs nothing on top of this spec, and "we support
+  the video containers c2pa-rs supports" is a simpler sentence than one carrying
+  an exception. No special documentation; it is not special.
+
+- ~~**Does SVG belong with the images?**~~ **Yes, with AC4 sharpened to the
+  measurement.** The question was deliberately answered by measuring rather than
+  reasoning (see Problem): SVGO silently deletes the manifest, and any XML
+  re-serialisation breaks parsing. Refusing to support SVG would protect nobody —
+  someone who wants a signed SVG will reach for another route, and get no warning
+  at all — while it would exclude the legitimate case, an AI-generated diagram
+  delivered as a file rather than compiled into a page. So: ship it, and make the
+  README say exactly what was measured.
 
 ## Traceability
 
