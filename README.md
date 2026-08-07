@@ -40,7 +40,7 @@ in-process native extension, which puts the key on the web server.)
 - A **PSR-18 HTTP client** and **PSR-17 factories**. In Laravel these are
   discovered automatically (Guzzle ships with Laravel); in plain PHP you inject
   your own.
-- The **signing service** running (see [Signing service](#signing-service)).
+- The **signing service** running (see [Running the signing service](docs/service.md)).
 
 ## Quickstart
 
@@ -148,7 +148,7 @@ Act Article 50 marking: a `c2pa.actions.v2` assertion with
 What you do not have yet is a certificate anyone else trusts. The bundled one is
 c2pa-rs **test** material — public verifiers will report the signature as valid
 and the certificate as untrusted. Replacing it is the one step between this and
-production; see [Going to production](#going-to-production).
+production; see [Going to production](docs/production.md).
 
 ## Where the rest lives
 

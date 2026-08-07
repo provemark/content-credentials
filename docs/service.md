@@ -4,7 +4,6 @@ Operating the Node service that holds the signing key: what it logs, what it
 refuses, and how much memory to give it. The [README](../README.md) covers
 getting one running; this page covers running it well.
 
-## Signing service
 
 > **Note:** the signing service, test certificates and verification tooling
 > (`service/`, `certs/`, `bin/`) live in the
@@ -31,7 +30,7 @@ docker compose up -d --build  # service on http://localhost:3000
 `POST /v1/sign` and `POST /v1/read` are Bearer-authenticated with
 `CONTENTAUTH_API_KEY`; `GET /health` is public.
 
-### Audit logging
+## Audit logging
 
 Every `/v1/sign` request writes one line of JSON to **stdout**, for accepted and
 refused requests alike, so you can answer the question an incident starts with:
@@ -69,7 +68,7 @@ must not become a signing outage — and `GET /health` reports
 `"audit_degraded": true` until the process restarts, so the loss is visible to
 monitoring rather than silent.
 
-### Rate limiting and concurrency
+## Rate limiting and concurrency
 
 The service bounds how much work it will accept at once. Excess requests get
 **429** with `Retry-After`, and nothing is signed. It refuses rather than
@@ -114,7 +113,7 @@ Tune with `MAX_CONCURRENT_SIGNS`, `RATE_LIMIT_REQUESTS`, `MAX_CONCURRENT_READS`,
 `READ_RATE_LIMIT_REQUESTS`, `RATE_LIMIT_WINDOW_MS` (shared by both budgets),
 `REQUEST_TIMEOUT_MS` and `HEADERS_TIMEOUT_MS`.
 
-### Sizing the container
+## Sizing the container
 
 Signing is memory-hungry in a way that is easy to underestimate. A request holds
 the parsed base64 string, the decoded buffer, the signed file read back from
@@ -148,7 +147,7 @@ memory with it — the concurrency cap will not save you, because the body is
 buffered *before* any limit is consulted. That is also why lowering this setting
 does more for memory than anything else here.
 
-### Assertion limits
+## Assertion limits
 
 The service constrains what it will attest to. At most **one** `c2pa.actions`
 assertion (two would be contradictory, and which one a verifier honours is
@@ -164,7 +163,7 @@ authenticity use case entirely. If your certificate exists solely to mark
 AI-generated content, set `REQUIRE_AI_MARKING=true`; `GET /health` reports the
 effective policy.
 
-### Rotating the signing key
+## Rotating the signing key
 
 The service reads `SIGNING_CERT_PATH` and `SIGNING_KEY_PATH` **once at startup**.
 There is no reload endpoint and no file watching, by design: a restart is simple,

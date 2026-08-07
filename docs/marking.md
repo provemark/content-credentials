@@ -37,7 +37,7 @@ it does accept. A running service publishes its own list at `GET /health`
 
 **Size applies to every media type, not per format.** `MAX_BODY_SIZE`
 (default 20 MB) and the ~7× memory multiplier described under
-[Sizing the container](#sizing-the-container) are the same for a PNG and for an
+[Sizing the container](service.md#sizing-the-container) are the same for a PNG and for an
 MP4. That comfortably covers images and short audio — but note that **lossless
 audio is not short audio**: a few minutes of FLAC approaches or exceeds the
 20 MB body limit, so `MAX_BODY_SIZE` is the first thing to check before signing

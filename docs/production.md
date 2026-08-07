@@ -4,6 +4,29 @@ Certificates a public verifier will trust, trust-list verification, and how
 this package maps onto the C2PA Conformance Program. Back to the
 [README](../README.md).
 
+The test certificates above are only trusted against the bundled test settings.
+For a signature a public verifier will trust, you need a certificate from a CA on
+the C2PA trust list, issued through the C2PA conformance program. As of 2026,
+[SSL.com](https://www.ssl.com/products/content-authenticity/content-credentials/c2pa/)
+issues production-ready C2PA-conformant certificates, and its free tier includes
+a Level&nbsp;1 signing certificate plus trusted timestamps — note it still
+requires a valid C2PA conformance record ID at application.
+
+For the full picture of certificates, trust lists and the valid-vs-trusted
+distinction, see the write-up:
+[**Valid ≠ trusted: a practical guide to C2PA signing certificates**](https://provemark.github.io/articles/c2pa-certificates/).
+Whichever certificate you use, the private key stays isolated behind the signing
+service — it never enters your web application.
+
+**Trusted timestamps.** Set `CONTENTAUTH_TSA_URL` on the signing service to an
+RFC 3161 Time Stamping Authority (e.g. `http://timestamp.digicert.com`) and every
+signature carries a trusted timestamp, so its validity survives certificate
+expiry. Unset, no timestamp is added (the default); if the TSA is unreachable the
+signing request **fails closed** rather than producing an untimestamped
+signature. `GET /health` reports `timestamping`, and
+`ManifestReport::hasTimestamp()` confirms a read manifest is timestamped. A
+timestamp's *trust* still depends on the TSA's own certificate chain.
+
 ## Trust-list verification
 
 By default the service does **not** verify the signing certificate against a
@@ -67,28 +90,3 @@ mapping to published requirements, not a conformance claim.
 
 The Quickstart above is the shortest path. These sections are the reference:
 the full set of accessors, and what each one does and does not tell you.
-
-## Going to production
-
-The test certificates above are only trusted against the bundled test settings.
-For a signature a public verifier will trust, you need a certificate from a CA on
-the C2PA trust list, issued through the C2PA conformance program. As of 2026,
-[SSL.com](https://www.ssl.com/products/content-authenticity/content-credentials/c2pa/)
-issues production-ready C2PA-conformant certificates, and its free tier includes
-a Level&nbsp;1 signing certificate plus trusted timestamps — note it still
-requires a valid C2PA conformance record ID at application.
-
-For the full picture of certificates, trust lists and the valid-vs-trusted
-distinction, see the write-up:
-[**Valid ≠ trusted: a practical guide to C2PA signing certificates**](https://provemark.github.io/articles/c2pa-certificates/).
-Whichever certificate you use, the private key stays isolated behind the signing
-service — it never enters your web application.
-
-**Trusted timestamps.** Set `CONTENTAUTH_TSA_URL` on the signing service to an
-RFC 3161 Time Stamping Authority (e.g. `http://timestamp.digicert.com`) and every
-signature carries a trusted timestamp, so its validity survives certificate
-expiry. Unset, no timestamp is added (the default); if the TSA is unreachable the
-signing request **fails closed** rather than producing an untimestamped
-signature. `GET /health` reports `timestamping`, and
-`ManifestReport::hasTimestamp()` confirms a read manifest is timestamped. A
-timestamp's *trust* still depends on the TSA's own certificate chain.

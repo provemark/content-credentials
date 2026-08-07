@@ -47,6 +47,30 @@ it('links to every page it sends the reader to', function () {
 
 // --- AC2: no link points at nothing (error path) ----------------------------
 
+/**
+ * The GitHub-style anchor a heading generates: lowercased, punctuation dropped,
+ * spaces to hyphens.
+ *
+ * @return list<string>
+ */
+function spec027Anchors(string $file): array
+{
+    $anchors = [];
+
+    foreach (explode("\n", (string) file_get_contents($file)) as $line) {
+        if (preg_match('/^#{1,6}\s+(.*)$/', $line, $m) !== 1) {
+            continue;
+        }
+
+        $text = strtolower(trim($m[1]));
+        $text = (string) preg_replace('/[`*_\[\]()]/', '', $text);
+        $text = (string) preg_replace('/[^a-z0-9\s-]/', '', $text);
+        $anchors[] = trim((string) preg_replace('/\s+/', '-', $text), '-');
+    }
+
+    return $anchors;
+}
+
 it('resolves every relative link in the documentation', function () {
     $root = spec027Root();
     $files = array_merge([$root.'/README.md'], glob($root.'/docs/*.md') ?: []);
@@ -54,25 +78,34 @@ it('resolves every relative link in the documentation', function () {
     $broken = [];
 
     foreach ($files as $file) {
-        $text = (string) file_get_contents($file);
-
-        preg_match_all('/\]\(([^)\s]+)\)/', $text, $matches);
+        preg_match_all('/\]\(([^)\s]+)\)/', (string) file_get_contents($file), $matches);
 
         foreach ($matches[1] as $target) {
-            // External links and in-page anchors are somebody else's problem.
-            if (str_starts_with($target, 'http') || str_starts_with($target, '#') || str_starts_with($target, 'mailto:')) {
+            if (str_starts_with($target, 'http') || str_starts_with($target, 'mailto:')) {
                 continue;
             }
 
-            $path = dirname($file).'/'.strtok($target, '#');
+            [$relative, $anchor] = array_pad(explode('#', $target, 2), 2, '');
+
+            // An empty file part means "this page" — the case the first version
+            // of this test skipped as "somebody else's problem". The move made
+            // it this test's problem: three in-page anchors pointed at sections
+            // that had left for another file, and nothing noticed.
+            $path = $relative === '' ? $file : dirname($file).'/'.$relative;
 
             if (! file_exists($path)) {
-                $broken[] = basename($file).' -> '.$target;
+                $broken[] = basename($file).' -> '.$target.' (no such file)';
+
+                continue;
+            }
+
+            if ($anchor !== '' && ! in_array($anchor, spec027Anchors($path), true)) {
+                $broken[] = basename($file).' -> '.$target.' (no such heading)';
             }
         }
     }
 
-    // Link rot is what this reorganisation is most likely to introduce, and the
+    // Link rot is what this reorganisation was most likely to introduce, and the
     // one nobody notices: a broken link renders as text and looks deliberate.
     expect($broken)->toBe([]);
 })->group('SPEC-027');
