@@ -6,7 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed
+
+- **The documentation is split across pages, and now ships with the package
+  (SPEC-027).** `README.md` had grown to 866 lines in one column; it is 244 now
+  — requirements, quickstart, verifying, development, security — ending in a map
+  to five pages under `docs/`: usage, what you can mark, choosing a reader,
+  running the signing service, and going to production.
+
+  `docs/` is no longer `export-ignore`d, so **the installed package gains a
+  `docs/` directory** and the README's links resolve from
+  `vendor/provemark/content-credentials/` rather than only on GitHub. No code,
+  configuration or behaviour changed, and no documented claim changed: the split
+  moved whole sections rather than rewriting them.
 
 ## [0.8.0] - 2026-08-07
 
