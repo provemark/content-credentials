@@ -85,6 +85,46 @@ function nestedTo(int $depth): array
     return $value;
 }
 
+/**
+ * POST a raw JSON *string* to /v1/sign.
+ *
+ * Needed because PHP's own `json_encode` caps at depth 512, so the payloads that
+ * exercise the deep-nesting path cannot be built through Guzzle's `json` option
+ * at all — the client would fail before the service saw anything.
+ *
+ * @return array{status: int, cid: string, json: bool}
+ */
+function signRawBody(string $json): array
+{
+    $response = (new Client(['http_errors' => false]))->post(ServiceHarness::baseUrl().'/v1/sign', [
+        'headers' => [
+            'Authorization' => 'Bearer '.ServiceHarness::apiKey(),
+            'Content-Type' => 'application/json',
+        ],
+        'body' => $json,
+    ]);
+
+    $decoded = json_decode((string) $response->getBody(), true);
+
+    return [
+        'status' => $response->getStatusCode(),
+        'cid' => $response->getHeaderLine('X-Correlation-Id'),
+        'json' => is_array($decoded) && isset($decoded['error']),
+    ];
+}
+
+/** A signing body whose assertion nests $depth levels, built as raw JSON. */
+function deeplyNestedSignBody(int $depth): string
+{
+    $nested = str_repeat('[', $depth).str_repeat(']', $depth);
+
+    return sprintf(
+        '{"content":%s,"mime_type":"image/png","extra_assertions":[{"label":"org.example.deep","data":%s}]}',
+        json_encode(base64_encode(ServiceHarness::fixtureBytes())),
+        $nested,
+    );
+}
+
 // --- AC1: the legitimate client is unaffected -------------------------------
 
 it('still signs a manifest built by the library, unchanged', function () {
@@ -150,6 +190,24 @@ it('refuses an assertion nested past the depth limit', function () {
     // Must be a refusal, not a crash: walking a hostile structure unboundedly
     // is itself the failure mode this criterion guards against.
     expect($result['status'])->toBe(400);
+})->group('SPEC-011', 'integration')->skip($skipUnlessReachable);
+
+// AC4, at a depth that defeats the size check that runs before it.
+//
+// The existing case above nests 64 levels, which is refused correctly. Measured
+// 2026-08-07: at ~10 000 levels the refusal never happens, because
+// `JSON.stringify(assertion)` -- the SIZE check -- overflows the stack before
+// the depth check is reached. The service then answers 500 with an HTML body
+// and writes no audit record, so the criterion held only for payloads small
+// enough not to need it.
+it('refuses a depth that overflows the size check, rather than crashing on it', function () {
+    $result = signRawBody(deeplyNestedSignBody(20000));
+
+    expect($result['status'])->toBe(400)
+        // The contract is JSON with a correlation id, not express's HTML error
+        // page: a caller that cannot parse the answer cannot report the failure.
+        ->and($result['json'])->toBeTrue()
+        ->and($result['cid'])->not->toBe('');
 })->group('SPEC-011', 'integration')->skip($skipUnlessReachable);
 
 // --- AC5: malformed entries --------------------------------------------------
