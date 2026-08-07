@@ -2,7 +2,7 @@
 
 | Field    | Value                          |
 |----------|--------------------------------|
-| Status   | accepted                       |
+| Status   | accepted; **decision 3 amended by [ADR-0004](ADR-0004-where-the-signing-key-lives.md)** |
 | Date     | 2026-07-27                     |
 | Spec     | — (roadmap/architecture; informs a future Signing adapter spec) |
 | Deciders | Maurice van Loon (maintainer)  |

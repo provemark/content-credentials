@@ -98,22 +98,62 @@ emitted, each with IPTC's own definition:
 | `forAiGenerated()` | `trainedAlgorithmicMedia` | created algorithmically using an AI model trained on captured content |
 | `forSynthetic()` | `compositeSynthetic` | a mix or composite of several elements, at least one of which is generative AI |
 | `forAlgorithmic()` | `algorithmicMedia` | created purely by an algorithm not based on any sampled training data |
+| `forAiManipulated()` | `compositeWithTrainedAlgorithmicMedia` | augmentation, correction or enhancement **using** a Generative AI model |
 
 `ManifestBuilder::forSourceType($type, $mediaType)` is the general form beneath
 them.
 
 **Do not reach for `compositeWithTrainedAlgorithmicMedia` because it sounds like
-"composite".** IPTC defines it as *"augmentation, correction or enhancement
-using a Generative AI model"* — an edit of something that already existed, not a
-new asset assembled from parts. For a new asset mixing AI and non-AI elements
-the term is `compositeSynthetic`, above.
+"composite".** It means an edit of something that already existed, not a new
+asset assembled from parts. For a new asset mixing AI and non-AI elements the
+term is `compositeSynthetic`, above.
 
-That distinction is also why the editing terms cannot be built here at all.
-C2PA records an edit as `c2pa.opened` pointing at an **ingredient** for the
-original, then `c2pa.edited` carrying the source type — three things this package
-does not produce. Asking for one raises `UnsupportedSourceTypeException` rather
-than emitting a `c2pa.created` action that would claim the asset was *created* by
-an operation which by definition acts on one that already existed.
+## Marking manipulated content
+
+Article 50(2) covers content that is *generated **or manipulated***, and the two
+are different manifests. Generation rides on a single `c2pa.created` action.
+Manipulation is three things: a `c2pa.opened` action, an **ingredient** for the
+original with a `parentOf` relationship, and a `c2pa.edited` action carrying the
+source type.
+
+The consequence for you is one extra argument — **the original asset**, not a
+filename or a hash, because the ingredient is a hash binding over its bytes:
+
+```php
+$manifest = ManifestBuilder::forAiManipulated(MediaType::Png)
+    ->withSoftwareAgent('ACME Inpainting', '2.0')
+    ->build();
+
+$signed = ContentCredentials::sign(
+    new Asset($editedBytes, MediaType::Png),
+    $manifest,
+    parent: new Asset($originalBytes, MediaType::Png),
+);
+```
+
+Omit the parent and you get `MissingParentAssetException` before any request is
+sent; pass one for a manifest that marks *creation* and you get
+`UnexpectedParentAssetException`. Neither is pedantry: c2pa-rs signs both of
+those shapes without complaint and reports the result `Valid`, so nothing below
+this package would tell you the manifest claims a lineage it does not carry.
+
+Three consequences worth knowing before you build a pipeline on it:
+
+- **Both assets travel in one request**, and `MAX_BODY_SIZE` applies to their
+  sum. The client refuses over-budget pairs before encoding rather than letting
+  the service answer 413.
+- **A signed original is carried into the result.** If the parent already has a
+  credential, its whole manifest comes with it — provenance is preserved for
+  free. Measured: a chain of edits grows by about **90 KB per generation**
+  (55 KB → 144 KB → 234 KB → 324 KB from a small fixture), linearly rather than
+  compounding.
+- **Peak memory is about 4.6× the two assets together**, so four concurrent
+  manipulations of the largest admissible pair peak near 245 MiB — below the
+  ~420 MiB that four maximum-size single-asset signings cost, because the parent
+  is hashed rather than signed. `MAX_BODY_SIZE` remains the lever.
+
+The remaining editing terms — `algorithmicallyEnhanced` and `humanEdits` — build
+through `forSourceType()` and need a parent asset in exactly the same way.
 
 **On the reading side**, `isAiGenerated()` means exactly `trainedAlgorithmicMedia`
 and always will — code already gates Article 50 decisions on it. Use

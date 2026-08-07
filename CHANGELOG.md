@@ -6,7 +6,55 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Marking content that was *manipulated* with AI (SPEC-028).** Article 50(2)
+  covers content that is "generated **or manipulated**", and only the first half
+  was supported. `ManifestBuilder::forAiManipulated()` marks the editing case,
+  and the two remaining editing terms — `algorithmicallyEnhanced` and
+  `humanEdits` — build through `forSourceType()`. SPEC-026 refused all three,
+  because C2PA records an edit as `c2pa.opened` + a `parentOf` **ingredient** +
+  `c2pa.edited`, which this package could not build; it can now.
+
+  The consequence for callers is one extra argument, **the original asset**:
+  the ingredient is a hash binding over its bytes, so a filename or a digest
+  cannot stand in for it.
+
+  ```php
+  $signed = ContentCredentials::sign($edited, $manifest, parent: $original);
+  ```
+
+  Omitting it raises `MissingParentAssetException`, and supplying one for a
+  manifest that marks creation raises `UnexpectedParentAssetException` — both
+  before any request is sent. Neither is pedantry: c2pa-rs signs both of those
+  shapes without complaint and reports the result `Valid`.
+
+  A signed original is carried into the result, so provenance is preserved
+  automatically. Measured: a chain of edits grows by about **90 KB per
+  generation**, linearly. Peak memory is **4.6×** the two assets together, so
+  four concurrent manipulations of the largest admissible pair peak near
+  245 MiB — below the ≈420 MiB that four maximum-size single-asset signings
+  cost, because the parent is hashed rather than signed. `MAX_BODY_SIZE` needed
+  no change.
+
 ### Changed
+
+- **`bin/verify.sh` recognises both Article 50 markings.** It tested for
+  `trainedAlgorithmicMedia` alone, so a correctly marked *manipulated* asset was
+  reported as `AI Art.50 mark : FAIL`. It now names which of the two it found.
+  Repository tooling only — nothing in the installed package.
+
+### Upgrading
+
+- **`SignerInterface::sign()` takes a third, optional `?Asset $parent`
+  parameter.** Calling code is unaffected. **Implementing** code is not: a class
+  implementing `SignerInterface` must add the parameter, or PHP raises a fatal
+  error for an incompatible declaration. The same applies to
+  `ContentCredentialsManager::sign()`.
+- **`UnsupportedSourceTypeException` is no longer thrown.** The class is kept
+  indefinitely and stays exactly where it was, so `catch` blocks keep compiling;
+  it simply has no remaining throw site now that every declared source type can
+  be built. Nothing to change unless you relied on the refusal itself.
 
 - **The documentation is split across pages, and now ships with the package
   (SPEC-027).** `README.md` had grown to 866 lines in one column; it is 244 now

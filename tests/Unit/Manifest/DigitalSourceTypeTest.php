@@ -3,20 +3,23 @@
 declare(strict_types=1);
 
 use Provemark\ContentCredentials\Core\Manifest\DigitalSourceType;
-use Provemark\ContentCredentials\Core\Manifest\Exception\UnsupportedSourceTypeException;
 use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
 use Provemark\ContentCredentials\Core\Manifest\MediaType;
-use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 
 /**
  * SPEC-026 — the digitalSourceType family.
  *
- * The enum is the vocabulary; the builder is the policy. Two synthetic terms can
- * be emitted; three editing terms are declared so the refusal can name them, and
- * refused because they need `c2pa.opened` + an ingredient + `c2pa.edited`, which
- * this package cannot build.
+ * The enum is the vocabulary; the builder is the policy. Three synthetic terms
+ * ride on `c2pa.created`; three editing terms describe an operation on an asset
+ * that already existed.
+ *
+ * AC4 is AMENDED BY SPEC-028: the editing terms were refused here because this
+ * package could not build the `c2pa.opened` + ingredient + `c2pa.edited`
+ * structure they need. It can now, so they build — carrying `c2pa.edited`, and
+ * requiring the original asset at signing time.
  *
  * @see specs/SPEC-026-digital-source-types.md
+ * @see specs/SPEC-028-manipulated-content-ingredients.md
  */
 
 /** The exact IPTC URIs, transcribed from cv.iptc.org on 2026-08-07. */
@@ -130,44 +133,51 @@ it('leaves the AI-generated manifest byte-identical to what SPEC-001 fixes', fun
     ]);
 })->group('SPEC-026');
 
-// --- AC4: a source type that needs an ingredient is refused (error path) ----
+// --- AC4: an editing source type never claims creation ----------------------
+//
+// AMENDED BY SPEC-028. These three tests asserted that the builder REFUSED the
+// editing terms, because this package could not build the ingredient structure
+// they need. SPEC-028 builds it, so the refusal is gone and
+// UnsupportedSourceTypeException is never raised.
+//
+// They are rewritten rather than deleted, because what the criterion actually
+// guarded survives intact: an editing term must never ride on `c2pa.created` —
+// a well-formed manifest claiming the asset was CREATED by an operation which by
+// definition acts on one that already existed. That is now prevented by emitting
+// `c2pa.edited` instead of by throwing, and the refusal moved to the Signing
+// layer, where it can say what is missing (MissingParentAssetException).
+//
+// Deleting them would have lost the criterion; leaving them would have pinned
+// behaviour SPEC-028 removes. Same move as NOTES Step 13, when SPEC-013 amended
+// SPEC-003 D3.
 
-it('refuses a source type that describes an operation on an existing asset', function (DigitalSourceType $type) {
-    expect(fn () => ManifestBuilder::forSourceType($type, MediaType::Png))
-        ->toThrow(UnsupportedSourceTypeException::class);
+it('classifies a source type that describes an operation on an existing asset', function (DigitalSourceType $type) {
+    expect($type->requiresIngredient())->toBeTrue();
+
+    $manifest = ManifestBuilder::forSourceType($type, MediaType::Png)
+        ->withSoftwareAgent('X')
+        ->build();
+
+    expect($manifest->requiresParentAsset())->toBeTrue();
 })->with([
     [DigitalSourceType::CompositeWithTrainedAlgorithmicMedia],
     [DigitalSourceType::AlgorithmicallyEnhanced],
     [DigitalSourceType::HumanEdits],
 ])->group('SPEC-026');
 
-it('names ingredients as the missing capability when refusing', function () {
-    try {
-        ManifestBuilder::forSourceType(DigitalSourceType::CompositeWithTrainedAlgorithmicMedia, MediaType::Png);
-        throw new RuntimeException('expected UnsupportedSourceTypeException was not thrown');
-    } catch (UnsupportedSourceTypeException $e) {
-        // The refusal has to teach: an absent constant says "no such thing", and
-        // this says what is actually missing and why it cannot be faked.
-        expect($e->getMessage())->toContain('ingredient')
-            ->and($e->getMessage())->toContain('c2pa.opened')
-            ->and($e)->toBeInstanceOf(ContentCredentialsException::class);
-    }
-})->group('SPEC-026');
+it('never emits a created action for an editing term', function (DigitalSourceType $type) {
+    $assertions = ManifestBuilder::forSourceType($type, MediaType::Png)
+        ->withSoftwareAgent('X')
+        ->build()
+        ->assertions();
 
-it('refuses rather than emitting a created action for an editing term', function () {
-    // The failure this criterion prevents: a well-formed manifest making a false
-    // claim — that the asset was CREATED by an operation which by definition
-    // acts on one that already existed.
-    $emitted = null;
+    $actions = $assertions[0]['data']['actions'];
+    expect($actions)->toBeArray();
 
-    try {
-        $emitted = ManifestBuilder::forSourceType(DigitalSourceType::HumanEdits, MediaType::Png)
-            ->withSoftwareAgent('X')
-            ->build()
-            ->toArray();
-    } catch (UnsupportedSourceTypeException) {
-        // expected
-    }
-
-    expect($emitted)->toBeNull();
-})->group('SPEC-026');
+    /** @var list<array<string, mixed>> $actions */
+    expect(array_column($actions, 'action'))->toBe(['c2pa.edited']);
+})->with([
+    [DigitalSourceType::CompositeWithTrainedAlgorithmicMedia],
+    [DigitalSourceType::AlgorithmicallyEnhanced],
+    [DigitalSourceType::HumanEdits],
+])->group('SPEC-026');

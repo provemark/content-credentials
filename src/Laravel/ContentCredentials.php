@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Facade;
 /**
  * Facade over {@see ContentCredentialsManager}.
  *
- * @method static \Provemark\ContentCredentials\Core\Signing\SignedAsset sign(\Provemark\ContentCredentials\Core\Signing\Asset $asset, \Provemark\ContentCredentials\Core\Manifest\Manifest $manifest)
+ * @method static \Provemark\ContentCredentials\Core\Signing\SignedAsset sign(\Provemark\ContentCredentials\Core\Signing\Asset $asset, \Provemark\ContentCredentials\Core\Manifest\Manifest $manifest, ?\Provemark\ContentCredentials\Core\Signing\Asset $parent = null)
  * @method static \Provemark\ContentCredentials\Core\Reading\ManifestReport read(\Provemark\ContentCredentials\Core\Signing\Asset $asset)
  *
  * @see ContentCredentialsManager

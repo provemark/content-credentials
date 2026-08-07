@@ -22,9 +22,13 @@ final readonly class ContentCredentialsManager
         private ReaderInterface $reader,
     ) {}
 
-    public function sign(Asset $asset, Manifest $manifest): SignedAsset
+    /**
+     * @param  Asset|null  $parent  The original asset, for a manifest that marks
+     *                              manipulation rather than creation (SPEC-028).
+     */
+    public function sign(Asset $asset, Manifest $manifest, ?Asset $parent = null): SignedAsset
     {
-        return $this->signer->sign($asset, $manifest);
+        return $this->signer->sign($asset, $manifest, $parent);
     }
 
     public function read(Asset $asset): ManifestReport

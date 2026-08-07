@@ -71,13 +71,44 @@ function spec027Anchors(string $file): array
     return $anchors;
 }
 
+/**
+ * Every markdown page under `docs/`, at any depth.
+ *
+ * Deliberately not `glob('docs/*.md')`, which is what this check used to do: one
+ * level misses `docs/adr/`, and the ADRs link to each other. Confirmed by
+ * pointing an ADR link at a file that does not exist and watching the test stay
+ * green — the same shape as the anchors this criterion missed before it.
+ *
+ * @return list<string>
+ */
+function spec027DocPages(string $root): array
+{
+    $pages = [];
+
+    $tree = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root.'/docs', FilesystemIterator::SKIP_DOTS)
+    );
+
+    foreach ($tree as $entry) {
+        if ($entry instanceof SplFileInfo && $entry->isFile() && $entry->getExtension() === 'md') {
+            $pages[] = $entry->getPathname();
+        }
+    }
+
+    sort($pages);
+
+    return $pages;
+}
+
 it('resolves every relative link in the documentation', function () {
     $root = spec027Root();
-    $files = array_merge([$root.'/README.md'], glob($root.'/docs/*.md') ?: []);
+    $files = array_merge([$root.'/README.md'], spec027DocPages($root));
 
     $broken = [];
 
     foreach ($files as $file) {
+        $from = ltrim(str_replace($root, '', $file), '/');
+
         preg_match_all('/\]\(([^)\s]+)\)/', (string) file_get_contents($file), $matches);
 
         foreach ($matches[1] as $target) {
@@ -94,13 +125,13 @@ it('resolves every relative link in the documentation', function () {
             $path = $relative === '' ? $file : dirname($file).'/'.$relative;
 
             if (! file_exists($path)) {
-                $broken[] = basename($file).' -> '.$target.' (no such file)';
+                $broken[] = $from.' -> '.$target.' (no such file)';
 
                 continue;
             }
 
             if ($anchor !== '' && ! in_array($anchor, spec027Anchors($path), true)) {
-                $broken[] = basename($file).' -> '.$target.' (no such heading)';
+                $broken[] = $from.' -> '.$target.' (no such heading)';
             }
         }
     }
