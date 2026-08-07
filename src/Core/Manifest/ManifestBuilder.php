@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Provemark\ContentCredentials\Core\Manifest;
 
 use Provemark\ContentCredentials\Core\Manifest\Exception\InvalidSoftwareAgentException;
+use Provemark\ContentCredentials\Core\Manifest\Exception\UnsupportedSourceTypeException;
 
 /**
  * Fluent, immutable builder for a claim-v2 manifest that marks an asset as
@@ -23,6 +24,7 @@ final class ManifestBuilder
 {
     private function __construct(
         private MediaType $mediaType,
+        private DigitalSourceType $sourceType = DigitalSourceType::TrainedAlgorithmicMedia,
         private ?SoftwareAgent $softwareAgent = null,
         private ?string $claimGeneratorName = null,
         private ?string $claimGeneratorVersion = null,
@@ -34,7 +36,47 @@ final class ManifestBuilder
      */
     public static function forAiGenerated(MediaType $type): self
     {
-        return new self($type);
+        return self::forSourceType(DigitalSourceType::TrainedAlgorithmicMedia, $type);
+    }
+
+    /**
+     * A mix of several elements, at least one of which is generative AI
+     * (SPEC-026).
+     */
+    public static function forSynthetic(MediaType $type): self
+    {
+        return self::forSourceType(DigitalSourceType::CompositeSynthetic, $type);
+    }
+
+    /**
+     * Purely algorithmic, not based on sampled training data — procedural
+     * output rather than generative (SPEC-026).
+     */
+    public static function forAlgorithmic(MediaType $type): self
+    {
+        return self::forSourceType(DigitalSourceType::AlgorithmicMedia, $type);
+    }
+
+    /**
+     * The general form under the named constructors (SPEC-026).
+     *
+     * @throws UnsupportedSourceTypeException when the source type describes an
+     *                                        operation on an existing asset
+     */
+    public static function forSourceType(DigitalSourceType $source, MediaType $type): self
+    {
+        if ($source->requiresIngredient()) {
+            throw new UnsupportedSourceTypeException(sprintf(
+                'The digitalSourceType "%s" describes an operation on an asset that already existed, '
+                .'which C2PA records as a c2pa.opened action pointing at an ingredient with a parentOf '
+                .'relationship, followed by c2pa.edited. This package builds a single c2pa.created action '
+                .'and has no ingredient support, so it cannot express that. Emitting it as c2pa.created '
+                .'would be a well-formed manifest making a false claim.',
+                $source->value,
+            ));
+        }
+
+        return new self($type, $source);
     }
 
     /**
@@ -57,6 +99,7 @@ final class ManifestBuilder
     {
         return new self(
             $this->mediaType,
+            $this->sourceType,
             new SoftwareAgent($name, $version),
             $this->claimGeneratorName,
             $this->claimGeneratorVersion,
@@ -67,6 +110,7 @@ final class ManifestBuilder
     {
         return new self(
             $this->mediaType,
+            $this->sourceType,
             $this->softwareAgent,
             $name,
             $version,
@@ -96,7 +140,7 @@ final class ManifestBuilder
             'data' => [
                 'actions' => [[
                     'action' => 'c2pa.created',
-                    'digitalSourceType' => DigitalSourceType::TrainedAlgorithmicMedia->value,
+                    'digitalSourceType' => $this->sourceType->value,
                     'softwareAgent' => $agent->toArray(),
                 ]],
             ],

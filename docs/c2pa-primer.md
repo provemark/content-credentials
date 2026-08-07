@@ -172,6 +172,31 @@ intact, and confirmed with `c2patool` under trust settings:
   the mirror image of ADR-0003's key-isolation argument, and it is a deliberate
   trade rather than a free operational win (SPEC-025 AC6).
 
+## 10. digitalSourceType: what can be claimed (SPEC-026)
+
+Emittable — all three ride on the single `c2pa.created` action:
+`trainedAlgorithmicMedia`, `compositeSynthetic`, `algorithmicMedia`.
+
+Declared but refused by the builder, because C2PA records them as `c2pa.opened`
++ an **ingredient** (`parentOf`) + `c2pa.edited`, which this package cannot
+build: `compositeWithTrainedAlgorithmicMedia`, `algorithmicallyEnhanced`,
+`humanEdits`.
+
+Absent on purpose: every authenticity term (`digitalCapture`,
+`computationalCapture`, `digitalCreation`, film and print). A web application
+receives bytes and cannot know a physical origin; signing such a claim turns
+hearsay into attestation.
+
+- ⚠️ **URIs come from `cv.iptc.org`, never from a document quoting it.** The C2PA
+  Implementation Guidance misspells one as `compositedWithTrainedAlgorithmicMedia`
+  (with a "d"); IPTC has never registered that term.
+- ⚠️ `compositeWithTrainedAlgorithmicMedia` means *edited with generative AI*,
+  not "contains AI elements" — that is `compositeSynthetic`.
+- Reading: `isAiGenerated()` means exactly `trainedAlgorithmicMedia`;
+  `involvesGenerativeAi()` is the wider question and is false for
+  `algorithmicMedia`.
+- Retired, never emit: `minorHumanEdits`, `digitalArt`, `softwareImage`.
+
 ## Open items (spec required before touching)
 
 - `c2pa.actions` vs `c2pa.actions.v2` naming in public API/docs wording.

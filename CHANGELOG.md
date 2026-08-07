@@ -72,6 +72,38 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the read cap defaults to the same 4 rather than to something generous. Four
   signs plus four reads of maximum-size assets is roughly 650 MiB.
 
+- **Three things can be marked now, not one (SPEC-026).** `DigitalSourceType`
+  had a single case and `ManifestBuilder` hard-coded it. Alongside
+  `trainedAlgorithmicMedia` you can now mark:
+
+  ```php
+  ManifestBuilder::forSynthetic(MediaType::Png)     // compositeSynthetic
+  ManifestBuilder::forAlgorithmic(MediaType::Png)   // algorithmicMedia
+  ManifestBuilder::forSourceType($type, $mediaType) // the general form
+  ```
+
+  `compositeSynthetic` is a mix containing generative AI; `algorithmicMedia` is
+  purely algorithmic with no model and no training data — useful precisely
+  because it is a *negative* claim about AI.
+
+  ⚠️ **`compositeWithTrainedAlgorithmicMedia` is not "a composite with AI in
+  it".** IPTC defines it as augmentation or enhancement **using** a generative
+  model — an edit of something that already existed. C2PA records that as
+  `c2pa.opened` + an ingredient + `c2pa.edited`, which this package does not
+  build, so asking for it (or for `algorithmicallyEnhanced` or `humanEdits`)
+  raises `UnsupportedSourceTypeException` rather than emitting a `c2pa.created`
+  action that would claim something false.
+
+  **Reading:** `isAiGenerated()` still means exactly `trainedAlgorithmicMedia`
+  and always will — code gates Article 50 decisions on it. The new
+  `involvesGenerativeAi()` is the wider question: true for
+  `trainedAlgorithmicMedia` and `compositeSynthetic`, false for
+  `algorithmicMedia`.
+
+  Capture terms (`digitalCapture` and friends) are deliberately absent: a web
+  application receives bytes and cannot know a physical origin, and a signed
+  assertion turns hearsay into attestation.
+
 - **The client keeps its own bounds now (SPEC-025).** The service has been
   hardened six times; the client once, and that one bound was sized against a
   limit SPEC-017 replaced. Four changes, all on the PHP side:
