@@ -6,6 +6,38 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-08-07
+
+Two defects found by reviewing 0.9.0 the same day, both in the same place: what
+the signing service refuses to attest to. **Service-side only — no change to
+`src/`, `config/` or the public API.**
+
+### Fixed
+
+- **The service signed a manifest that validates as `Invalid` (SPEC-028 AC13).**
+  A `/v1/sign` request whose `extra_assertions` supplied a `c2pa.opened` action
+  answered **200** and returned a signed asset reading
+  `validation_state: Invalid` with `assertion.action.ingredientMismatch` — our
+  certificate spent on an asset no verifier accepts. Since 0.9.0 that action
+  belongs to the service: c2pa-rs inserts it under the edit intent with a hash
+  over the ingredient assertion it builds, which a caller cannot compute, so a
+  second one can never be linked. Now refused with 400 and audited.
+
+  The PHP client could not produce this — its builder never emits `c2pa.opened`
+  — but the service is a separate HTTP surface and carries its own guards, which
+  is the premise of SPEC-011.
+
+- **Refused signing requests recorded no parent asset (SPEC-028 AC8).** The
+  criterion reads "accepted **or refused**"; `parent_bytes` and `parent_sha256`
+  were written on the success path only, so a refusal — exactly when an auditor
+  most wants to know what was submitted — carried neither. Both fields are now
+  on the refusal record too, decoded defensively because the parent may be
+  absent or malformed at that point.
+
+- **The 0.9.0 changelog entry had the documentation split filed under
+  *Upgrading*.** It is a `Changed` note; three sections were inserted above it
+  and orphaned it. Documentation only.
+
 ## [0.9.0] - 2026-08-07
 
 The second half of Article 50(2). Until now this package could mark content that
@@ -50,18 +82,6 @@ in the law, two entirely different manifests in C2PA, and only one of them built
   reported as `AI Art.50 mark : FAIL`. It now names which of the two it found.
   Repository tooling only — nothing in the installed package.
 
-### Upgrading
-
-- **`SignerInterface::sign()` takes a third, optional `?Asset $parent`
-  parameter.** Calling code is unaffected. **Implementing** code is not: a class
-  implementing `SignerInterface` must add the parameter, or PHP raises a fatal
-  error for an incompatible declaration. The same applies to
-  `ContentCredentialsManager::sign()`.
-- **`UnsupportedSourceTypeException` is no longer thrown.** The class is kept
-  indefinitely and stays exactly where it was, so `catch` blocks keep compiling;
-  it simply has no remaining throw site now that every declared source type can
-  be built. Nothing to change unless you relied on the refusal itself.
-
 - **The documentation is split across pages, and now ships with the package
   (SPEC-027).** `README.md` had grown to 866 lines in one column; it is 244 now
   — requirements, quickstart, verifying, development, security — ending in a map
@@ -73,6 +93,18 @@ in the law, two entirely different manifests in C2PA, and only one of them built
   `vendor/provemark/content-credentials/` rather than only on GitHub. No code,
   configuration or behaviour changed, and no documented claim changed: the split
   moved whole sections rather than rewriting them.
+
+### Upgrading
+
+- **`SignerInterface::sign()` takes a third, optional `?Asset $parent`
+  parameter.** Calling code is unaffected. **Implementing** code is not: a class
+  implementing `SignerInterface` must add the parameter, or PHP raises a fatal
+  error for an incompatible declaration. The same applies to
+  `ContentCredentialsManager::sign()`.
+- **`UnsupportedSourceTypeException` is no longer thrown.** The class is kept
+  indefinitely and stays exactly where it was, so `catch` blocks keep compiling;
+  it simply has no remaining throw site now that every declared source type can
+  be built. Nothing to change unless you relied on the refusal itself.
 
 ## [0.8.0] - 2026-08-07
 
@@ -861,7 +893,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.9.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.9.1...main
+[0.9.1]: https://github.com/provemark/content-credentials/releases/tag/v0.9.1
 [0.9.0]: https://github.com/provemark/content-credentials/releases/tag/v0.9.0
 [0.8.0]: https://github.com/provemark/content-credentials/releases/tag/v0.8.0
 [0.7.0]: https://github.com/provemark/content-credentials/releases/tag/v0.7.0
