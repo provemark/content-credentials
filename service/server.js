@@ -279,6 +279,17 @@ function rejectAssertions(assertions) {
     return 'at most one c2pa.actions assertion is allowed';
   }
 
+  // SPEC-028 AC13: the c2pa.opened action belongs to the service. c2pa-rs
+  // inserts it under the edit intent, carrying a hash over the ingredient
+  // assertion it builds, and a caller cannot compute that hash. Supplying one
+  // used to answer 200 and produce validation_state: Invalid with
+  // assertion.action.ingredientMismatch — a signature spent on a manifest no
+  // verifier accepts, with our certificate on it. Same class as SPEC-011's
+  // other limits: what the service will attest to.
+  if (suppliesOpenedAction(assertions)) {
+    return 'c2pa.opened is added by this service and must not be supplied; send only c2pa.edited';
+  }
+
   // SPEC-028 AC7: read the MARKING wherever the shape puts it. Under the edited
   // shape the first action is c2pa.opened, which carries no digitalSourceType at
   // all — so reading only the first action would refuse every manipulated asset,
@@ -314,14 +325,31 @@ function markingSourceTypes(assertions) {
   return types;
 }
 
+/** Whether the caller supplied a c2pa.opened action of their own (SPEC-028 AC13). */
+function suppliesOpenedAction(assertions) {
+  for (const assertion of Array.isArray(assertions) ? assertions : []) {
+    if (!assertion || typeof assertion !== 'object') continue;
+    if (typeof assertion.label !== 'string' || !assertion.label.startsWith('c2pa.actions')) continue;
+
+    for (const action of assertion.data?.actions ?? []) {
+      if (action?.action === 'c2pa.opened') return true;
+    }
+  }
+
+  return false;
+}
+
 /** Whether these assertions describe an operation on an asset that already existed. */
 function needsParentAsset(assertions) {
   for (const assertion of Array.isArray(assertions) ? assertions : []) {
     if (!assertion || typeof assertion !== 'object') continue;
     if (typeof assertion.label !== 'string' || !assertion.label.startsWith('c2pa.actions')) continue;
 
+    // c2pa.edited only: a caller-supplied c2pa.opened is refused outright by
+    // rejectAssertions() above, so accepting it here would describe an input
+    // that can no longer arrive.
     for (const action of assertion.data?.actions ?? []) {
-      if (action?.action === 'c2pa.edited' || action?.action === 'c2pa.opened') return true;
+      if (action?.action === 'c2pa.edited') return true;
     }
   }
 
@@ -663,6 +691,24 @@ app.post('/v1/sign', async (req, res) => {
   // Every refusal is recorded and answered the same way: the reason names the
   // violated constraint (our own wording — never library internals, never an
   // echo of the payload) and the response carries the correlation id.
+  // SPEC-028 AC8: "accepted OR REFUSED". A refusal is exactly when an auditor
+  // most wants to know what was submitted, and the first implementation
+  // recorded the parent on the success path only. Decoded defensively — this
+  // runs before the parent has been validated, so it may be absent, malformed,
+  // or not base64 at all, and none of those may throw here.
+  const auditedParent = () => {
+    if (parent === null || typeof parent !== 'object' || Array.isArray(parent)) {
+      return { parent_bytes: null, parent_sha256: null };
+    }
+    if (typeof parent.content !== 'string' || !isValidBase64(parent.content)) {
+      return { parent_bytes: null, parent_sha256: null };
+    }
+
+    const buffer = Buffer.from(parent.content, 'base64');
+
+    return { parent_bytes: buffer.length, parent_sha256: sha256(buffer) };
+  };
+
   const reject = (reason) => {
     audit({
       ts: new Date().toISOString(),
@@ -672,6 +718,7 @@ app.post('/v1/sign', async (req, res) => {
       token_id: tokenId(req.token ?? ''),
       reason,
       mime_type: cap(mime_type, 64),
+      ...auditedParent(),
     });
 
     return res.status(400).json({ error: reason, cid: req.cid });

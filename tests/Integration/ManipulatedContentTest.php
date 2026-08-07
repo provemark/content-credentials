@@ -340,6 +340,71 @@ it('leaves the parent fields null when nothing was derived', function () {
     ->skip(fn () => spec012Container() === null ? 'signing service container not found — audit log unreadable' : false)
     ->group('SPEC-028', 'integration');
 
+// --- AC13: the service owns the c2pa.opened action --------------------------
+
+it('refuses an actions array that supplies c2pa.opened itself', function (bool $withParent) {
+    // Before this guard the request answered 200 and produced a manifest reading
+    // validation_state: Invalid / assertion.action.ingredientMismatch — our
+    // certificate on an asset no verifier accepts. c2pa-rs inserts c2pa.opened
+    // with a hash over the ingredient assertion it builds, so a second one
+    // cannot be linked.
+    $body = [
+        'content' => base64_encode(ServiceHarness::fixtureBytes()),
+        'mime_type' => 'image/png',
+        'extra_assertions' => [[
+            'label' => 'c2pa.actions.v2',
+            'data' => ['actions' => [
+                ['action' => 'c2pa.opened'],
+                [
+                    'action' => 'c2pa.edited',
+                    'digitalSourceType' => 'http://cv.iptc.org/newscodes/digitalsourcetype/compositeWithTrainedAlgorithmicMedia',
+                    'softwareAgent' => ['name' => 'raw'],
+                ],
+            ]],
+        ]],
+    ];
+
+    if ($withParent) {
+        $body['parent'] = [
+            'content' => base64_encode(ServiceHarness::fixtureBytes()),
+            'mime_type' => 'image/png',
+        ];
+    }
+
+    $response = spec028RawSign($body);
+
+    expect($response['status'])->toBe(400)
+        ->and($response['error'])->toContain('c2pa.opened')
+        ->and($response['cid'])->toBeString();
+})->with([[true], [false]])
+    ->skip($skipUnlessReachable)
+    ->group('SPEC-028', 'integration');
+
+// --- AC8, the half that was missed: a REFUSED request is recorded too -------
+
+it('records the parent on a refused request as well as an accepted one', function () {
+    // AC8 says "accepted or refused". The first implementation added the fields
+    // to the success path only, and both of its tests exercised that path, so
+    // nothing caught it — a refusal is exactly when an auditor most wants to
+    // know what was submitted.
+    $fixture = ServiceHarness::fixtureBytes();
+
+    $result = auditedSign([
+        // Refused by AC4/AC5: a parent for a manifest that marks creation.
+        'parent' => ['content' => base64_encode($fixture), 'mime_type' => 'image/png'],
+    ]);
+
+    expect($result['status'])->toBe(400);
+
+    $record = spec028Arr(auditRecordFor($result['cid']));
+
+    expect($record['outcome'] ?? null)->toBe('rejected');
+    expect($record)->toHaveKey('parent_bytes');
+    expect($record['parent_bytes'])->toBe(strlen($fixture));
+})->skip($skipUnlessReachable)
+    ->skip(fn () => spec012Container() === null ? 'signing service container not found — audit log unreadable' : false)
+    ->group('SPEC-028', 'integration');
+
 // --- AC7: REQUIRE_AI_MARKING recognises the edited shape --------------------
 
 it('accepts the edited shape under REQUIRE_AI_MARKING', function () {

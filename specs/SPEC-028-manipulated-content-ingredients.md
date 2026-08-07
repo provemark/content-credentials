@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | implemented                                       |
+| Status     | implemented (amended after 0.9.0 — see Amendment) |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | 2026-08-07 (maintainer)                           |
+| Approved   | 2026-08-07 (maintainer); amendment 2026-08-07     |
 | Supersedes | — (amends SPEC-026 AC4)                           |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -386,6 +386,41 @@ covered by a Pest test tagged `->group('SPEC-028')`.
     CHANGELOG says so under **Upgrading**, following SPEC-022's treatment of
     `forAiGeneratedImage()` — kept indefinitely, no runtime deprecation.
 
+- **AC13 — a client-supplied `c2pa.opened` action is refused** *(error path,
+  added by the amendment below)*
+  - Given a `/v1/sign` request whose `extra_assertions` contain an action
+    `c2pa.opened`
+  - When it is posted, with or without a parent asset
+  - Then the service answers 400 with our own wording and a correlation id,
+    signs nothing, and writes exactly one SPEC-012 audit record.
+  - **Measured before the guard existed:** the request answered **200** and
+    produced a signed asset whose manifest reads `validation_state: Invalid`
+    with `assertion.action.ingredientMismatch`. Since SPEC-028 that action
+    belongs to the service — c2pa-rs inserts it with a hash over the ingredient
+    assertion — so a second one cannot be linked and the signature is spent on a
+    manifest no verifier will accept.
+
+## Amendment (2026-08-07, after 0.9.0 shipped)
+
+Two defects found reviewing the release, both in the same place: what the
+service refuses to attest to.
+
+**AC13 is new.** AC5 was written about an *unusable parent* and said nothing
+about the actions array, so nothing refused a caller who supplied
+`c2pa.opened` themselves. The PHP client cannot produce that — the builder never
+emits it, and a test pins that — but SPEC-011's whole premise is that the service
+is a separate HTTP surface with its own guards, precisely because the client is
+not guaranteed to be the only caller. The criterion was the gap, not just the
+code.
+
+**AC8 was not met, and the spec said it was.** It reads "accepted **or
+refused**"; the implementation added `parent_bytes` / `parent_sha256` to the
+success path only, and both tests exercised that path, so nothing caught it. The
+criterion is unchanged — it simply has to be met. Recorded here rather than
+quietly fixed, because marking a spec `implemented` with a criterion unmet is
+the failure CLAUDE.md names explicitly, and this log is worth more than the
+appearance of a clean run.
+
 ## API sketch
 
 Illustrative only — not binding.
@@ -536,11 +571,12 @@ least one test; every source file maps back to this spec.
 | AC5 | `tests/Integration/ManipulatedContentTest.php` :: "refuses a parent whose content is not valid base64", "refuses a parent whose mime_type is not supported", "refuses an edited manifest that arrives with no parent at all", "refuses a parent supplied for a manifest that creates" | `service/server.js` `needsParentAsset()` + the parent block in `POST /v1/sign` |
 | AC6 | `tests/Unit/Signing/ParentAssetTest.php` :: "counts both assets against one request budget"; `tests/Integration/ManipulatedContentTest.php` :: "names both assets when refusing a manipulation request for size" | `src/Core/Signing/SigningServiceSigner.php` `sign()`, `service/server.js` body-parser error handler |
 | AC7 | `tests/Integration/ManipulatedContentTest.php` :: "accepts the edited shape under REQUIRE_AI_MARKING", "still refuses a non-AI marking under REQUIRE_AI_MARKING" | `service/server.js` `markingSourceTypes()`, `AI_MARKINGS` |
-| AC8 | `tests/Integration/ManipulatedContentTest.php` :: "records the parent asset in the audit trail", "leaves the parent fields null when nothing was derived" | `service/server.js` `audit()` call in `POST /v1/sign` |
+| AC8 | `tests/Integration/ManipulatedContentTest.php` :: "records the parent asset in the audit trail", "leaves the parent fields null when nothing was derived", "records the parent on a refused request as well as an accepted one" | `service/server.js` `auditedParent()` and both `audit()` calls in `POST /v1/sign` |
 | AC9 | `tests/Unit/ManipulationGuidanceTest.php` :: "records the measured memory cost where a container is sized", "publishes the generational growth as a number, not an adjective" | `docs/service.md`, `docs/marking.md`, and the implementation notes below |
 | AC10 | `tests/Unit/ManipulationGuidanceTest.php` :: "says Article 50 covers manipulation, not only generation", "shows the manipulated call and names the constructor", "says the original asset itself must be supplied, and why", "names both refusals so neither is discovered from a stack trace" | `README.md`, `docs/marking.md` |
 | AC11 | `tests/Unit/Manifest/ManipulatedContentTest.php` :: "still emits c2pa.created for the source types that create" | `src/Core/Manifest/ManifestBuilder.php` `build()` |
 | AC12 | `tests/Unit/Manifest/ManipulatedContentTest.php` :: "builds a manifest for every declared source type, refusing none", "keeps UnsupportedSourceTypeException as public API that nothing throws" | `src/Core/Manifest/ManifestBuilder.php` `forSourceType()`, `src/Core/Manifest/Exception/UnsupportedSourceTypeException.php` |
+| AC13 | `tests/Integration/ManipulatedContentTest.php` :: "refuses an actions array that supplies c2pa.opened itself" | `service/server.js` `suppliesOpenedAction()`, `rejectAssertions()` |
 
 ## Implementation notes (2026-08-07)
 
@@ -597,6 +633,16 @@ nothing else exercises the manager's signature.
 nothing was derived" used `$record['parent_bytes'] ?? 'missing'`, and null
 coalescing treats a real `null` exactly like an absent key — so it reported a
 correct record as broken. It asserts presence and nullness separately now.
+
+**AC8's refusal half deliberately stops at the 400s (0.9.1).** `auditedParent()`
+runs in the `reject()` closure, which answers every 400 — content missing, mime
+unsupported, parent malformed, assertions refused. It is NOT wired into the 429
+path, and that is a decision rather than an omission: a rate-limit or
+concurrency refusal exists to avoid spending work, and base64-decoding a
+possibly 15 MB parent to describe a request being shed is exactly the work it is
+shedding. A 429 record therefore carries no parent fields at all. If that ever
+needs to change, `parent` is still in scope there and a presence boolean costs
+nothing — but the size does not come free.
 
 **`bin/spec-check.php` needs the bolded AC title on one line.** Its criteria
 regex is `/m` without `/s`, so a title wrapped across two lines is invisible to
