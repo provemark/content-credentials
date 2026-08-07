@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use GuzzleHttp\Client;
 use Provemark\ContentCredentials\Tests\Integration\ServiceHarness;
+use Psr\Http\Message\ResponseInterface;
 
 /**
  * SPEC-012 — audit logging for signing requests.
@@ -201,6 +202,57 @@ it('records a refusal that failed inside validation, not just one it reached', f
         ->and($record['outcome'] ?? null)->toBe('rejected')
         ->and($record['reason'] ?? null)->toBeString();
 })->group('SPEC-012', 'integration')->skip($skipUnlessReachable)->skip($skipUnlessContainer);
+
+// SPEC-024 AC4: a refused READ is recorded, while a successful one is not.
+//
+// SPEC-012 deliberately writes nothing for a read that succeeds — reading does
+// not exercise the signing key, so there is nothing to attest to. A refusal is
+// different: it is about the service's own health, which is what an operator
+// needs to see. That distinction is the criterion, so both halves are asserted.
+it('records a refused read but not a successful one', function () {
+    $client = new Client(['http_errors' => false, 'timeout' => 30]);
+    $url = ServiceHarness::baseUrl().'/v1/read';
+    $options = [
+        'headers' => ['Authorization' => 'Bearer '.ServiceHarness::apiKey()],
+        'json' => ['content' => base64_encode(ServiceHarness::fixtureBytes()), 'mime_type' => 'image/png'],
+    ];
+
+    $ok = $client->post($url, $options);
+    expect($ok->getStatusCode())->toBe(200);
+    expect(auditRecordFor($ok->getHeaderLine('X-Correlation-Id')))
+        ->toBeNull('a successful read was audited; SPEC-012 decided against that');
+
+    // Spend the read budget to provoke a refusal.
+    $limit = readLimit('read_rate_limit_requests') ?? 0;
+    $refusal = null;
+    for ($i = 0; $i < $limit + 6; $i++) {
+        $response = $client->post($url, $options);
+        if ($response->getStatusCode() === 429) {
+            $refusal = $response;
+            break;
+        }
+    }
+
+    expect($refusal)->not->toBeNull('the read budget was never exhausted, so this proves nothing');
+
+    $cid = $refusal instanceof ResponseInterface ? $refusal->getHeaderLine('X-Correlation-Id') : '';
+    $record = auditRecordFor($cid);
+
+    expect($record)->not->toBeNull('a refused read produced no audit record')
+        ->and($record['event'] ?? null)->toBe('read')
+        ->and($record['outcome'] ?? null)->toBe('rejected')
+        ->and($record['reason'] ?? null)->toBeString()
+        ->and($record['token_id'] ?? null)->toBeString();
+})->group('SPEC-024', 'integration')
+    ->skip($skipUnlessReachable)
+    ->skip($skipUnlessContainer)
+    ->skip(function () {
+        $limit = readLimit('read_rate_limit_requests');
+
+        return $limit === null || $limit > 20
+            ? 'needs a service with a small read_rate_limit_requests (run the rate-limited profile)'
+            : false;
+    });
 
 // --- AC3: the correlation id reaches the client -----------------------------
 

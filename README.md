@@ -278,7 +278,25 @@ instance about to run out of memory.
 Limits are **on by default**; a protection that ships off is one nobody turns
 on. Setting one to `0` disables it explicitly, and `/health` says so.
 
-Tune with `MAX_CONCURRENT_SIGNS`, `RATE_LIMIT_REQUESTS`, `RATE_LIMIT_WINDOW_MS`,
+**Reading is bounded separately from signing.** `/v1/read` has its own
+concurrency cap and its own rate budget, and `/health` reports both alongside
+`reads_in_flight`. The separation is deliberate: with one shared budget a
+verification loop could consume what the application needs to sign its own
+output, and that failure would present as "signing is broken".
+
+Measured, reading costs about **3–5×** the asset in memory against signing's
+~7× — cheaper, same order of magnitude — so the read cap defaults to the same 4
+rather than to something generous. A fully saturated instance holds both paths
+at once: four signs plus four reads of maximum-size assets is roughly **650 MiB**,
+which is the number to size a container against.
+
+Note that a **sign-then-verify round-trip spends from both budgets** — the
+common pattern of reading back what you just signed costs one of each. That is
+an argument for the separation rather than against it: with one shared budget
+the same round-trip would spend double from a single bucket.
+
+Tune with `MAX_CONCURRENT_SIGNS`, `RATE_LIMIT_REQUESTS`, `MAX_CONCURRENT_READS`,
+`READ_RATE_LIMIT_REQUESTS`, `RATE_LIMIT_WINDOW_MS` (shared by both budgets),
 `REQUEST_TIMEOUT_MS` and `HEADERS_TIMEOUT_MS`.
 
 ### Sizing the container

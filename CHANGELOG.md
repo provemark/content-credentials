@@ -57,7 +57,40 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   merely absent: **PDF** (c2pa-rs can read but not write it), **WEBM** (no
   handler at all), **DNG** and **JPEG XL** (unmeasured).
 
+- **The read path is bounded (SPEC-024).** `/v1/read` had no rate limit, no
+  concurrency cap and no audit record: measured, ten reads all answered 200
+  while the sixth sign was refused. SPEC-015 scoped itself to `/v1/sign` and
+  never mentioned reading, so this was a gap rather than a decision. It now has
+  its own cap and its own budget, reported on `/health` as
+  `max_concurrent_reads`, `read_rate_limit_requests` and `reads_in_flight`.
+
+  Budgets are **separate** on purpose: one shared budget would let a
+  verification loop consume what an application needs to sign its own output,
+  and that failure presents as "signing is broken".
+
+  Measured: reading costs ~3–5× the asset in memory against signing's ~7×, so
+  the read cap defaults to the same 4 rather than to something generous. Four
+  signs plus four reads of maximum-size assets is roughly 650 MiB.
+
+### Fixed
+
+- **A deeply nested assertion crashed past its own guard.** SPEC-011's depth
+  check ran *behind* the size check, and the size check is `JSON.stringify`,
+  which overflows the stack at ~10 000 levels. Such a request answered 500 with
+  an HTML body and wrote no audit record, so SPEC-011's bound and SPEC-012's
+  "every request is recorded" held only for payloads small enough not to need
+  them. The two checks are now the other way round.
+- **Unanticipated errors reached express's default handler**, answering HTML
+  with no correlation id in the body and writing nothing to the audit stream.
+  There is now a catch-all that audits and answers `{error, cid}` like every
+  other refusal.
+
 ### Upgrading
+
+- **Verification traffic is now rate-limited.** If a deployment reads more than
+  240 assets per minute per token, or runs more than 4 verifications at once, it
+  will start seeing **429** where it never did. Raise `READ_RATE_LIMIT_REQUESTS`
+  and `MAX_CONCURRENT_READS`, and raise the container's memory with them.
 
 - **An exhaustive `match` over `MediaType` is no longer exhaustive.** Eleven
   cases were added across SPEC-021 and SPEC-023, so code like `match ($asset->mediaType) { MediaType::Png => …,

@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — (draft)                                         |
+| Approved   | 2026-08-07 (maintainer)                           |
 | Supersedes | — (extends SPEC-015)                              |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -38,6 +38,27 @@ flight at once, each holding a multi-megabyte buffer.
 
 `MAX_BODY_SIZE` (20 MB) still applies, so a single read is bounded. Nothing
 bounds the number of them.
+
+### What a read actually costs (measured 2026-08-07)
+
+Container memory against a 17.7 MiB idle baseline, reading a signed 11.3 MB
+asset — the same method SPEC-017 used for signing:
+
+| Concurrent reads | Peak | Per request | × asset |
+|---|---|---|---|
+| 1 | 76 MiB | 58 MiB | 5.2× |
+| 4 | 190 MiB | 43 MiB | 3.8× |
+| 8 | 278 MiB | 32.5 MiB | 2.9× |
+
+So **roughly 3–5×** the asset, against ~7× for signing: cheaper, same order of
+magnitude, and falling as concurrency amortises fixed overhead — the same shape
+SPEC-017 found. Not free, and not bounded today.
+
+The number that decides the defaults is the combined one. A fully saturated
+instance holds both paths at once: four signs at 7× plus four reads at ~3.8×, of
+15 MB assets, is roughly **650 MiB**. That is what an operator has to size for,
+and it is why the read cap defaults to the same 4 as signing rather than to
+something generous.
 
 ### Two smaller consequences, both real
 
@@ -146,7 +167,7 @@ Illustrative only.
 // service/server.js — mirroring the sign path rather than generalising it.
 // A shared helper would have to take four parameters to express two policies;
 // two small blocks are easier to read and to change independently.
-const MAX_CONCURRENT_READS = Number(process.env.MAX_CONCURRENT_READS ?? 8);
+const MAX_CONCURRENT_READS = Number(process.env.MAX_CONCURRENT_READS ?? 4);
 const READ_RATE_LIMIT_REQUESTS = Number(process.env.READ_RATE_LIMIT_REQUESTS ?? 240);
 // Window shared with the sign limiter: two windows would be a third knob for no
 // benefit anybody has asked for.
@@ -160,7 +181,7 @@ const READ_RATE_LIMIT_REQUESTS = Number(process.env.READ_RATE_LIMIT_REQUESTS ?? 
   "limits": {
     "max_concurrent_signs": 4,
     "rate_limit_requests": 60,
-    "max_concurrent_reads": 8,          // new
+    "max_concurrent_reads": 4,          // new
     "read_rate_limit_requests": 240,    // new
     "rate_limit_window_ms": 60000
   }
@@ -169,33 +190,36 @@ const READ_RATE_LIMIT_REQUESTS = Number(process.env.READ_RATE_LIMIT_REQUESTS ?? 
 
 ## Open questions
 
-Both are for the maintainer at approval time. Neither blocks writing tests.
+All three settled before approval, 2026-08-07. Recorded rather than deleted,
+because the reasoning is the useful part.
 
-- **Separate budgets, or one shared budget per token?** Recommendation:
-  **separate**, as sketched. One budget is simpler and one number to tune, but it
-  couples two very different costs: a verification loop reading a hundred assets
-  would consume the budget an application needs to sign its own output, and the
-  failure would look like "signing is broken". AC3 exists to pin the separation.
-  The cost is two more environment variables and a slightly longer `/health`.
+- ~~**Separate budgets, or one shared budget per token?**~~ **Separate.** One
+  budget is simpler and one number to tune, but it couples two very different
+  costs: a verification loop reading a hundred assets would consume the budget an
+  application needs to sign its own output, and that failure presents as "signing
+  is broken". AC3 pins the separation. The cost is two more environment variables
+  and a slightly longer `/health`.
 
-- **Should a successful read be audited?** Recommendation: **no**, keep
-  SPEC-012's decision. Its reasoning — reading is not an exercise of the signing
-  key, so there is nothing to attest to — still holds, and a verification-heavy
-  deployment would multiply its log volume for records that answer no question
-  anyone asks. Refusals are different: they are about the service's own health,
-  which is precisely what the operator needs to see. If the answer is instead
-  "yes, audit reads too", it belongs in a spec that also says what the record
-  contains, because `input_sha256` over every verified asset is a privacy
-  decision, not just a volume one.
+- ~~**Should a successful read be audited?**~~ **No** — SPEC-012's decision
+  stands. Reading is not an exercise of the signing key, so there is nothing to
+  attest to, and a verification-heavy deployment would multiply its log volume
+  for records answering no question anyone asks. Refusals are different: they are
+  about the service's own health, which is exactly what an operator needs. Note
+  what this deliberately avoids: `input_sha256` over every asset a deployment
+  verifies is a privacy decision, not just a volume one, and it belongs in a spec
+  that says so rather than arriving as a side effect of a rate limit.
 
-- **Defaults.** 240 reads per minute and 8 concurrent is a starting point chosen
-  to be generous — roughly four times the signing budget, on the grounds that
-  reading is cheaper and that a verification-heavy deployment is the normal case
-  for the read path. Nobody has measured what a saturated read path costs in
-  memory; SPEC-017 measured that for signing (~7× the asset) and the read path
-  has no equivalent number. Measuring it before fixing the defaults would be the
-  thorough version, and is the one thing here that could reasonably be demanded
-  before approval.
+- ~~**Defaults.**~~ **Measured before choosing, and the sketch above is
+  revised.** The draft proposed 240 reads per minute and 8 concurrent "on the
+  grounds that reading is cheaper", with the honest note that nobody had measured
+  it. Measured (see Problem), a read costs ~3–5× the asset, so eight concurrent
+  reads of a maximum-size asset is ~350 MiB on top of whatever signing is doing.
+  **`MAX_CONCURRENT_READS` therefore defaults to 4, matching signing**, which
+  keeps a fully saturated instance near 650 MiB rather than 800.
+  `READ_RATE_LIMIT_REQUESTS` stays generous at **240/minute**: sustained rate is
+  about fair use over time, while the concurrency cap is what bounds peak memory,
+  and conflating them would make the service refuse bursts it can comfortably
+  serve.
 
 ## Traceability
 
@@ -204,10 +228,31 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
+| AC1 | `tests/Integration/ReadLimitTest.php` :: "refuses a token that exceeds its read rate, and serves it again after the window" | `service/server.js` `READ_RATE_LIMIT_REQUESTS`, `readBuckets`, `rateLimited()` |
+| AC2 | `tests/Integration/ReadLimitTest.php` :: "refuses the excess when more reads arrive than the cap allows" | `service/server.js` `MAX_CONCURRENT_READS`, `readsInFlight` |
+| AC3 | `tests/Integration/ReadLimitTest.php` :: "still signs for a token that has exhausted its read budget" | `service/server.js` `readBuckets` (separate from `buckets`) |
+| AC4 | `tests/Integration/AuditLoggingTest.php` :: "records a refused read but not a successful one" | `service/server.js` `/v1/read` limiter, `audit()` |
+| AC5 | `tests/Integration/ReadLimitTest.php` :: "reports its read limits and how many reads are in flight", "has its read limits switched on by default" | `service/server.js` `/health` |
+| AC6 | `tests/Integration/ReadLimitTest.php` :: "answers /health while the read path is saturated" | `service/server.js` `/health` (outside `/v1`, so never limited) |
+| AC7 | `tests/Integration/RateLimitTest.php` :: the whole SPEC-015 group, unchanged | `service/server.js` sign limiter |
+
+## Implementation notes (2026-08-07)
+
+- **The defaults changed between draft and approval, because the measurement
+  arrived in between.** The draft proposed 8 concurrent reads "on the grounds
+  that reading is cheaper", with an explicit note that nobody had measured it.
+  Measured, eight concurrent reads of a maximum-size asset is ~350 MiB on top of
+  signing, so the cap became 4. Worth recording as a case where the honest
+  "unmeasured" note in a draft did its job.
+- **Two limiter blocks, not one helper.** `rateLimited()` gained a store and a
+  limit parameter, which is shared, but the two middlewares stay separate: a
+  single generalised one would take four parameters to express two policies
+  whose numbers, budgets and reasons differ.
+- **AC6 is a weak test and stays weak.** `/health` sits outside `/v1`, so it is
+  structurally impossible for it to be rate-limited, and the test therefore
+  cannot fail against any plausible defect. It is kept as a smoke check rather
+  than deleted, but it is not evidence of anything on its own.
+- **Two CI profiles, for opposite reasons.** `read-limited` gives a small read
+  budget and a large sign budget, which is what AC3 needs to tell the two apart;
+  the read *concurrency* cap needs the opposite (a rate budget high enough not to
+  answer 429 first) and is covered by `defaults`.
