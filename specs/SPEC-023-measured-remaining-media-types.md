@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — (draft)                                         |
+| Approved   | 2026-08-07 (maintainer)                           |
 | Supersedes | — (extends SPEC-021)                              |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -238,9 +238,35 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
+| AC1 | `tests/Integration/RemainingMediaTypesTest.php` :: "signs and reads back image/svg+xml", "signs and reads back video/quicktime", "signs and reads back video/x-msvideo", "signs and reads back audio/flac" | `src/Core/Manifest/MediaType.php`, `service/server.js` `SUPPORTED_MIME` |
+| AC2 | `tests/Unit/Manifest/RemainingMediaTypesTest.php` :: "declares all thirteen measured media types"; `tests/Integration/RemainingMediaTypesTest.php` :: "accepts the four added types on the running service"; `tests/Unit/Laravel/MediaTypeInferenceTest.php` :: "reaches every declared media type from some extension" | `src/Core/Manifest/MediaType.php`, `service/server.js` `/health` `media_types`, `src/Laravel/Console/InfersMediaType.php` `EXTENSIONS` |
+| AC3 | `tests/Integration/RemainingMediaTypesTest.php` :: "names every video type when refusing an oversized body" | `service/server.js` `VIDEO_MIME_LIST`, body-parser error handler |
+| AC4 | `tests/Unit/RemainingMediaTypeGuidanceTest.php` :: "names the tool that silently removes an SVG manifest", "says the SVG failure is silent, not an error", "gives the rule that follows from it", "covers the second SVG failure mode as well" | `README.md` § Signing SVG |
+| AC5 | `tests/Unit/RemainingMediaTypeGuidanceTest.php` :: "qualifies the short-audio claim for lossless formats", "keeps the lossless caveat beside the short-audio claim" | `README.md` § Supported media types |
+| AC6 | `tests/Unit/Manifest/RemainingMediaTypesTest.php` :: "still refuses the formats measured as unsupported", "names all thirteen supported types when refusing"; `tests/Integration/RemainingMediaTypesTest.php` :: "refuses the formats c2pa-rs cannot sign, naming what it accepts" | `src/Core/Manifest/MediaType.php` `fromMimeType()`, `service/server.js` `/v1/sign` |
+
+## Implementation notes (2026-08-07)
+
+- **The upgrade note written this morning came true within the hour.** SPEC-022
+  warned that adding enum cases makes an exhaustive `match ($mediaType)` throw
+  `UnhandledMatchError`. SPEC-021's own `cc21Fixture()` helper is exactly such a
+  match, and it was the first thing to break. Our own test suite was the first
+  consumer bitten by our own upgrade note, which is the cheapest possible way to
+  learn that the note was worth writing.
+- **A fourth counter-example was overtaken by scope.** `image/svg+xml` was in the
+  SPEC-021 property suite's pool of "unsupported however formatted" and in the
+  unit dataset. That pool has now lost members twice (gif/webp/tiff in SPEC-021,
+  svg here). It is refilled with types measured as genuinely out of reach —
+  `application/pdf`, `video/webm`, `image/jxl` — plus malformed input, which no
+  spec can make supported. The malformed half is the part that cannot go stale.
+- **`VIDEO_MIME_LIST` is derived from `SUPPORTED_MIME`**, not written out. The
+  413 message was hand-written around `video/mp4` in SPEC-021 and went stale the
+  moment a second video type arrived; deriving it means a fourth cannot repeat
+  that.
+- **SPEC-021's exhaustive-set test became a subset test.** It asserted the nine
+  types in order; with thirteen that assertion is about SPEC-023, not SPEC-021.
+  It now asserts its nine are all still present — the criterion it was actually
+  written for — and the exhaustive list lives in this spec's test.
+- **Verified beyond our own reader**: all four formats signed through
+  `SigningServiceSigner` and checked with `bin/verify.sh` (c2patool 0.27.3, trust
+  on) — signature valid / cert trusted / Art.50 mark PASS on each.

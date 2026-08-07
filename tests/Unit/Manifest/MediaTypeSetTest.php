@@ -19,11 +19,14 @@ use Provemark\ContentCredentials\Core\Manifest\MediaType;
 
 // --- The declared set ------------------------------------------------------
 
-it('declares exactly the media types SPEC-021 measured', function () {
-    // Whole-set equality, in spec order. A new case added without a spec —
-    // and without the service's SUPPORTED_MIME, which AC2 compares against a
-    // running deployment — fails here first.
-    expect(array_map(fn (MediaType $t): string => $t->value, MediaType::cases()))->toBe([
+it('still declares every media type SPEC-021 measured', function () {
+    // Was whole-set equality. SPEC-023 added four more, so the exhaustive
+    // assertion moved to tests/Unit/Manifest/RemainingMediaTypesTest.php and
+    // this one keeps what SPEC-021 is actually about: its nine are all still
+    // there, none quietly dropped.
+    $declared = array_map(fn (MediaType $t): string => $t->value, MediaType::cases());
+
+    expect($declared)->toContain(...[
         'image/png',
         'image/jpeg',
         'image/webp',
@@ -62,8 +65,11 @@ it('reports the registered type, not the alias, as its value', function () {
 it('refuses a media type outside the set', function (string $mime) {
     expect(fn () => MediaType::fromMimeType($mime))
         ->toThrow(UnsupportedMediaTypeException::class);
-})->with(['image/bmp', 'application/pdf', 'text/plain', 'image/svg+xml', 'video/webm'])
+})->with(['image/bmp', 'application/pdf', 'text/plain', 'video/webm', 'image/jxl'])
     ->group('SPEC-021');
+// image/svg+xml used to sit in that list; SPEC-023 measured it working and it
+// is supported now. Third time a counter-example has been overtaken by scope —
+// see NOTES Step 25.
 
 it('names every supported type in the refusal', function () {
     try {

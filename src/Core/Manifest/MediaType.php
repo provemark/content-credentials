@@ -13,9 +13,18 @@ use Provemark\ContentCredentials\Core\Manifest\Exception\UnsupportedMediaTypeExc
  * spike. Every type below was measured signing, reading back `Valid` and
  * keeping the Article 50 marking (SPEC-021).
  *
- * `video/mp4` is accepted as a container, not as support for real video: the
- * 20 MB body limit (SPEC-017) and the ~7× memory multiplier bound it to small
- * files, because the transport is base64 in one HTTP body. See the README.
+ * The video types are accepted as containers, not as support for real video:
+ * the 20 MB body limit (SPEC-017) and the ~7× memory multiplier bound them to
+ * small files, because the transport is base64 in one HTTP body.
+ *
+ * `image/svg+xml` carries a further warning the README spells out: SVGO removes
+ * the manifest silently with its default preset, and re-serialising the XML
+ * leaves a file c2pa-rs will not parse. Sign SVG as a deliverable, not as a
+ * build asset (SPEC-023, measured).
+ *
+ * Deliberately absent, each for its own reason (NOTES Step 27): `application/pdf`
+ * (c2pa-rs can read it but not write it), `video/webm` (no handler at all),
+ * `image/x-adobe-dng` and JPEG XL (unmeasured).
  *
  * This list has two counterparts that must not drift from it: `SUPPORTED_MIME`
  * in `service/server.js` (compared against a running deployment by SPEC-021
@@ -29,9 +38,13 @@ enum MediaType: string
     case Avif = 'image/avif';
     case Gif = 'image/gif';
     case Tiff = 'image/tiff';
+    case Svg = 'image/svg+xml';
     case Wav = 'audio/wav';
     case Mp3 = 'audio/mpeg';
+    case Flac = 'audio/flac';
     case Mp4 = 'video/mp4';
+    case Mov = 'video/quicktime';
+    case Avi = 'video/x-msvideo';
 
     /**
      * Accepted spellings that are not the registered type (SPEC-021).
@@ -43,7 +56,9 @@ enum MediaType: string
      * @var array<string, string>
      */
     private const ALIASES = [
-        'audio/mp3' => 'audio/mpeg',
+        'audio/mp3' => 'audio/mpeg',        // SPEC-021
+        'audio/x-flac' => 'audio/flac',     // SPEC-023: predates registration
+        'video/avi' => 'video/x-msvideo',   // SPEC-023: common, unregistered
     ];
 
     /**

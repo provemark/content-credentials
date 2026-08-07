@@ -610,12 +610,16 @@ Reading works the same way with `SigningServiceReader` → `ManifestReport`.
 | `image/avif` | `Avif` | `.avif` |
 | `image/gif` | `Gif` | `.gif` |
 | `image/tiff` | `Tiff` | `.tif`, `.tiff` |
+| `image/svg+xml` | `Svg` | `.svg` |
 | `audio/wav` | `Wav` | `.wav` |
 | `audio/mpeg` | `Mp3` | `.mp3` |
+| `audio/flac` | `Flac` | `.flac` |
 | `video/mp4` | `Mp4` | `.mp4` |
+| `video/quicktime` | `Mov` | `.mov` |
+| `video/x-msvideo` | `Avi` | `.avi` |
 
-`audio/mp3` is accepted as an input spelling and normalised to the registered
-`audio/mpeg`. Anything outside this table is refused — by the client with
+`audio/mp3`, `audio/x-flac` and `video/avi` are accepted as input spellings and
+normalised to the registered `audio/mpeg`, `audio/flac` and `video/x-msvideo`. Anything outside this table is refused — by the client with
 `UnsupportedMediaTypeException`, and by the service with a **400** naming what it
 does accept. A running service publishes its own list at `GET /health`
 (`media_types`), so you can check a deployment rather than trust this table.
@@ -623,20 +627,53 @@ does accept. A running service publishes its own list at `GET /health`
 **Size applies to every media type, not per format.** `MAX_BODY_SIZE`
 (default 20 MB) and the ~7× memory multiplier described under
 [Sizing the container](#sizing-the-container) are the same for a PNG and for an
-MP4. That comfortably covers images and short audio.
+MP4. That comfortably covers images and short audio — but note that **lossless
+audio is not short audio**: a few minutes of FLAC approaches or exceeds the
+20 MB body limit, so `MAX_BODY_SIZE` is the first thing to check before signing
+music rather than voice clips.
 
-It does **not** cover real video. `video/mp4` is supported as a *container* —
-it signs, reads back and carries the Article 50 marking exactly like an image —
-but it is **bounded to small files**, because the transport is base64 in one
-HTTP body: the asset is inflated by a third, buffered whole, and held several
+It does **not** cover real video. `video/mp4`, `video/quicktime` and
+`video/x-msvideo` are supported as *containers* — they sign, read back and carry
+the Article 50 marking exactly like an image — but they are **bounded to small
+files**, because the transport is base64 in one HTTP body: the asset is inflated by a third, buffered whole, and held several
 times over while signing. A body over the limit is refused with a **413** that
 says so. Signing video of a realistic length needs a different transport
 (streaming or path-based signing), which is a separate piece of work and not
 something this version does.
 
-Formats c2pa-rs can handle but this package does not declare — SVG, PDF, DNG,
-AVI, MOV, WEBM — are not excluded on principle; they are simply unmeasured, and
-this project does not ship what it has not seen work.
+#### Signing SVG: sign the deliverable, not the build asset
+
+SVG is the one format whose ordinary tooling destroys the credential by default,
+so it needs more than the general rule that post-sign edits invalidate a
+manifest. Measured against a signed SVG:
+
+| Operation | Result |
+|---|---|
+| **SVGO with default settings** | the manifest is removed **silently** — the image renders identically and a verifier cannot tell it from a file that was **never signed** |
+| **Any tool that re-serialises the XML** | the namespace prefix is rewritten and the file no longer parses as C2PA |
+
+`preset-default` includes `removeMetadata`, and every common bundler
+(`vite-svg-loader`, `svgr`, webpack's SVGO loaders) runs SVGO with defaults. So
+an SVG signed and then added to a front-end build arrives at the browser
+unsigned, with nothing anywhere reporting a problem.
+
+The rule that follows: sign SVG as a final deliverable, **not as a build asset**
+— a generated diagram or illustration handed over as a file, rather than one
+about to enter an asset pipeline. If you must do the latter, disable
+`removeMetadata` and verify the output.
+
+#### Formats this package does not accept
+
+Not excluded on principle — each has a reason:
+
+| Format | Why not |
+|---|---|
+| `application/pdf` | c2pa-rs can **read** C2PA from PDF but not write it (`pdf_io.rs` returns "PDF write functionality will be added in a future release"). The C2PA specification does define PDF embedding, so this is an upstream gap, not a specification one. |
+| `video/webm` | Matroska. c2pa-rs has no handler at all, which is why it fails on reading too. |
+| `image/x-adobe-dng` | Unmeasured. A TIFF renamed `.dng` proves nothing, because the engine reads the format from the bytes. |
+| JPEG XL | A handler exists upstream; we have not measured it. |
+
+This project does not ship what it has not seen work.
 
 ## Verifying the output
 

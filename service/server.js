@@ -185,10 +185,17 @@ const trustSettings = TRUST_SETTINGS_PATH ? loadTrustSettings(TRUST_SETTINGS_PAT
 // files. See the 413 below and the README.
 const SUPPORTED_MIME = new Set([
   'image/png', 'image/jpeg', 'image/webp', 'image/avif', 'image/gif',
-  'image/tiff', 'audio/wav', 'audio/mpeg', 'video/mp4',
+  'image/tiff', 'image/svg+xml',
+  'audio/wav', 'audio/mpeg', 'audio/flac',
+  'video/mp4', 'video/quicktime', 'video/x-msvideo',
 ]);
 
 const SUPPORTED_MIME_LIST = [...SUPPORTED_MIME].join(', ');
+
+// Derived, never restated (SPEC-023 AC3). The oversized-body refusal has to
+// name the video types, and a hand-written list there went stale the moment
+// this set grew past video/mp4.
+const VIDEO_MIME_LIST = [...SUPPORTED_MIME].filter((m) => m.startsWith('video/')).join(', ');
 
 // --- SPEC-011: structural limits on what this service will attest to --------
 // Restrictive by default: too permissive is the risk for structure. The
@@ -446,14 +453,15 @@ app.use((err, req, res, next) => {
 
   const tooLarge = err.type === 'entity.too.large';
   const status = tooLarge ? 413 : 400;
-  // SPEC-021 AC7: the parser refuses before any route, so this message cannot
-  // depend on the declared media type -- which is exactly why it names video
-  // unconditionally. video/mp4 is accepted as a container, and the first person
-  // to try a real video must learn that here, from one error, rather than
-  // learning "MP4 is supported" and then meeting a bare byte count.
+  // SPEC-021 AC7 / SPEC-023 AC3: the parser refuses before any route, so this
+  // message cannot depend on the declared media type -- which is exactly why it
+  // names video unconditionally. The video types are accepted as containers,
+  // and the first person to try a real video must learn that here, from one
+  // error, rather than learning "MP4 is supported" and then meeting a bare byte
+  // count. The list is derived, so a fourth video type cannot leave it stale.
   const reason = tooLarge
     ? `request body too large (max ${MAX_BODY}); the limit applies to every media type, `
-      + 'and video/mp4 is accepted as a container but bounded to small files by it'
+      + `and the video containers (${VIDEO_MIME_LIST}) are accepted but bounded to small files by it`
     : 'request body is not valid JSON';
 
   audit({

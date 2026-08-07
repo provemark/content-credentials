@@ -35,9 +35,13 @@ function cc21Fixture(MediaType $type): string
         MediaType::Avif => 'avif',
         MediaType::Gif => 'gif',
         MediaType::Tiff => 'tiff',
+        MediaType::Svg => 'svg',
         MediaType::Wav => 'wav',
         MediaType::Mp3 => 'mp3',
+        MediaType::Flac => 'flac',
         MediaType::Mp4 => 'mp4',
+        MediaType::Mov => 'mov',
+        MediaType::Avi => 'avi',
     };
 
     $path = dirname(__DIR__)."/Fixtures/fixture.{$extension}";
