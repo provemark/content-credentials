@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-07
+
+The second half of Article 50(2). Until now this package could mark content that
+was *generated* by AI and not content that was *manipulated* by it — one sentence
+in the law, two entirely different manifests in C2PA, and only one of them built.
+
 ### Added
 
 - **Marking content that was *manipulated* with AI (SPEC-028).** Article 50(2)
@@ -855,7 +861,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.7.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.9.0...main
+[0.9.0]: https://github.com/provemark/content-credentials/releases/tag/v0.9.0
 [0.8.0]: https://github.com/provemark/content-credentials/releases/tag/v0.8.0
 [0.7.0]: https://github.com/provemark/content-credentials/releases/tag/v0.7.0
 [0.6.0]: https://github.com/provemark/content-credentials/releases/tag/v0.6.0
