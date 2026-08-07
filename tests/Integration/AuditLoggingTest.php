@@ -168,6 +168,40 @@ it('records a rejected request with the reason', function () {
         ->and($record['output_sha256'] ?? null)->toBeNull();
 })->group('SPEC-012', 'integration')->skip($skipUnlessReachable)->skip($skipUnlessContainer);
 
+// AC2, for a refusal that never reached the route handler.
+//
+// Measured 2026-08-07: an assertion nested deeply enough to overflow
+// `JSON.stringify` in the size check threw past every audit call, so the request
+// left no trace at all. "Every signing request is recorded, accepted and refused
+// alike" held only for the refusals the service managed to reach.
+it('records a refusal that failed inside validation, not just one it reached', function () {
+    $depth = 20000;
+    $nested = str_repeat('[', $depth).str_repeat(']', $depth);
+    $body = sprintf(
+        '{"content":%s,"mime_type":"image/png","extra_assertions":[{"label":"org.example.deep","data":%s}]}',
+        json_encode(base64_encode(ServiceHarness::fixtureBytes())),
+        $nested,
+    );
+
+    $response = (new Client(['http_errors' => false]))->post(ServiceHarness::baseUrl().'/v1/sign', [
+        'headers' => [
+            'Authorization' => 'Bearer '.ServiceHarness::apiKey(),
+            'Content-Type' => 'application/json',
+        ],
+        'body' => $body,
+    ]);
+
+    $cid = $response->getHeaderLine('X-Correlation-Id');
+    expect($cid)->not->toBe('');
+
+    $record = auditRecordFor($cid);
+
+    expect($record)->not->toBeNull('a request that failed during validation produced no audit record')
+        ->and($record['event'] ?? null)->toBe('sign')
+        ->and($record['outcome'] ?? null)->toBe('rejected')
+        ->and($record['reason'] ?? null)->toBeString();
+})->group('SPEC-012', 'integration')->skip($skipUnlessReachable)->skip($skipUnlessContainer);
+
 // --- AC3: the correlation id reaches the client -----------------------------
 
 it('returns a correlation id on success and on failure', function () {

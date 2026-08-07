@@ -247,11 +247,18 @@ function rejectAssertions(assertions) {
     if (typeof assertion.label !== 'string' || assertion.label.trim() === '') {
       return 'each assertion must carry a non-empty string label';
     }
-    if (JSON.stringify(assertion).length > MAX_ASSERTION_BYTES) {
-      return `assertion too large (max ${MAX_ASSERTION_BYTES} bytes)`;
-    }
+    // Depth BEFORE size, and the order is load-bearing (measured 2026-08-07).
+    // exceedsDepth() stops at depth 17 whatever it is handed, but
+    // JSON.stringify() recurses over the whole structure and throws RangeError
+    // at ~10 000 levels. With the size check first, a hostile payload crashed
+    // past every guard: 500 with an HTML body and no audit record, so both the
+    // bound this criterion describes and SPEC-012's "every request is recorded"
+    // held only for payloads small enough not to need them.
     if (exceedsDepth(assertion, MAX_ASSERTION_DEPTH)) {
       return `assertion nested too deeply (max ${MAX_ASSERTION_DEPTH})`;
+    }
+    if (JSON.stringify(assertion).length > MAX_ASSERTION_BYTES) {
+      return `assertion too large (max ${MAX_ASSERTION_BYTES} bytes)`;
     }
     if (assertion.label.startsWith('c2pa.actions')) {
       actionsCount += 1;
@@ -736,6 +743,42 @@ app.post('/v1/read', async (req, res) => {
 
     res.status(500).json({ error: 'read failed', cid: req.cid });
   }
+});
+
+/**
+ * Catch-all error handler.
+ *
+ * Everything above handles its own failures; this exists for the ones nobody
+ * anticipated. Without it they reach express's default handler, which answers
+ * with an HTML page and writes nothing — so the response breaks the JSON
+ * contract every client parses, and the request leaves no trace in the audit
+ * stream (SPEC-012 AC1/AC4). The deep-nesting crash fixed above was one
+ * instance; this is the class.
+ *
+ * Registered last, after the routes, because express selects error middleware in
+ * declaration order. The body-parser handler earlier passes anything without an
+ * `err.type` down to here.
+ */
+app.use((err, req, res, _next) => {
+  audit({
+    ts: new Date().toISOString(),
+    cid: req.cid,
+    event: req.path === '/v1/read' ? 'read' : 'sign',
+    outcome: 'rejected',
+    reason: cap(`unhandled: ${err && err.message ? err.message : err}`, 512),
+    // token_id only when auth already ran; before it there is no verified
+    // caller, and recording an unverified token would let anyone write
+    // arbitrary ids into an operator's log (SPEC-017's reasoning).
+    ...(req.token ? { token_id: tokenId(req.token) } : {}),
+  });
+
+  if (res.headersSent) {
+    return res.end();
+  }
+
+  // Our own wording, never the library's: the detail is in the record, and the
+  // correlation id is how an operator finds it (SPEC-012 AC3/AC4).
+  return res.status(500).json({ error: 'request failed', cid: req.cid });
 });
 
 // SPEC-015 AC5: a client that opens a request and then stalls must not hold a
