@@ -21,9 +21,10 @@ declare(strict_types=1);
  *
  * Unit-level: reads a repository file, needs no running service.
  */
-function readmeText(): string
+function servicePageText(): string
 {
-    $path = dirname(__DIR__, 2).'/README.md';
+    // Moved with its text by SPEC-027: sizing lives on the service page now.
+    $path = dirname(__DIR__, 2).'/docs/service.md';
     $raw = file_get_contents($path);
 
     if (! is_string($raw)) {
@@ -35,11 +36,11 @@ function readmeText(): string
 
 it('states the measured memory multiplier', function () {
     // The number an operator multiplies by. Phrasing is free; the figure is not.
-    expect(readmeText())->toContain('7×');
+    expect(servicePageText())->toContain('7×');
 })->group('SPEC-017');
 
 it('gives the relationship needed to size a container', function () {
-    $readme = strtolower(readmeText());
+    $readme = strtolower(servicePageText());
 
     // Peak ≈ concurrency × multiplier × largest asset. A reader needs all three
     // terms named, or the multiplier alone tells them nothing actionable.

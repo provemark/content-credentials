@@ -241,8 +241,8 @@ least one test; every source file maps back to this spec.
 | AC1 | `tests/Integration/RemainingMediaTypesTest.php` :: "signs and reads back image/svg+xml", "signs and reads back video/quicktime", "signs and reads back video/x-msvideo", "signs and reads back audio/flac" | `src/Core/Manifest/MediaType.php`, `service/server.js` `SUPPORTED_MIME` |
 | AC2 | `tests/Unit/Manifest/RemainingMediaTypesTest.php` :: "declares all thirteen measured media types"; `tests/Integration/RemainingMediaTypesTest.php` :: "accepts the four added types on the running service"; `tests/Unit/Laravel/MediaTypeInferenceTest.php` :: "reaches every declared media type from some extension" | `src/Core/Manifest/MediaType.php`, `service/server.js` `/health` `media_types`, `src/Laravel/Console/InfersMediaType.php` `EXTENSIONS` |
 | AC3 | `tests/Integration/RemainingMediaTypesTest.php` :: "names every video type when refusing an oversized body" | `service/server.js` `VIDEO_MIME_LIST`, body-parser error handler |
-| AC4 | `tests/Unit/RemainingMediaTypeGuidanceTest.php` :: "names the tool that silently removes an SVG manifest", "says the SVG failure is silent, not an error", "gives the rule that follows from it", "covers the second SVG failure mode as well" | `README.md` § Signing SVG |
-| AC5 | `tests/Unit/RemainingMediaTypeGuidanceTest.php` :: "qualifies the short-audio claim for lossless formats", "keeps the lossless caveat beside the short-audio claim" | `README.md` § Supported media types |
+| AC4 | `tests/Unit/RemainingMediaTypeGuidanceTest.php` :: "names the tool that silently removes an SVG manifest", "says the SVG failure is silent, not an error", "gives the rule that follows from it", "covers the second SVG failure mode as well" | `docs/marking.md` § Signing SVG |
+| AC5 | `tests/Unit/RemainingMediaTypeGuidanceTest.php` :: "qualifies the short-audio claim for lossless formats", "keeps the lossless caveat beside the short-audio claim" | `docs/marking.md` § Supported media types |
 | AC6 | `tests/Unit/Manifest/RemainingMediaTypesTest.php` :: "still refuses the formats measured as unsupported", "names all thirteen supported types when refusing"; `tests/Integration/RemainingMediaTypesTest.php` :: "refuses the formats c2pa-rs cannot sign, naming what it accepts" | `src/Core/Manifest/MediaType.php` `fromMimeType()`, `service/server.js` `/v1/sign` |
 
 ## Implementation notes (2026-08-07)
@@ -270,3 +270,6 @@ least one test; every source file maps back to this spec.
 - **Verified beyond our own reader**: all four formats signed through
   `SigningServiceSigner` and checked with `bin/verify.sh` (c2patool 0.27.3, trust
   on) — signature valid / cert trusted / Art.50 mark PASS on each.
+
+> Documentation sources moved from `README.md` by SPEC-027 (2026-08-07);
+> the text is unchanged.

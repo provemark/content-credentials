@@ -239,7 +239,7 @@ least one test; every source file maps back to this spec.
 | AC2 | `tests/Integration/MediaTypesTest.php` :: "accepts on the service exactly what the client enum declares" | `service/server.js` `/health` `media_types` vs `src/Core/Manifest/MediaType.php` |
 | AC3 | `tests/Unit/Manifest/MediaTypeSetTest.php` :: "refuses a media type outside the set", "names every supported type in the refusal"; `tests/Integration/MediaTypesTest.php` :: "refuses an unsupported media type and names what it supports" | `src/Core/Manifest/MediaType.php` `fromMimeType()`, `service/server.js` `/v1/sign`, `/v1/read` |
 | AC4 | `tests/Integration/MediaTypesTest.php` :: "signs what the engine detects when the declared type disagrees" | `service/server.js` `/v1/sign` (passes `mime_type` to c2pa-rs, which decides from the bytes) |
-| AC5 | `tests/Unit/MediaTypeGuidanceTest.php` :: "lists every supported media type", "says the size limit applies to every format", "qualifies video rather than claiming it", "names the transport as the reason video is bounded" | `README.md` § Supported media types |
+| AC5 | `tests/Unit/MediaTypeGuidanceTest.php` :: "lists every supported media type", "says the size limit applies to every format", "qualifies video rather than claiming it", "names the transport as the reason video is bounded" | `docs/marking.md` § Supported media types |
 | AC6 | `tests/Integration/MediaTypesTest.php` :: "reports the accepted media types on /health" | `service/server.js` `/health` |
 | AC7 | `tests/Integration/MediaTypesTest.php` :: "refuses an oversized video by naming the limit and that video is bounded by it" | `service/server.js` body-parser error handler |
 | AC8 | `tests/Unit/Laravel/MediaTypeInferenceTest.php` :: "infers the declared type from a file extension", "reaches every declared media type from some extension", "refuses an unsupported extension and names what is supported" | `src/Laravel/Console/InfersMediaType.php` `EXTENSIONS` |
@@ -268,3 +268,6 @@ least one test; every source file maps back to this spec.
   ffmpeg at 64×64 / one second. They are tiny by construction; note that a
   signed asset is dominated by the manifest at this size (a 312-byte WEBP signs
   to 108 KB, because c2pa-node adds a claim thumbnail).
+
+> Documentation sources moved from `README.md` by SPEC-027 (2026-08-07);
+> the text is unchanged.

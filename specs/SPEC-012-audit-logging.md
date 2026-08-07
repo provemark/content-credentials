@@ -265,4 +265,7 @@ least one test; every source file maps back to this spec.
 | AC7 | `tests/Integration/AuditLoggingTest.php` :: "returns a generic message and a correlation id when signing fails" | `service/server.js` `catch` in `POST /v1/sign` |
 | AC8 | `tests/Integration/AuditLoggingTest.php` :: "writes each record as a single line of JSON" | `service/server.js` `audit()` |
 | AC9 | `tests/Integration/AuditLoggingTest.php` :: "keeps signing and reports degraded when the audit write fails" | `service/server.js` `audit()` catch, `auditDegraded`, `GET /health` |
-| AC10 | `tests/Integration/AuditLoggingTest.php` :: "documents what is and is not recorded" | `README.md` "Audit logging" |
+| AC10 | `tests/Integration/AuditLoggingTest.php` :: "documents what is and is not recorded" | `docs/service.md` "Audit logging" |
+
+> Documentation sources moved from `README.md` by SPEC-027 (2026-08-07);
+> the text is unchanged.

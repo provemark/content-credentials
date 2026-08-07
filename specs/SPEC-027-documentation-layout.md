@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — (draft)                                         |
+| Approved   | 2026-08-07 (maintainer)                           |
 | Supersedes | —                                                 |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -138,13 +138,14 @@ Not applicable — no code changes. The only non-documentation edit is one line 
 
 ## Open questions
 
-- **Does the quickstart stay in the README, or move to `docs/usage.md`?**
-  Recommendation: **stays.** It is 108 lines of the 300, and it is the thing a
+- ~~**Does the quickstart stay in the README?**~~ **Settled before approval:
+  stays.** It is 108 lines of the 300, and it is the thing a
   reader came for. A README that explains what the package is and then sends you
   elsewhere to see it work has optimised its own length at the reader's expense.
 
-- **Five pages, or fewer?** `docs/readers.md` (110 lines) and `docs/marking.md`
-  (120) could both fold into `usage.md`, giving three. Recommendation: **five**,
+- ~~**Five pages, or fewer?**~~ **Settled before approval: five.**
+  `docs/readers.md` (110 lines) and `docs/marking.md` (120) could both fold into
+  `usage.md`, giving three. Five,
   because both are decisions rather than instructions — which reader to bind, and
   what you are claiming about an asset — and a reader arrives at them with a
   question rather than a task.
@@ -156,8 +157,33 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
+| AC1 | `tests/Unit/DocumentationLayoutTest.php` :: "keeps the README short enough to read in one sitting", "links to every page it sends the reader to" | `README.md` § Where the rest lives |
+| AC2 | `tests/Unit/DocumentationLayoutTest.php` :: "resolves every relative link in the documentation" | `README.md`, `docs/*.md` |
+| AC3 | The nine doc tests that moved with their text: `tests/Unit/BodySizeGuidanceTest.php`, `tests/Unit/Level1AlignmentTest.php`, `tests/Unit/MediaTypeGuidanceTest.php`, `tests/Unit/RemainingMediaTypeGuidanceTest.php`, `tests/Unit/SourceTypeGuidanceTest.php`, `tests/Unit/ReaderTradeOffGuidanceTest.php`, `tests/Unit/Reading/ExtC2paReaderTest.php`, `tests/Unit/Manifest/BuilderEntryPointTest.php`, `tests/Integration/AuditLoggingTest.php` | `docs/service.md`, `docs/marking.md`, `docs/readers.md`, `docs/production.md` |
+| AC4 | `tests/Unit/DocumentationLayoutTest.php` :: "ships the documentation in the Composer package", "still leaves the developer-only directories out of the package" | `/.gitattributes` (the `/docs export-ignore` line, removed) |
+| AC5 | `tests/Unit/DocumentationLayoutTest.php` :: "opens each page with what it covers and a way back" | `docs/usage.md`, `docs/service.md`, `docs/marking.md`, `docs/readers.md`, `docs/production.md` |
+
+## Implementation notes (2026-08-07)
+
+- **AC2 found a link that was already broken.** `docs/adr/0003-signing-service-over-ffi.md`
+  has never existed — the file is `ADR-0003-ext-c2pa-and-signer-backends.md`, and
+  the wrong link had been sitting in the README since SPEC-025 added it that same
+  day. The criterion was written to catch link rot this change might introduce
+  and caught link rot that was already there, which is the better outcome.
+- **AC4 could not be tested the way the spec describes.** `git archive HEAD`
+  reads the `.gitattributes` of the last *commit*, so it cannot see this change
+  until after it is committed — a test that can only pass post-commit is one you
+  never watch go red. `git check-attr export-ignore` asks git the same question
+  against the working tree. It also has a trap the first attempt fell into: the
+  attribute is set on the *directory*, so asking about `tests/Pest.php` answers
+  "unspecified" and the assertion passes for the wrong reason. It asks about
+  `tests`, `specs`, `service`, `bin` and `certs`.
+- **Two SPEC-018 criteria ended up on different pages**, which the move made
+  visible: the Conforming Products List question belongs with production, while
+  "which Level 1 requirements does the key handling satisfy" belongs where the
+  key is operated — the rotation procedure cites the requirement it satisfies.
+  They had been adjacent paragraphs under one heading.
+- **The split was done by script, not by hand.** Each `##`/`###` block was
+  assigned a destination and moved whole, with an `###` promoted to `##` only
+  when its parent section did not travel with it. That is what keeps AC3
+  honest: no sentence was retyped, so none could quietly change.

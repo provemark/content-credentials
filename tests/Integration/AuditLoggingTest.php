@@ -445,7 +445,7 @@ SH;
 // --- AC10: the personal-data implication is stated --------------------------
 
 it('documents what is and is not recorded', function () {
-    $readme = (string) file_get_contents(dirname(__DIR__, 2).'/README.md');
+    $readme = (string) file_get_contents(dirname(__DIR__, 2).'/docs/service.md');
 
     expect($readme)->toContain('audit')
         ->and(strtolower($readme))->toContain('personal data')

@@ -241,10 +241,10 @@ least one test; every source file maps back to this spec.
 | AC1 | `tests/Integration/SigningKeyIdentityTest.php` :: "reports the identity of the loaded signing certificate on /health"; "matches the fingerprint of the certificate the service was configured with" | `service/server.js` `signingCertIdentity`, `GET /health` |
 | AC2 | `tests/Integration/SigningKeyIdentityTest.php` :: "reports a different fingerprint for a different signing certificate"; "reports the same fingerprint across a restart with the same certificate" | `service/server.js` `signingCertIdentity` |
 | AC3 | `tests/Integration/SigningKeyIdentityTest.php` :: "exposes no key material or filesystem paths in the certificate identity" | `service/server.js` `GET /health` |
-| AC4 | `tests/Unit/Level1AlignmentTest.php` :: "documents a signing-key rotation procedure"; "states that restart-based rotation satisfies the requirement" | `README.md` "Rotating the signing key" |
+| AC4 | `tests/Unit/Level1AlignmentTest.php` :: "documents a signing-key rotation procedure"; "states that restart-based rotation satisfies the requirement" | `docs/service.md` "Rotating the signing key" |
 | AC5 | `tests/Unit/Level1AlignmentTest.php` :: "configures automated dependency updates for every ecosystem that reaches signing"; "runs a scheduled audit that reports advisories with no fix available"; "does not turn main red on an advisory it cannot act on" | `.github/dependabot.yml`, `.github/workflows/audit.yml` |
 | AC6 | `tests/Unit/Level1AlignmentTest.php` :: "states the remediation obligation and names the scanning tools" | `SECURITY.md` "Dependency vulnerabilities" |
-| AC7 | `tests/Unit/Level1AlignmentTest.php` :: "tells a reader that their deployment, not this library, is the Generator Product"; "maps the service key handling onto the Level 1 requirements it satisfies" | `README.md` "Conformance alignment" |
+| AC7 | `tests/Unit/Level1AlignmentTest.php` :: "tells a reader that their deployment, not this library, is the Generator Product"; "maps the service key handling onto the Level 1 requirements it satisfies" | `docs/service.md` "Conformance alignment" |
 
 ### Implementation notes
 
@@ -261,3 +261,6 @@ least one test; every source file maps back to this spec.
   phrase match against hard-wrapped prose fails on the line break; the README
   helper now collapses whitespace, so reflowing a paragraph neither breaks a test
   nor silently stops it testing anything.
+
+> Documentation sources moved from `README.md` by SPEC-027 (2026-08-07);
+> the text is unchanged.
