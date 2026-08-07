@@ -37,7 +37,7 @@ function signerFor(MockClient $client, string $baseUrl = 'https://sign.test', st
 
 function pngManifest(): Manifest
 {
-    return ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+    return ManifestBuilder::forAiGenerated(MediaType::Png)
         ->withSoftwareAgent('ACME GenAI Image Model', '3.1.0')
         ->withClaimGenerator('Content Credentials', '0.1.0')
         ->build();
@@ -110,7 +110,7 @@ it('maps the manifest and asset into the request body', function () {
 it('omits creator_name when the manifest has no claim generator', function () {
     $client = new MockClient;
     $client->addResponse(signedResponse('X'));
-    $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)->withSoftwareAgent('A')->build();
+    $manifest = ManifestBuilder::forAiGenerated(MediaType::Png)->withSoftwareAgent('A')->build();
 
     signerFor($client)->sign(new Asset('B', MediaType::Png), $manifest);
 

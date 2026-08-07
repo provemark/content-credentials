@@ -60,7 +60,7 @@ it('uses an injected PSR-18 client unchanged', function () {
 
     ccRegister($app);
 
-    $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)->withSoftwareAgent('X')->build();
+    $manifest = ManifestBuilder::forAiGenerated(MediaType::Png)->withSoftwareAgent('X')->build();
     $app->make(SignerInterface::class)->sign(new Asset('B', MediaType::Png), $manifest);
 
     // The bound client handled the request — the package did not build its own.

@@ -25,7 +25,7 @@ const PBT_TRAINED = 'http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgor
 /** The genuine AI marking, as the builder emits it. */
 function pbtRealMarking(): array
 {
-    return ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+    return ManifestBuilder::forAiGenerated(MediaType::Png)
         ->withSoftwareAgent('generator')
         ->build()
         ->assertions()[0];

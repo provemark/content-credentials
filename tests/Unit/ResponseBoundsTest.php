@@ -39,7 +39,7 @@ function s9Reader(MockClient $client, int $maxResponseBytes): SigningServiceRead
 
 function s9Manifest(): Manifest
 {
-    return ManifestBuilder::forAiGeneratedImage(MediaType::Png)->withSoftwareAgent('X')->build();
+    return ManifestBuilder::forAiGenerated(MediaType::Png)->withSoftwareAgent('X')->build();
 }
 
 // --- AC1: an over-limit response is rejected before decoding ----------------

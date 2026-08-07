@@ -134,7 +134,7 @@ it('still signs a large but realistic PNG', function () {
 
     [$signer, $reader] = ServiceHarness::signerAndReader();
 
-    $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+    $manifest = ManifestBuilder::forAiGenerated(MediaType::Png)
         ->withSoftwareAgent('SPEC-017 large asset')
         ->build();
 

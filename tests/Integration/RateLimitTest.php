@@ -216,7 +216,7 @@ it('signs a normal sequence of requests without interference', function () {
     [$signer, $reader] = ServiceHarness::signerAndReader();
 
     for ($i = 0; $i < 3; $i++) {
-        $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+        $manifest = ManifestBuilder::forAiGenerated(MediaType::Png)
             ->withSoftwareAgent('SPEC-015 sequence')
             ->build();
 

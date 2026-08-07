@@ -62,7 +62,7 @@ it('matches the shadow model after every step of any with* sequence', function (
         Gen::mediaType(),
         Generators::seq(pbtCommandGenerator()),
     )->then(function (MediaType $type, array $commands) {
-        $builder = ManifestBuilder::forAiGeneratedImage($type);
+        $builder = ManifestBuilder::forAiGenerated($type);
         $model = BuilderModel::initial($type);
 
         foreach ($commands as $command) {
@@ -86,7 +86,7 @@ it('collapses any sequence to just the last write of each kind', function () {
         Gen::mediaType(),
         Generators::seq(pbtCommandGenerator()),
     )->then(function (MediaType $type, array $commands) {
-        $chained = ManifestBuilder::forAiGeneratedImage($type);
+        $chained = ManifestBuilder::forAiGenerated($type);
         $model = BuilderModel::initial($type);
 
         foreach ($commands as $command) {
@@ -98,7 +98,7 @@ it('collapses any sequence to just the last write of each kind', function () {
         }
 
         // Rebuild from the model's final state only — no history at all.
-        $direct = ManifestBuilder::forAiGeneratedImage($type)
+        $direct = ManifestBuilder::forAiGenerated($type)
             ->withSoftwareAgent($model->softwareAgent['name'], $model->softwareAgent['version']);
 
         if ($model->claimGenerator !== null) {
@@ -119,7 +119,7 @@ it('gives the same manifest whichever setter is called first', function () {
         Gen::softwareAgentName(),
         Gen::optionalVersion(),
     )->then(function (MediaType $type, string $agent, ?string $agentV, string $claim, ?string $claimV) {
-        $base = ManifestBuilder::forAiGeneratedImage($type);
+        $base = ManifestBuilder::forAiGenerated($type);
 
         $agentFirst = $base->withSoftwareAgent($agent, $agentV)->withClaimGenerator($claim, $claimV);
         $claimFirst = $base->withClaimGenerator($claim, $claimV)->withSoftwareAgent($agent, $agentV);
@@ -137,7 +137,7 @@ it('leaves every intermediate builder untouched by later commands', function () 
         Generators::seq(pbtCommandGenerator()),
     )->then(function (MediaType $type, string $name, array $commands) {
         // A buildable starting point, and a snapshot of what it produces.
-        $pinned = ManifestBuilder::forAiGeneratedImage($type)->withSoftwareAgent($name);
+        $pinned = ManifestBuilder::forAiGenerated($type)->withSoftwareAgent($name);
         $snapshot = $pinned->build()->toArray();
 
         // Chain an arbitrary sequence off it, discarding the results.

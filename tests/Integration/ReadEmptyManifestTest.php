@@ -37,7 +37,7 @@ it('reads an unsigned asset as an empty report, not an error', function () {
 it('still reads back the AI marking from a signed asset', function () {
     [$signer, $reader] = ServiceHarness::signerAndReader();
 
-    $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+    $manifest = ManifestBuilder::forAiGenerated(MediaType::Png)
         ->withSoftwareAgent('SPEC-010 regression')
         ->build();
 

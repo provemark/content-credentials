@@ -7,14 +7,17 @@ namespace Provemark\ContentCredentials\Core\Manifest;
 use Provemark\ContentCredentials\Core\Manifest\Exception\InvalidSoftwareAgentException;
 
 /**
- * Fluent, immutable builder for a claim-v2 manifest that marks an image as
- * AI-generated (SPEC-001).
+ * Fluent, immutable builder for a claim-v2 manifest that marks an asset as
+ * AI-generated (SPEC-001; entry point renamed by SPEC-022).
  *
  * Every with* method returns a NEW instance; the receiver is never mutated.
  * The produced manifest carries exactly one `c2pa.actions.v2` assertion whose
  * first (and only) action is `c2pa.created` with the trainedAlgorithmicMedia
  * digitalSourceType — satisfying both the Article 50 marking and claim-v2
  * well-formedness (docs/c2pa-primer.md §1–2).
+ *
+ * "Asset", not "image": SPEC-021 widened MediaType to nine types including
+ * audio and video, and the manifest is identical for all of them.
  */
 final class ManifestBuilder
 {
@@ -25,9 +28,29 @@ final class ManifestBuilder
         private ?string $claimGeneratorVersion = null,
     ) {}
 
-    public static function forAiGeneratedImage(MediaType $type): self
+    /**
+     * Start a manifest marking an asset of any supported media type as
+     * AI-generated (SPEC-001, SPEC-022).
+     */
+    public static function forAiGenerated(MediaType $type): self
     {
         return new self($type);
+    }
+
+    /**
+     * @deprecated since 0.8.0 — use {@see forAiGenerated()} instead. The name
+     *             predates SPEC-021, which added audio and video media types,
+     *             so it now reads as a contradiction for MediaType::Mp4 and
+     *             friends.
+     *
+     * This alias is **kept indefinitely** and there is no removal planned: it
+     * costs three lines, and deleting it would break working code for a purely
+     * cosmetic gain (SPEC-022, settled at approval). It raises no runtime
+     * deprecation for the same reason — see SPEC-022 AC4.
+     */
+    public static function forAiGeneratedImage(MediaType $type): self
+    {
+        return self::forAiGenerated($type);
     }
 
     public function withSoftwareAgent(string $name, ?string $version = null): self

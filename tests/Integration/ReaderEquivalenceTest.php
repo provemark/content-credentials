@@ -54,7 +54,7 @@ function spec019SignedAsset(): string
 {
     [$signer] = ServiceHarness::signerAndReader();
 
-    $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+    $manifest = ManifestBuilder::forAiGenerated(MediaType::Png)
         ->withSoftwareAgent('SPEC-019 equivalence')
         ->build();
 

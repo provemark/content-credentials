@@ -86,7 +86,7 @@ function cc21RoundTrip(MediaType $type): void
 {
     [$signer, $reader] = ServiceHarness::signerAndReader();
 
-    $manifest = ManifestBuilder::forAiGeneratedImage($type)
+    $manifest = ManifestBuilder::forAiGenerated($type)
         ->withSoftwareAgent('ACME GenAI', '1.0.0')
         ->build();
 
@@ -200,7 +200,7 @@ it('signs what the engine detects when the declared type disagrees', function ()
     // AC4 asks for — not a refusal.
     [$signer, $reader] = ServiceHarness::signerAndReader();
 
-    $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Webp)
+    $manifest = ManifestBuilder::forAiGenerated(MediaType::Webp)
         ->withSoftwareAgent('ACME GenAI')
         ->build();
 

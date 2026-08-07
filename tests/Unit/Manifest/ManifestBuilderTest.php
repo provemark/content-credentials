@@ -41,7 +41,7 @@ function spec001AiAssertion(array $softwareAgent): array
 // other key — all at once.
 
 it('builds the AI-generated marking for PNG', function () {
-    $arr = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+    $arr = ManifestBuilder::forAiGenerated(MediaType::Png)
         ->withSoftwareAgent('ACME GenAI Image Model', '3.1.0')
         ->build()
         ->toArray();
@@ -55,7 +55,7 @@ it('builds the AI-generated marking for PNG', function () {
 // --- AC2: supports JPEG and omits an unset optional version ----------------
 
 it('supports JPEG and omits an unset software-agent version', function () {
-    $arr = ManifestBuilder::forAiGeneratedImage(MediaType::Jpeg)
+    $arr = ManifestBuilder::forAiGenerated(MediaType::Jpeg)
         ->withSoftwareAgent('X')
         ->build()
         ->toArray();
@@ -111,14 +111,14 @@ it('normalises mime case and strips parameters', function (string $mime) {
 
 it('rejects an empty or whitespace software-agent name at build()', function (string $name) {
     // withSoftwareAgent must NOT throw; the error surfaces at build() (per AC4).
-    $builder = ManifestBuilder::forAiGeneratedImage(MediaType::Png)->withSoftwareAgent($name);
+    $builder = ManifestBuilder::forAiGenerated(MediaType::Png)->withSoftwareAgent($name);
 
     expect(fn () => $builder->build())->toThrow(InvalidSoftwareAgentException::class);
 })->with(['', '   ', "\t\n"])->group('SPEC-001');
 
 // D3: a software agent is mandatory — build() without one is an error.
 it('requires a software agent before build()', function () {
-    $builder = ManifestBuilder::forAiGeneratedImage(MediaType::Png);
+    $builder = ManifestBuilder::forAiGenerated(MediaType::Png);
 
     expect(fn () => $builder->build())->toThrow(InvalidSoftwareAgentException::class);
 })->group('SPEC-001');
@@ -126,7 +126,7 @@ it('requires a software agent before build()', function () {
 // --- AC5: the builder is immutable / fluent --------------------------------
 
 it('is immutable: with* returns a new, independent instance', function () {
-    $b1 = ManifestBuilder::forAiGeneratedImage(MediaType::Png);
+    $b1 = ManifestBuilder::forAiGenerated(MediaType::Png);
     $b2 = $b1->withSoftwareAgent('X');
 
     // Distinct instances.
@@ -145,7 +145,7 @@ it('is immutable: with* returns a new, independent instance', function () {
 // --- AC6: the AI URI is fixed and not caller-overridable -------------------
 
 it('always emits the fixed trainedAlgorithmicMedia URI', function () {
-    $arr = ManifestBuilder::forAiGeneratedImage(MediaType::Jpeg)
+    $arr = ManifestBuilder::forAiGenerated(MediaType::Jpeg)
         ->withSoftwareAgent('X')
         ->build()
         ->toArray();
@@ -163,7 +163,7 @@ it('always emits the fixed trainedAlgorithmicMedia URI', function () {
 // --- D1: Core owns claim_generator_info (optional) -------------------------
 
 it('includes claim_generator_info when set', function () {
-    $arr = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+    $arr = ManifestBuilder::forAiGenerated(MediaType::Png)
         ->withSoftwareAgent('X')
         ->withClaimGenerator('Content Credentials', '0.1.0')
         ->build()
@@ -177,7 +177,7 @@ it('includes claim_generator_info when set', function () {
 })->group('SPEC-001');
 
 it('omits claim_generator_info when not set', function () {
-    $arr = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+    $arr = ManifestBuilder::forAiGenerated(MediaType::Png)
         ->withSoftwareAgent('X')
         ->build()
         ->toArray();
@@ -188,7 +188,7 @@ it('omits claim_generator_info when not set', function () {
 // --- D4: Core boundary — assertions() mirrors toArray()['assertions'] ------
 
 it('exposes assertions() matching the toArray assertions', function () {
-    $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+    $manifest = ManifestBuilder::forAiGenerated(MediaType::Png)
         ->withSoftwareAgent('X')
         ->build();
 
@@ -197,7 +197,7 @@ it('exposes assertions() matching the toArray assertions', function () {
 
 // SPEC-001 amendment (approved via SPEC-002): Manifest exposes its media type.
 it('exposes the manifest media type', function () {
-    $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Jpeg)
+    $manifest = ManifestBuilder::forAiGenerated(MediaType::Jpeg)
         ->withSoftwareAgent('X')
         ->build();
 
