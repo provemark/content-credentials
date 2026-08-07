@@ -366,7 +366,23 @@ const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
 const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS ?? 15_000);
 const HEADERS_TIMEOUT_MS = Number(process.env.HEADERS_TIMEOUT_MS ?? 10_000);
 
+// --- SPEC-024: the read path, bounded separately ----------------------------
+// Measured 2026-08-07 against a 17.7 MiB baseline: reading an 11.3 MB asset
+// costs ~5.2x at one in flight, ~3.8x at four, ~2.9x at eight -- cheaper than
+// signing's ~7x, same order of magnitude. So the cap matches signing's 4 rather
+// than being generous: four signs plus four reads of maximum-size assets is
+// already ~650 MiB, which is what an operator has to size for.
+//
+// The rate budget is separate from signing's, and that separation is the point:
+// one shared budget would let a verification loop consume what an application
+// needs to sign its own output, and that failure presents as "signing is
+// broken". It stays generous, because sustained rate is about fair use over
+// time while the concurrency cap is what bounds peak memory.
+const MAX_CONCURRENT_READS = Number(process.env.MAX_CONCURRENT_READS ?? 4);
+const READ_RATE_LIMIT_REQUESTS = Number(process.env.READ_RATE_LIMIT_REQUESTS ?? 240);
+
 let inFlight = 0;
+let readsInFlight = 0;
 
 // Fixed window per token_id — the identifier SPEC-012 already derives, so this
 // introduces no new way of naming a caller. Only authenticated requests reach
@@ -374,17 +390,25 @@ let inFlight = 0;
 // as they expire rather than accumulating.
 const buckets = new Map();
 
-/** @returns {number|null} seconds to wait, or null when within budget. */
-function rateLimited(id, now) {
-  if (RATE_LIMIT_REQUESTS <= 0) return null;
+// A second store, so the two budgets are genuinely independent (SPEC-024 AC3).
+// Sharing the map would share the counter, which is the thing being avoided.
+const readBuckets = new Map();
 
-  const bucket = buckets.get(id);
+/**
+ * @param {Map} store  which budget to spend from
+ * @param {number} limit  requests per window; <= 0 disables
+ * @returns {number|null} seconds to wait, or null when within budget.
+ */
+function rateLimited(store, limit, id, now) {
+  if (limit <= 0) return null;
+
+  const bucket = store.get(id);
 
   if (bucket === undefined || bucket.resetAt <= now) {
-    buckets.set(id, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    store.set(id, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
 
-    for (const [key, value] of buckets) {
-      if (value.resetAt <= now) buckets.delete(key);
+    for (const [key, value] of store) {
+      if (value.resetAt <= now) store.delete(key);
     }
 
     return null;
@@ -392,7 +416,7 @@ function rateLimited(id, now) {
 
   bucket.count += 1;
 
-  return bucket.count > RATE_LIMIT_REQUESTS
+  return bucket.count > limit
     ? Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))
     : null;
 }
@@ -515,9 +539,14 @@ app.get('/health', (_req, res) => {
     // to say how busy it is. Otherwise an orchestrator cannot tell a saturated
     // instance from an idle one and keeps routing to it.
     in_flight: inFlight,
+    // SPEC-024 AC5: reported separately from signing, because the two paths cost
+    // different amounts and an operator cannot size an instance from one number.
+    reads_in_flight: readsInFlight,
     limits: {
       max_concurrent_signs: MAX_CONCURRENT_SIGNS,
       rate_limit_requests: RATE_LIMIT_REQUESTS,
+      max_concurrent_reads: MAX_CONCURRENT_READS,
+      read_rate_limit_requests: READ_RATE_LIMIT_REQUESTS,
       rate_limit_window_ms: RATE_LIMIT_WINDOW_MS,
       request_timeout_ms: REQUEST_TIMEOUT_MS,
       headers_timeout_ms: HEADERS_TIMEOUT_MS,
@@ -554,7 +583,7 @@ app.post('/v1/sign', (req, res, next) => {
       .json({ error: reason, cid: req.cid });
   };
 
-  const wait = rateLimited(tokenId(req.token ?? ''), Date.now());
+  const wait = rateLimited(buckets, RATE_LIMIT_REQUESTS, tokenId(req.token ?? ''), Date.now());
   if (wait !== null) {
     return refuse('rate limit exceeded', wait);
   }
@@ -699,6 +728,43 @@ app.post('/v1/sign', async (req, res) => {
  * Body: { content (base64), mime_type }
  * Resp: parsed manifest store JSON, or {} if no C2PA data.
  */
+/**
+ * SPEC-024: the same shape as the sign limiter above, deliberately duplicated
+ * rather than generalised. A shared helper would take four parameters to express
+ * two policies whose numbers, budgets and reasons differ; two short blocks are
+ * easier to read and to change independently.
+ */
+app.post('/v1/read', (req, res, next) => {
+  const refuse = (reason, retryAfter) => {
+    audit({
+      ts: new Date().toISOString(),
+      cid: req.cid,
+      event: 'read',
+      outcome: 'rejected',
+      token_id: tokenId(req.token ?? ''),
+      reason,
+    });
+
+    return res.status(429)
+      .set('Retry-After', String(retryAfter))
+      .json({ error: reason, cid: req.cid });
+  };
+
+  const wait = rateLimited(readBuckets, READ_RATE_LIMIT_REQUESTS, tokenId(req.token ?? ''), Date.now());
+  if (wait !== null) {
+    return refuse('read rate limit exceeded', wait);
+  }
+
+  if (MAX_CONCURRENT_READS > 0 && readsInFlight >= MAX_CONCURRENT_READS) {
+    return refuse('too many read requests in flight', 1);
+  }
+
+  readsInFlight += 1;
+  res.on('close', () => { readsInFlight -= 1; });
+
+  return next();
+});
+
 app.post('/v1/read', async (req, res) => {
   const { content, mime_type } = req.body ?? {};
   if (!content || !mime_type) {
@@ -801,6 +867,7 @@ server.listen(PORT, () => {
   console.log(
     `c2pa-spike signer listening on :${PORT} (alg=${SIGN_ALG}, `
     + `timestamping=${Boolean(TSA_URL)}, trust=${Boolean(trustSettings)}, `
-    + `max_concurrent=${MAX_CONCURRENT_SIGNS}, rate=${RATE_LIMIT_REQUESTS}/${RATE_LIMIT_WINDOW_MS}ms)`,
+    + `max_concurrent=${MAX_CONCURRENT_SIGNS}, rate=${RATE_LIMIT_REQUESTS}/${RATE_LIMIT_WINDOW_MS}ms, `
+    + `max_concurrent_reads=${MAX_CONCURRENT_READS}, read_rate=${READ_RATE_LIMIT_REQUESTS}/${RATE_LIMIT_WINDOW_MS}ms)`,
   );
 });

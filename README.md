@@ -278,7 +278,25 @@ instance about to run out of memory.
 Limits are **on by default**; a protection that ships off is one nobody turns
 on. Setting one to `0` disables it explicitly, and `/health` says so.
 
-Tune with `MAX_CONCURRENT_SIGNS`, `RATE_LIMIT_REQUESTS`, `RATE_LIMIT_WINDOW_MS`,
+**Reading is bounded separately from signing.** `/v1/read` has its own
+concurrency cap and its own rate budget, and `/health` reports both alongside
+`reads_in_flight`. The separation is deliberate: with one shared budget a
+verification loop could consume what the application needs to sign its own
+output, and that failure would present as "signing is broken".
+
+Measured, reading costs about **3–5×** the asset in memory against signing's
+~7× — cheaper, same order of magnitude — so the read cap defaults to the same 4
+rather than to something generous. A fully saturated instance holds both paths
+at once: four signs plus four reads of maximum-size assets is roughly **650 MiB**,
+which is the number to size a container against.
+
+Note that a **sign-then-verify round-trip spends from both budgets** — the
+common pattern of reading back what you just signed costs one of each. That is
+an argument for the separation rather than against it: with one shared budget
+the same round-trip would spend double from a single bucket.
+
+Tune with `MAX_CONCURRENT_SIGNS`, `RATE_LIMIT_REQUESTS`, `MAX_CONCURRENT_READS`,
+`READ_RATE_LIMIT_REQUESTS`, `RATE_LIMIT_WINDOW_MS` (shared by both budgets),
 `REQUEST_TIMEOUT_MS` and `HEADERS_TIMEOUT_MS`.
 
 ### Sizing the container
@@ -681,6 +699,32 @@ Not excluded on principle — each has a reason:
 | JPEG XL | A handler exists upstream; we have not measured it. |
 
 This project does not ship what it has not seen work.
+
+### Which reader, and what it costs
+
+`SigningServiceReader` sends the asset to the service; `ExtC2paReader` parses it
+in-process through `ext-c2pa`. The usual comparison is operational — no second
+process, no network hop, faster — and that is real. There is a second difference
+worth deciding deliberately.
+
+**The extension parses untrusted input inside your application process.** A
+manifest arrives as bytes from somewhere you do not control, and verifying it
+means parsing a container format in native code. With the service reader that
+parsing happens in a separate, disposable process; with the extension it happens
+in the PHP worker that also holds your session data and your database
+connections.
+
+This is the mirror image of the argument in
+[ADR-0003](docs/adr/0003-signing-service-over-ffi.md): the signing *key* is kept
+out of the web process by putting the signer behind a service, and the extension
+reader moves parsing in the opposite direction. Neither is wrong — a memory-safety
+bug in c2pa-rs is not a thing anyone has demonstrated — but the trade is worth
+making on purpose rather than inheriting it because an extension happened to be
+installed.
+
+That is also why `reader` defaults to `service` and why `auto` has to be chosen
+explicitly (SPEC-020): installing the extension for an unrelated reason should
+not silently move where hostile input is parsed.
 
 ## Verifying the output
 

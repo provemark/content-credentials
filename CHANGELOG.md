@@ -57,7 +57,71 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   merely absent: **PDF** (c2pa-rs can read but not write it), **WEBM** (no
   handler at all), **DNG** and **JPEG XL** (unmeasured).
 
+- **The read path is bounded (SPEC-024).** `/v1/read` had no rate limit, no
+  concurrency cap and no audit record: measured, ten reads all answered 200
+  while the sixth sign was refused. SPEC-015 scoped itself to `/v1/sign` and
+  never mentioned reading, so this was a gap rather than a decision. It now has
+  its own cap and its own budget, reported on `/health` as
+  `max_concurrent_reads`, `read_rate_limit_requests` and `reads_in_flight`.
+
+  Budgets are **separate** on purpose: one shared budget would let a
+  verification loop consume what an application needs to sign its own output,
+  and that failure presents as "signing is broken".
+
+  Measured: reading costs ~3–5× the asset in memory against signing's ~7×, so
+  the read cap defaults to the same 4 rather than to something generous. Four
+  signs plus four reads of maximum-size assets is roughly 650 MiB.
+
+- **The client keeps its own bounds now (SPEC-025).** The service has been
+  hardened six times; the client once, and that one bound was sized against a
+  limit SPEC-017 replaced. Four changes, all on the PHP side:
+
+  - `max_request_bytes` (new, 15 MiB): an asset too large for the service is
+    refused with `AssetTooLargeException` **before** it is base64-encoded.
+    Encoding costs ~3.7× the file, so learning the limit from the service's 413
+    meant paying for it first — or dying before the answer arrived.
+  - `require_secure_transport` (new, off): plain HTTP to anything other than
+    loopback sends the API key across a network in clear. That is now a logged
+    warning by default, and an exception when this is set. Loopback stays
+    silent, because that is the documented deployment.
+  - A service error message copied into an exception is capped at 256
+    characters. Whatever answers on that URL controls that string, and it ends
+    up in your logs.
+  - The signed file is written atomically — temporary file plus rename, in the
+    destination's own directory — so a crash mid-write can no longer leave a
+    truncated file that looks signed.
+
+  The README and the primer now also state what choosing `ExtC2paReader` means:
+  it parses untrusted assets **inside the application process**, where the
+  service reader keeps that in a separate one. That is the mirror image of
+  ADR-0003's key-isolation argument, and worth deciding on purpose.
+
+### Fixed
+
+- **A deeply nested assertion crashed past its own guard.** SPEC-011's depth
+  check ran *behind* the size check, and the size check is `JSON.stringify`,
+  which overflows the stack at ~10 000 levels. Such a request answered 500 with
+  an HTML body and wrote no audit record, so SPEC-011's bound and SPEC-012's
+  "every request is recorded" held only for payloads small enough not to need
+  them. The two checks are now the other way round.
+- **Unanticipated errors reached express's default handler**, answering HTML
+  with no correlation id in the body and writing nothing to the audit stream.
+  There is now a catch-all that audits and answers `{error, cid}` like every
+  other refusal.
+
 ### Upgrading
+
+- **`max_response_bytes` drops from 96 MiB to 32 MiB.** It was documented as
+  "headroom over the service's 50 MB request cap", and SPEC-017 lowered that cap
+  to 20 MB — so the guard permitted about five times what a correct service can
+  send, and sat far above the `memory_limit = 128M` many deployments run. If you
+  raised `MAX_BODY_SIZE` on the service, raise `CONTENTAUTH_MAX_RESPONSE_BYTES`
+  and `CONTENTAUTH_MAX_REQUEST_BYTES` with it.
+
+- **Verification traffic is now rate-limited.** If a deployment reads more than
+  240 assets per minute per token, or runs more than 4 verifications at once, it
+  will start seeing **429** where it never did. Raise `READ_RATE_LIMIT_REQUESTS`
+  and `MAX_CONCURRENT_READS`, and raise the container's memory with them.
 
 - **An exhaustive `match` over `MediaType` is no longer exhaustive.** Eleven
   cases were added across SPEC-021 and SPEC-023, so code like `match ($asset->mediaType) { MediaType::Png => …,

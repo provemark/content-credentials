@@ -2065,3 +2065,277 @@ anywhere in `src/`. Startup fails closed on an unparseable certificate and on
 trust settings that would verify nothing. And SVG — the newest format — neither
 expands XML entities nor resolves external ones, checked with an entity bomb and
 an XXE probe against the running service.
+
+---
+
+## Step 30 — SPEC-024 implemented: the read path is bounded (2026-08-07)
+
+`/v1/read` now has its own concurrency cap and its own rate budget, separate
+from signing's, reported on `/health` as `max_concurrent_reads`,
+`read_rate_limit_requests` and `reads_in_flight`.
+
+### The measurement changed the defaults, which is why it was worth taking
+
+The draft proposed 8 concurrent reads "on the grounds that reading is cheaper",
+with an explicit note that nobody had measured it. Measured, against a 17.7 MiB
+idle baseline, reading a signed 11.3 MB asset:
+
+| Concurrent | Peak | Per request | × asset |
+|---|---|---|---|
+| 1 | 76 MiB | 58 MiB | 5.2× |
+| 4 | 190 MiB | 43 MiB | 3.8× |
+| 8 | 278 MiB | 32.5 MiB | 2.9× |
+
+So ~3–5×, against signing's ~7×: cheaper, same order of magnitude, same falling
+shape as SPEC-017 found. Eight concurrent reads of a maximum-size asset is
+~350 MiB *on top of* signing, so the cap became **4**, matching signing, and a
+fully saturated instance is ~650 MiB. The rate budget stayed generous at 240/min
+— sustained rate is about fair use, the concurrency cap is what bounds memory.
+
+Worth recording as a case where a draft's honest "unmeasured" note did its job:
+the number that arrived halved the proposed default.
+
+### ⚠️ A sign-then-verify round-trip spends from BOTH budgets
+
+Found the moment the limiter landed: SPEC-015's "signs a normal sequence of
+requests without interference" started failing with
+
+```
+ReadFailedException: Read service returned HTTP 429: read rate limit exceeded
+```
+
+— because that test signs *and reads back*, and the read-limited profile gives a
+budget of 5. The 429 is correct behaviour; what it exposed is that reading back
+what you just signed is a very common pattern, including in `bin/e2e.php` and in
+most of this suite.
+
+Two consequences. The README now says it, because a deployment that verifies
+everything it signs needs its read budget at least as large as its sign budget
+(the defaults, 240 against 60, satisfy that comfortably). And the dense CI
+profiles now raise `READ_RATE_LIMIT_REQUESTS` exactly as they already raise
+`RATE_LIMIT_REQUESTS` — without that, CI would have gone flaky in a way that
+looks like a defect in the limiter.
+
+It is also an argument *for* the separation rather than against it: with one
+shared budget the same round-trip would spend double from a single bucket.
+
+### Two CI profiles, for opposite reasons
+
+`read-limited` gives a small read budget and a large sign budget, which is what
+AC3 needs — it asserts that exhausting one does not spend the other, and it can
+only tell them apart when the numbers are far enough apart to rule out
+coincidence. The read *concurrency* cap needs the opposite (a rate budget high
+enough that 429 does not arrive from the rate limiter first) and is covered by
+`defaults`. Two criteria about the same subsystem that cannot be tested in one
+configuration, the same shape as SPEC-014's trust-on/trust-off split.
+
+### AC6 is a weak test and is kept as one
+
+`/health` sits outside `/v1`, so it is structurally impossible for it to be rate
+limited: the test cannot fail against any plausible defect. Kept as a smoke
+check, recorded here as not being evidence of anything on its own. The
+alternative — deleting it — would leave the criterion untested, which is worse
+only in the sense that it would be invisible.
+
+### The unexplained `composer check` flake, second sighting
+
+Step 20 recorded one run reporting `1 failed, 117 passed` that could never be
+reproduced, and asked that a recurrence be recorded rather than assumed to be
+nothing. It recurred today: `1 failed, 213 passed`, output not captured, and not
+reproducible in **five** subsequent full runs or **eleven** targeted runs of the
+property suite.
+
+What is now visible that was not before: the assertion count varies run to run
+(6155–6691 across five runs), which confirms the Eris suites are generating
+different input each time. So the most likely candidate remains a rare generated
+case rather than noise — meaning it is a real property failure nobody has seen
+the input for. If it recurs, capture the output before doing anything else.
+
+---
+
+## Step 31 — SPEC-025: the client keeps its own bounds (2026-08-07)
+
+Four findings from the review (Step 29), plus the two smaller ones, implemented
+together because they are one idea: the service has been hardened six times and
+the client once.
+
+### The response bound was five times too generous, in the dangerous direction
+
+`maxResponseBytes` defaulted to 96 MiB, documented in two places as "headroom
+over the service's 50 MB request cap" — a cap SPEC-017 replaced with 20 MB. The
+service cannot return more than ~20 MiB. So the guard against a hostile response
+exhausting PHP memory sat above the `memory_limit = 128M` many deployments still
+run: the process dies before the guard fires, which is the exact outcome it
+exists to prevent. Now 32 MiB, and both comments corrected.
+
+### The request was not bounded at all
+
+The client bounded the response and not the request — and the request is where
+the memory goes: raw bytes, base64, JSON body, roughly 3.7× the file. A caller
+signing something too large met the limit as a 413 *after* paying that.
+`AssetTooLargeException` is thrown before encoding.
+
+The number is duplicated (client and service), and that is acceptable here for a
+specific reason worth stating: the service enforces its own limit regardless, so
+drift costs a worse error message and never a wrong outcome. That is what makes a
+configured value tolerable where it would not be for a security control.
+
+### Insecure transport: warn, do not break the documented deployment
+
+The strict reading of SPEC-015's "a protection that ships off is one nobody turns
+on" would say throw. It is wrong here: `http://signer:3000` between two
+containers on one private network is what this project's own `docker-compose.yml`
+produces, and it is not a leak. A default that breaks the deployment the README
+recommends would be switched off by everyone within a day — worse than a warning
+nobody disables.
+
+So: `usesInsecureTransport()` in Core states the fact, the provider decides what
+it is worth. Core has no logger by design, and the severity difference is a
+framework concern. Note the consequence, which the Core test pins: Core reports
+`http://signer:3000` as insecure, because it cannot know that host is private.
+
+**The warning must survive a missing logger.** A bare container has no `log`
+binding, and a protection that crashes when it cannot warn is worse than absent.
+
+### Atomic writes: the temporary file must share the destination's filesystem
+
+`tempnam()` in the destination's own directory, not `sys_get_temp_dir()`. A
+rename across filesystems degrades to a copy, which is precisely the non-atomic
+write being replaced. Also `chmod` after creation: `tempnam()` makes 0600, and a
+signed asset is an output file rather than a secret.
+
+The tests assert observable consequences — no leftover temporary file, no
+destination file after a failure, wholesale replacement — because true atomicity
+rests on `rename()` semantics and cannot be observed in-process without a race.
+
+### ⚠️ AC5 was implemented before its test
+
+Recorded rather than quietly fixed: for AC5 the code went in first and the tests
+followed, so they were never watched going red. For AC6 the same risk was closed
+differently — the phrases were checked against `git show origin/main:README.md`
+and confirmed absent, which is the same evidence by another route. Worth doing
+that routinely for documentation criteria; it costs one command.
+
+### The unexplained flake, third sighting — and a pattern
+
+Step 20 saw it once, Step 30 twice. Today it appeared a third time:
+`1 failed, 237 passed`, output not captured again, and not reproducible in four
+subsequent `composer check` runs or roughly twenty bare `pest` runs.
+
+The pattern now visible, and the reason to keep counting: **all three sightings
+were under `composer check`, never under a bare `pest` run.** That may be
+coincidence — `composer check` is what gets run most — but it is the only
+correlation there is, and `check` differs from `test` only in what runs before
+it (Pint rewrites files, then PHPStan, then Pest, then Deptrac).
+
+For next time, concretely: run `composer check > /tmp/out.txt 2>&1` in a loop
+and inspect the file, rather than re-running afterwards. Twice now the evidence
+has been lost by re-running to confirm.
+
+---
+
+## Step 32 — The digitalSourceType research, and what it changed (2026-08-07)
+
+Step 26 settled the shape of the builder family (form A) and left one thing to
+verify before writing the spec: whether the manipulated case differs only in
+`digitalSourceType`, or also in the action sequence. Verified against the
+sources. **It differs, and much more than expected.**
+
+### The manipulated case needs ingredients, which this package does not have
+
+C2PA Implementation Guidance 2.4 is explicit: AI editing is recorded as a
+`c2pa.edited` or `c2pa.placed` action carrying the source type, with a
+`c2pa.opened` action first, "pointing to an ingredient assertion for the
+original photo, where a `parentOf` relationship is indicated".
+
+So Article 50(4)'s case is three things, not one constant:
+
+1. `c2pa.opened` first, referencing an ingredient;
+2. an ingredient assertion for the original, `relationship: parentOf`;
+3. `c2pa.edited` carrying the AI `digitalSourceType`.
+
+`ManifestBuilder` emits one assertion. `service/server.js` passes
+`ingredients: []`. Supporting this means the caller supplies the *original*
+asset so a hash can be computed over it — a new input to the entire signing
+path. That is a bigger piece of work than the whole source-type spec, which is
+why SPEC-026 (draft) ships the **created-time** terms and puts the edited ones
+out of scope behind an explicit exception.
+
+Had this not been checked first, the obvious implementation — one more enum case
+— would have produced a well-formed manifest making a **false claim**: that the
+asset was *created* by an operation which by definition acts on one that already
+existed.
+
+### ⚠️ The guidance misspells the IPTC term
+
+The guidance writes `compositedWithTrainedAlgorithmicMedia`. IPTC has no such
+concept. The registered term is `compositeWithTrainedAlgorithmicMedia` — no "d".
+Implementing from the prose would emit a URI resolving to nothing, inside the
+assertion whose entire purpose is machine readability.
+
+Rule for this project, now written down: **source-type URIs come from
+`cv.iptc.org`, never from a document quoting it.**
+
+### ⚠️ And the CAI docs describe that term more loosely than IPTC defines it
+
+CAI: "assets containing elements created by generative AI". IPTC: "Augmentation,
+correction or enhancement **using** a Generative AI model, such as with
+inpainting or outpainting". Those are different claims. For "a new asset mixing
+AI and non-AI elements" the registered term is `compositeSynthetic`.
+
+Reaching for `compositeWithTrainedAlgorithmicMedia` because its name sounds like
+"composite" would assert that an original existed and was edited. That is the
+kind of error nobody notices, because the manifest is valid and the assertion is
+present — it is simply about something that did not happen.
+
+### The vocabulary as it stands (fetched 2026-08-07)
+
+Active and relevant: `trainedAlgorithmicMedia`,
+`compositeWithTrainedAlgorithmicMedia`, `compositeSynthetic`, `composite`,
+`compositeCapture`, `algorithmicMedia`, `digitalCapture`, `computationalCapture`,
+`algorithmicallyEnhanced`, `humanEdits`, `digitalCreation`, `dataDrivenMedia`,
+`virtualRecording`, `screenCapture`, `negativeFilm`, `positiveFilm`, `print`.
+
+**Retired, never to be emitted:** `minorHumanEdits` and `digitalArt` (both
+2024-09-17), `softwareImage` (2022-06-14). Worth knowing because older examples
+on the web still use them.
+
+### What the draft asks the maintainer
+
+Three open questions, and the third is the one worth sleeping on: **does the
+authenticity case belong in this package at all?** Everything here is built
+around Article 50 and AI marking. `digitalCapture` is the opposite claim, made by
+cameras — and a PHP web application asserting that it captured a photograph is
+asserting something it cannot know. Cheap to support, and it may invite a use
+this package is not positioned for.
+
+### Open question 3, settled the same day: no authenticity claims here
+
+Answered: **not in this package, not now** — and the consequence is wider than
+the one term that prompted it. `digitalCapture` and `computationalCapture` claim
+a device recorded something; `digitalCreation` claims a human made it without
+generative tools; the film and print terms claim a physical original. **A PHP web
+application cannot know any of them.** It receives bytes. Whatever it asserts
+about their origin it is repeating something it was told — and a C2PA assertion
+is signed with a certificate, which turns hearsay into attestation.
+
+Not an argument against ever supporting them, but against supporting them as
+"an enum case you can pass". The caller would have to be the capture device or
+vouch for it, and the package would have to say so loudly. That is a different
+product decision, and nothing is asking for it.
+
+What remains is coherent, and sharper than the draft was: this package marks
+**synthetic** media. `trainedAlgorithmicMedia` (exists), `compositeSynthetic`
+(a mix containing generative AI), and `algorithmicMedia` (purely algorithmic,
+not trained on sampled data). The last is worth having precisely because it is a
+*negative* claim about AI — it distinguishes procedural output from generative
+output instead of leaving both unmarked.
+
+The draft narrowed accordingly: two new cases instead of five, `forCaptured()`
+dropped before it existed, and SPEC-026 AC5 now tests `REQUIRE_AI_MARKING`
+against `algorithmicMedia` rather than `digitalCapture` — synthetic but
+explicitly not trained, which is the sharpest test of a policy that names
+`trainedAlgorithmicMedia`.
+
+Sources: C2PA Implementation Guidance 2.4; IPTC Digital Source Type NewsCodes;
+CAI open-source documentation on writing assertions and actions.

@@ -35,6 +35,12 @@ services:
       # disables a limit explicitly and /health reports that.
       MAX_CONCURRENT_SIGNS: "${MAX_CONCURRENT_SIGNS:-4}"
       RATE_LIMIT_REQUESTS: "${RATE_LIMIT_REQUESTS:-60}"
+      # Read path, bounded separately (SPEC-024). Reading costs ~3-5x the asset
+      # against signing's ~7x, so the concurrency cap matches rather than being
+      # generous; the rate budget is higher because sustained rate is about fair
+      # use while the cap is what bounds peak memory.
+      MAX_CONCURRENT_READS: "${MAX_CONCURRENT_READS:-4}"
+      READ_RATE_LIMIT_REQUESTS: "${READ_RATE_LIMIT_REQUESTS:-240}"
       RATE_LIMIT_WINDOW_MS: "${RATE_LIMIT_WINDOW_MS:-60000}"
       REQUEST_TIMEOUT_MS: "${REQUEST_TIMEOUT_MS:-15000}"
       HEADERS_TIMEOUT_MS: "${HEADERS_TIMEOUT_MS:-10000}"
