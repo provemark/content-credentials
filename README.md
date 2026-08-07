@@ -95,7 +95,7 @@ use Provemark\ContentCredentials\Core\Manifest\MediaType;
 use Provemark\ContentCredentials\Core\Signing\Asset;
 use Provemark\ContentCredentials\Laravel\ContentCredentials;
 
-$manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+$manifest = ManifestBuilder::forAiGenerated(MediaType::Png)
     ->withSoftwareAgent('ACME GenAI Image Model', '3.1.0')
     ->build();
 
@@ -536,7 +536,7 @@ use Provemark\ContentCredentials\Laravel\ContentCredentials;
 $bytes = file_get_contents('image.png');
 
 // 1. Describe the asset as AI-generated (EU AI Act Art. 50 marking).
-$manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+$manifest = ManifestBuilder::forAiGenerated(MediaType::Png)
     ->withSoftwareAgent('ACME GenAI Image Model', '3.1.0')
     ->withClaimGenerator(config('app.name'), '1.0.0')
     ->build();
@@ -590,7 +590,7 @@ $signer = new SigningServiceSigner(
     new SigningServiceConfig('http://localhost:3000', getenv('CONTENTAUTH_API_KEY')),
 );
 
-$manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Jpeg)
+$manifest = ManifestBuilder::forAiGenerated(MediaType::Jpeg)
     ->withSoftwareAgent('ACME GenAI Image Model', '3.1.0')
     ->build();
 

@@ -124,7 +124,7 @@ it('keeps the Article 50 marking intact across any chain of signings and reads',
 
             foreach ($commands as $command) {
                 if ($command['op'] === 'sign') {
-                    $manifest = ManifestBuilder::forAiGeneratedImage($model->mediaType)
+                    $manifest = ManifestBuilder::forAiGenerated($model->mediaType)
                         ->withSoftwareAgent($command['agent'], $command['version'])
                         ->withClaimGenerator('Content Credentials (pbt)', '0.1.0')
                         ->build();
@@ -176,7 +176,7 @@ it('reads the same report however often it is read', function () {
             $bytes = pbtFixtureBytes();
 
             for ($i = 0; $i < $signings; $i++) {
-                $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+                $manifest = ManifestBuilder::forAiGenerated(MediaType::Png)
                     ->withSoftwareAgent("agent-$i")
                     ->build();
                 $bytes = $signer->sign(new Asset($bytes, MediaType::Png), $manifest)->bytes;
@@ -218,7 +218,7 @@ it('makes the most recent signing the active manifest', function () {
 
             for ($i = 0; $i < $signings; $i++) {
                 $lastAgent = "agent-$i";
-                $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+                $manifest = ManifestBuilder::forAiGenerated(MediaType::Png)
                     ->withSoftwareAgent($lastAgent)
                     ->build();
                 $bytes = $signer->sign(new Asset($bytes, MediaType::Png), $manifest)->bytes;

@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — (draft)                                         |
+| Approved   | 2026-08-07 (maintainer)                           |
 | Supersedes | — (amends the API sketch of SPEC-001)             |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -168,13 +168,13 @@ final class ManifestBuilder
 
 Both are for the maintainer at approval time. Neither blocks writing tests.
 
-- **Does `forAiGeneratedImage()` ever get removed?** Recommendation: **no**, and
-  the docblock should say so plainly. A three-line alias costs nothing to keep;
-  removing it in some future 1.0 breaks working code for cosmetics. That makes
-  `@deprecated` slightly imprecise — it means "no longer the canonical name",
-  not "will be deleted" — so the sentence after the tag has to carry the real
-  meaning. If the answer is instead "removed in 1.0", AC4 should be revisited,
-  because an alias with an end date arguably *should* warn.
+- ~~**Does `forAiGeneratedImage()` ever get removed?**~~ **Settled at approval,
+  2026-08-07: no. The alias stays, indefinitely.** A three-line alias costs
+  nothing to keep; removing it in some future 1.0 would break working code for
+  cosmetics. Consequence for the implementation: `@deprecated` here means "no
+  longer the canonical name", *not* "will be deleted", so the sentence after the
+  tag must carry that meaning rather than let a reader infer a removal that is
+  not coming. AC4 stands as written — an alias with no end date must not warn.
 
 - **Does the name survive the next spec?** The `digitalSourceType` work will add
   the manipulated case (Article 50(4)) and probably the authenticity case. If
@@ -194,8 +194,29 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
+| AC1 | `tests/Unit/Manifest/BuilderEntryPointTest.php` :: "produces the same manifest under either name, for every media type" | `src/Core/Manifest/ManifestBuilder.php` `forAiGenerated()`, `forAiGeneratedImage()` |
+| AC2 | `tests/Unit/Manifest/BuilderEntryPointTest.php` :: "still accepts code written against the previous name", "returns a builder from the old name, so the fluent chain is unbroken" | `src/Core/Manifest/ManifestBuilder.php` `forAiGeneratedImage()` |
+| AC3 | `tests/Unit/Manifest/BuilderEntryPointTest.php` :: "emits exactly the manifest SPEC-001 fixes" | `src/Core/Manifest/ManifestBuilder.php` `build()` |
+| AC4 | `tests/Unit/Manifest/BuilderEntryPointTest.php` :: "raises no runtime deprecation from the old name", "sees the handler fire when something does raise, so the check is real" | `src/Core/Manifest/ManifestBuilder.php` `forAiGeneratedImage()` |
+| AC5 | `tests/Unit/Manifest/BuilderEntryPointTest.php` :: "marks the old name as superseded and names its replacement", "shows only the canonical name in the documentation and examples", "uses the canonical name where the package calls itself" | `src/Core/Manifest/ManifestBuilder.php` docblock, `README.md`, `bin/e2e.php`, `src/Laravel/Jobs/SignAssetJob.php`, `src/Laravel/Console/SignCommand.php` |
+
+## Implementation notes (2026-08-07)
+
+- **AC4 needed a control case.** A test that installs an error handler and then
+  asserts nothing was raised passes just as happily when the handler was never
+  installed — the seventh instance of the shape this repository keeps
+  documenting. So a second test triggers `E_USER_DEPRECATED` deliberately
+  through the same mechanism and asserts it *is* seen. Without it, AC4 is a
+  test that cannot fail.
+- **The bulk rename hit the alias itself.** A `perl -0pi -e` sweep across
+  `src/`, `tests/`, `bin/` and the docs renamed the declaration of
+  `forAiGeneratedImage()` too, producing a method that called itself under a
+  duplicate name. Caught immediately by the IDE and by a fatal, but worth
+  recording: a rename whose whole point is that *one* occurrence must survive
+  cannot be done with a blanket substitution.
+- **AC5 asserts the new name is present, not only that the old one is absent.**
+  "No `forAiGeneratedImage(` in the README" is satisfied by a README that stopped
+  mentioning the builder at all. Both directions, in one test.
+- **The old name survives in `specs/`** — SPEC-001, SPEC-011 and SPEC-021 quote
+  it, and those are `implemented` and frozen. That is correct: a spec records
+  what was true when it was approved. Only this spec describes the current name.

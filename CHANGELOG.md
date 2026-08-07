@@ -37,7 +37,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   generic byte count. Streaming or path-based signing is what would change it,
   and that is a separate piece of work.
 
+### Upgrading
+
+- **An exhaustive `match` over `MediaType` is no longer exhaustive.** Seven cases
+  were added, so code like `match ($asset->mediaType) { MediaType::Png => …,
+  MediaType::Jpeg => … }` with no `default` arm now throws
+  `\UnhandledMatchError` the first time it meets a WEBP. Composer sees this
+  release as additive and it is — but adding cases to an enum a consumer matches
+  on is not free. Add a `default`, or handle the new cases.
+
 ### Changed
+
+- **`ManifestBuilder::forAiGenerated()` is the entry point (SPEC-022).** The old
+  name, `forAiGeneratedImage()`, predates the media types above — it now reads as
+  a contradiction for `MediaType::Mp4`. It **keeps working, indefinitely**: it
+  delegates to the new name, raises no runtime deprecation, and there is no
+  removal planned. Deleting a three-line alias would break working code for
+  cosmetics. Only the docblock marks it, so IDEs and static analysis point at
+  the new name.
+
+  ```php
+  ManifestBuilder::forAiGenerated(MediaType::Mp4)   // canonical
+  ManifestBuilder::forAiGeneratedImage(MediaType::Png)  // still fine, forever
+  ```
 
 - The service's `400` for an unsupported `mime_type` now names all nine accepted
   types rather than two, and `UnsupportedMediaTypeException` derives its message

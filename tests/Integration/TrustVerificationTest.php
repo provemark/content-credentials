@@ -40,7 +40,7 @@ $skipUnlessTrustInactive = fn () => match (ServiceHarness::trustVerificationActi
 $signAndRead = function () {
     [$signer, $reader] = ServiceHarness::signerAndReader();
 
-    $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+    $manifest = ManifestBuilder::forAiGenerated(MediaType::Png)
         ->withSoftwareAgent('SPEC-014 trust verification')
         ->build();
 
@@ -88,7 +88,7 @@ it('keeps a signature valid but untrusted when the anchors do not cover it', fun
     try {
         [$signer, $reader] = ServiceHarness::signerAndReader();
 
-        $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+        $manifest = ManifestBuilder::forAiGenerated(MediaType::Png)
             ->withSoftwareAgent('SPEC-014 foreign anchors')
             ->build();
 

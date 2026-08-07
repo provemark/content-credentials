@@ -67,7 +67,7 @@ is_file($fixture) || fail("fixture not found: $fixture");
 $bytes = (string) file_get_contents($fixture);
 echo '→ fixture: '.strlen($bytes)." bytes\n";
 
-$manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+$manifest = ManifestBuilder::forAiGenerated(MediaType::Png)
     ->withSoftwareAgent('ACME GenAI Image Model', '3.1.0')
     ->withClaimGenerator('Content Credentials (e2e)', '0.1.0')
     ->build();

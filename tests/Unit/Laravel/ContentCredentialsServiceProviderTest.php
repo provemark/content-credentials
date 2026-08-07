@@ -128,7 +128,7 @@ it('proxies sign() through the facade to the bound signer', function () {
         }
     });
 
-    $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)->withSoftwareAgent('X')->build();
+    $manifest = ManifestBuilder::forAiGenerated(MediaType::Png)->withSoftwareAgent('X')->build();
     $result = ContentCredentials::sign(new Asset('B', MediaType::Png), $manifest);
 
     expect($result)->toBe($expected);
@@ -149,7 +149,7 @@ it('uses a container-bound PSR-18 client over discovery', function () {
     ccRegister($app);
 
     $signer = $app->make(SignerInterface::class);
-    $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)->withSoftwareAgent('X')->build();
+    $manifest = ManifestBuilder::forAiGenerated(MediaType::Png)->withSoftwareAgent('X')->build();
     $signer->sign(new Asset('B', MediaType::Png), $manifest);
 
     // The bound mock recorded the request — a discovered Guzzle would have tried

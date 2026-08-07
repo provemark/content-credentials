@@ -47,7 +47,7 @@ final class SignAssetJob implements ShouldQueue
             throw new \RuntimeException("Cannot read source file: {$this->sourcePath}");
         }
 
-        $builder = ManifestBuilder::forAiGeneratedImage($this->mediaType)
+        $builder = ManifestBuilder::forAiGenerated($this->mediaType)
             ->withSoftwareAgent($this->softwareAgent, $this->softwareAgentVersion);
 
         if ($this->claimGenerator !== null) {

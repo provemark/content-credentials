@@ -90,7 +90,7 @@ function nestedTo(int $depth): array
 it('still signs a manifest built by the library, unchanged', function () {
     [$signer, $reader] = ServiceHarness::signerAndReader();
 
-    $manifest = ManifestBuilder::forAiGeneratedImage(MediaType::Png)
+    $manifest = ManifestBuilder::forAiGenerated(MediaType::Png)
         ->withSoftwareAgent('SPEC-011 regression')
         ->build();
 

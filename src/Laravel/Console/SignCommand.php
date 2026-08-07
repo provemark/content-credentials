@@ -63,7 +63,7 @@ final class SignCommand extends Command
             return self::FAILURE;
         }
 
-        $builder = ManifestBuilder::forAiGeneratedImage($mediaType)
+        $builder = ManifestBuilder::forAiGenerated($mediaType)
             ->withSoftwareAgent($agent, $this->stringOption('agent-version'));
 
         $claimGenerator = $this->stringOption('claim-generator');

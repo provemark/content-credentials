@@ -28,7 +28,7 @@ it('reads back as AI-generated whatever the builder marked — for all inputs', 
         Gen::softwareAgentName(),
         Gen::optionalVersion(),
     )->then(function (MediaType $type, string $name, ?string $version) {
-        $manifest = ManifestBuilder::forAiGeneratedImage($type)
+        $manifest = ManifestBuilder::forAiGenerated($type)
             ->withSoftwareAgent($name, $version)
             ->build();
 
@@ -53,7 +53,7 @@ it('never lets the software-agent name influence the marking', function () {
         Gen::mediaType(),
         Gen::softwareAgentName(),
     )->then(function (MediaType $type, string $name) {
-        $assertions = ManifestBuilder::forAiGeneratedImage($type)
+        $assertions = ManifestBuilder::forAiGenerated($type)
             ->withSoftwareAgent($name)
             ->build()
             ->assertions();
@@ -81,7 +81,7 @@ it('is immutable under any order of with* calls', function () {
         Gen::softwareAgentName(),
         Gen::softwareAgentName(),
     )->then(function (MediaType $type, string $first, string $second) {
-        $base = ManifestBuilder::forAiGeneratedImage($type)->withSoftwareAgent($first);
+        $base = ManifestBuilder::forAiGenerated($type)->withSoftwareAgent($first);
         $snapshot = $base->build()->toArray();
 
         // Chain further calls off $base; they must not touch $base itself.
@@ -101,7 +101,7 @@ it('keeps assertions() in step with toArray() for all inputs', function () {
         Gen::softwareAgentName(),
         Gen::optionalVersion(),
     )->then(function (MediaType $type, string $name, ?string $version) {
-        $manifest = ManifestBuilder::forAiGeneratedImage($type)
+        $manifest = ManifestBuilder::forAiGenerated($type)
             ->withSoftwareAgent($name, $version)
             ->withClaimGenerator('Content Credentials', '0.1.0')
             ->build();

@@ -1636,3 +1636,68 @@ the ~7× multiplier apply to every media type, and the transport is base64 in on
 HTTP body. Streaming or path-based signing is the change that would matter, and
 it is a separate project with no spec. The README, the CHANGELOG and the 413 all
 say so; three places, because this is the claim most likely to be misread.
+
+---
+
+## Step 26 — SPEC-022: the name SPEC-021 broke (2026-08-07)
+
+Same day, and a direct consequence: `ManifestBuilder::forAiGeneratedImage()` was
+the only entry point, and after SPEC-021 the call a user writes is
+`forAiGeneratedImage(MediaType::Mp4)`. `forAiGenerated()` is now canonical; the
+old name delegates to it and **stays indefinitely** (settled at approval).
+
+### Why it had to be the same release
+
+Nothing was broken by the name — that is exactly why it needed doing now rather
+than later. SPEC-021 is on `main` and unreleased, so fixing it in the same
+release means "MP4 through a method called forAiGeneratedImage" is never a state
+we published. Afterwards it is the same correction against an API users have
+already copied into their code, at a higher price for no extra benefit.
+
+### The alias raises no runtime deprecation, deliberately
+
+`@deprecated` in the docblock only. An alias with no removal date must not
+shout: applications that promote notices to exceptions — and PHPUnit does that
+for deprecations by default — would break on a purely cosmetic change. AC4
+asserts the silence, so nobody adds a `trigger_error` later without revisiting
+the decision.
+
+Note the wording problem this creates: a bare `@deprecated` reads as "will be
+removed". The docblock has to say "kept indefinitely" in the sentence after the
+tag, and AC5 tests for that phrase, or people migrate under a deadline that does
+not exist.
+
+### ⚠️ A no-op assertion needs a control case
+
+AC4 installs an error handler and asserts nothing was raised. That test passes
+just as happily if the handler was never installed — the seventh instance of the
+shape this log keeps recording (Steps 18, 20, 21, 23). So a second test fires
+`E_USER_DEPRECATED` through the same mechanism and asserts it *is* caught.
+Without it, AC4 cannot fail.
+
+The general form, worth stating once: **an assertion that nothing happened is
+only meaningful next to a demonstration that something could have.**
+
+### ⚠️ The bulk rename renamed the alias
+
+`perl -0pi -e 's/forAiGeneratedImage\(/forAiGenerated(/g'` across `src/`,
+`tests/`, `bin/` and the docs also rewrote the *declaration* of the alias, so
+the method called itself under a duplicate name. The IDE flagged it within
+seconds, but the lesson holds: a rename whose entire point is that one
+occurrence must survive cannot be a blanket substitution. The BC test was
+excluded by hand for the same reason — a suite that no longer calls the alias
+cannot detect it breaking.
+
+### Verified
+
+`composer check` green (187 passed), integration 80 passed / 5 skipped,
+`bin/e2e.php` sign+read OK with the Art.50 mark and `hasTimestamp` true,
+`bin/verify.sh` all PASS, `php bin/spec-check.php` 0 errors.
+
+### Also recorded: an upgrade note SPEC-021 needed and did not have
+
+Adding seven enum cases is additive for Composer, and not free for consumers:
+an exhaustive `match ($mediaType)` with no `default` arm now throws
+`UnhandledMatchError` the first time it meets a WEBP. That is in the CHANGELOG
+under **Upgrading** for 0.8.0. It is the kind of break that does not show up in
+any of our own tests, because our own code has the new cases.
