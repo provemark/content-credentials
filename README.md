@@ -600,7 +600,43 @@ file_put_contents('out.jpg', $signed->bytes);
 
 Reading works the same way with `SigningServiceReader` → `ManifestReport`.
 
-Supported formats in this version: **PNG and JPEG**.
+### Supported media types
+
+| Media type | `MediaType` case | File extensions |
+|---|---|---|
+| `image/png` | `Png` | `.png` |
+| `image/jpeg` | `Jpeg` | `.jpg`, `.jpeg` |
+| `image/webp` | `Webp` | `.webp` |
+| `image/avif` | `Avif` | `.avif` |
+| `image/gif` | `Gif` | `.gif` |
+| `image/tiff` | `Tiff` | `.tif`, `.tiff` |
+| `audio/wav` | `Wav` | `.wav` |
+| `audio/mpeg` | `Mp3` | `.mp3` |
+| `video/mp4` | `Mp4` | `.mp4` |
+
+`audio/mp3` is accepted as an input spelling and normalised to the registered
+`audio/mpeg`. Anything outside this table is refused — by the client with
+`UnsupportedMediaTypeException`, and by the service with a **400** naming what it
+does accept. A running service publishes its own list at `GET /health`
+(`media_types`), so you can check a deployment rather than trust this table.
+
+**Size applies to every media type, not per format.** `MAX_BODY_SIZE`
+(default 20 MB) and the ~7× memory multiplier described under
+[Sizing the container](#sizing-the-container) are the same for a PNG and for an
+MP4. That comfortably covers images and short audio.
+
+It does **not** cover real video. `video/mp4` is supported as a *container* —
+it signs, reads back and carries the Article 50 marking exactly like an image —
+but it is **bounded to small files**, because the transport is base64 in one
+HTTP body: the asset is inflated by a third, buffered whole, and held several
+times over while signing. A body over the limit is refused with a **413** that
+says so. Signing video of a realistic length needs a different transport
+(streaming or path-based signing), which is a separate piece of work and not
+something this version does.
+
+Formats c2pa-rs can handle but this package does not declare — SVG, PDF, DNG,
+AVI, MOV, WEBM — are not excluded on principle; they are simply unmeasured, and
+this project does not ship what it has not seen work.
 
 ## Verifying the output
 

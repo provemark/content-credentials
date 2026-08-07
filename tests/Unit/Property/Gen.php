@@ -17,10 +17,10 @@ use Provemark\ContentCredentials\Core\Manifest\MediaType;
  */
 final class Gen
 {
-    /** Every supported asset format. */
+    /** Every supported asset format — derived from the enum (SPEC-021). */
     public static function mediaType(): Generator
     {
-        return Generators::elements([MediaType::Png, MediaType::Jpeg]);
+        return Generators::elements(MediaType::cases());
     }
 
     /**

@@ -64,10 +64,12 @@ it('rejects malformed read input with 400, not 500', function () {
     ]);
     expect($badBase64->getStatusCode())->toBe(400);
 
-    // Unsupported mime type (valid base64 payload).
+    // Unsupported mime type (valid base64 payload). Was image/gif until
+    // SPEC-021 made it supported — the criterion is about a type outside the
+    // allow-list, so it needs one that still is.
     $badMime = $http->post($url, [
         'headers' => $auth,
-        'json' => ['content' => base64_encode('whatever'), 'mime_type' => 'image/gif'],
+        'json' => ['content' => base64_encode('whatever'), 'mime_type' => 'image/bmp'],
     ]);
     expect($badMime->getStatusCode())->toBe(400);
 })->group('SPEC-010', 'integration')->skip($skipUnlessReachable);

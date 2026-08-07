@@ -149,13 +149,14 @@ it('sign command rejects an unsupported extension', function () {
     $app = h6ConsoleApp();
     $app->instance(SignerInterface::class, h6RecordingSigner());
 
-    $in = h6TempFile('gif');
-    $out = h6DestPath('gif');
+    // .gif became supported in SPEC-021; .bmp is still outside the set.
+    $in = h6TempFile('bmp');
+    $out = h6DestPath('bmp');
 
     [$exit, $output] = h6Run(new SignCommand, $app, ['input' => $in, 'output' => $out, '--agent' => 'X']);
 
     expect($exit)->not->toBe(0)
-        ->and($output)->toContain('gif')
+        ->and($output)->toContain('bmp')
         ->and(file_exists($out))->toBeFalse();
 })->group('SPEC-006');
 

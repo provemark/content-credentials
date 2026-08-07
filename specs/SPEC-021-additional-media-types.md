@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — (draft)                                         |
+| Approved   | 2026-08-07 (maintainer)                           |
 | Supersedes | —                                                 |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -78,6 +78,10 @@ this spec must not be read as "video is supported".
 
 - Adding `image/webp`, `image/avif`, `image/gif`, `image/tiff`, `audio/wav` and
   `audio/mpeg` to `MediaType` and to the service's `SUPPORTED_MIME`.
+- The **third** hand-written list, found while scoping this: `InfersMediaType`
+  (SPEC-006 D4) maps a file *extension* to a `MediaType` for the artisan
+  commands. Widening the enum without it ships an enum that accepts `image/webp`
+  and a command that refuses `photo.webp` — see AC8.
 - `video/mp4`, accepted with its size limitation documented rather than hidden.
 - A test per format that **signs and reads back**, asserting the Article 50
   marking survives. Widening an enum without that proves nothing.
@@ -163,6 +167,19 @@ covered by a Pest test tagged `->group('SPEC-021')`.
   - Then it lists the accepted media types, so an operator and a client can see
     what a given deployment supports without reading its source
 
+- **AC8 — the artisan commands accept the same set, by extension**
+  - Given a file path in each supported media type
+  - When `mediaTypeFromPath()` resolves it
+  - Then it returns the matching `MediaType`, for `.jpg`/`.jpeg`, `.tif`/`.tiff`
+    and `.mp3` alike
+  - And an unsupported extension still throws `UnsupportedMediaTypeException`
+    naming the extensions that are supported — a list that must not go stale
+    against the enum, so the test derives the expectation from the enum rather
+    than restating it
+  - *(Amendment made while this spec was still `draft`, 2026-08-07. The
+    extension map is a third list saying what is supported; it was not in the
+    Problem section because it was not found until implementation was scoped.)*
+
 ## API sketch
 
 Illustrative only.
@@ -218,10 +235,36 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
+| AC1 | `tests/Integration/MediaTypesTest.php` :: "signs and reads back image/png" — plus one sibling per case, generated from `MediaType::cases()` (`SPEC-021`, `integration`) | `src/Core/Manifest/MediaType.php`, `service/server.js` `SUPPORTED_MIME` |
+| AC2 | `tests/Integration/MediaTypesTest.php` :: "accepts on the service exactly what the client enum declares" | `service/server.js` `/health` `media_types` vs `src/Core/Manifest/MediaType.php` |
+| AC3 | `tests/Unit/Manifest/MediaTypeSetTest.php` :: "refuses a media type outside the set", "names every supported type in the refusal"; `tests/Integration/MediaTypesTest.php` :: "refuses an unsupported media type and names what it supports" | `src/Core/Manifest/MediaType.php` `fromMimeType()`, `service/server.js` `/v1/sign`, `/v1/read` |
+| AC4 | `tests/Integration/MediaTypesTest.php` :: "signs what the engine detects when the declared type disagrees" | `service/server.js` `/v1/sign` (passes `mime_type` to c2pa-rs, which decides from the bytes) |
+| AC5 | `tests/Unit/MediaTypeGuidanceTest.php` :: "lists every supported media type", "says the size limit applies to every format", "qualifies video rather than claiming it", "names the transport as the reason video is bounded" | `README.md` § Supported media types |
+| AC6 | `tests/Integration/MediaTypesTest.php` :: "reports the accepted media types on /health" | `service/server.js` `/health` |
+| AC7 | `tests/Integration/MediaTypesTest.php` :: "refuses an oversized video by naming the limit and that video is bounded by it" | `service/server.js` body-parser error handler |
+| AC8 | `tests/Unit/Laravel/MediaTypeInferenceTest.php` :: "infers the declared type from a file extension", "reaches every declared media type from some extension", "refuses an unsupported extension and names what is supported" | `src/Laravel/Console/InfersMediaType.php` `EXTENSIONS` |
+
+## Implementation notes (2026-08-07)
+
+- **Nothing about the manifest changed**, as scoped: `ManifestBuilder` emits the
+  same single `c2pa.actions.v2` assertion, only the container differs. Confirmed
+  outside our own reader — `bin/verify.sh` (c2patool, trust on) reports
+  signature valid / cert trusted / Art.50 mark PASS on a signed WEBP, WAV and
+  MP4.
+- **AC7's message cannot be conditional on the media type.** The body parser
+  refuses before any route runs, so the request is never decoded and there is no
+  `mime_type` to branch on — the same ordering that SPEC-017 found for the
+  correlation id. So the 413 names video unconditionally. That is the honest
+  reading of the criterion: the person who needs the sentence is precisely the
+  one whose oversized body never got parsed.
+- **A third allow-list turned up during implementation** and became AC8 while
+  the spec was still `draft`; see Scope.
+- **Four existing tests used a now-supported type as their "unsupported"
+  example** (`image/gif` in SPEC-001, SPEC-010, SPEC-012, and `.gif` in
+  SPEC-006). They were retargeted at `image/bmp` / `.bmp`, which is outside the
+  set: the criteria are unchanged, the example had to move. `Gen::mediaType()`
+  now derives from `MediaType::cases()` rather than listing two.
+- **Fixtures are committed** under `tests/Fixtures/fixture.*`, generated with
+  ffmpeg at 64×64 / one second. They are tiny by construction; note that a
+  signed asset is dominated by the manifest at this size (a 312-byte WEBP signs
+  to 108 KB, because c2pa-node adds a claim thumbnail).
