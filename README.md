@@ -30,6 +30,12 @@ delegated to a small **Node signing service** (`service/`, based on
 isolated from the app process. (This is the deliberate trade-off versus an
 in-process native extension, which puts the key on the web server.)
 
+Listed as the PHP library under *Related projects* in the Content Authenticity
+Initiative's [community resources](https://opensource.contentauthenticity.org/docs/community-resources/).
+That is a listing, not a conformance claim — see
+[Going to production](docs/production.md) for what the C2PA Conformance Program
+covers and why no library can appear on the Conforming Products List.
+
 > **Status:** this is a spec-driven rebuild of a proven end-to-end spike. The
 > design, decisions and trade-offs are documented in
 > [`specs/`](https://github.com/provemark/content-credentials/tree/main/specs),

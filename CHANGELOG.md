@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The README records the listing on the Content Authenticity Initiative's
+  [community resources](https://opensource.contentauthenticity.org/docs/community-resources/)
+  page**, where this package appears as the PHP library under *Related
+  projects*. The line says explicitly that a listing is not a conformance
+  claim, and points at [Going to production](docs/production.md) for why no
+  library can appear on the Conforming Products List. Documentation only — no
+  change to `src/`, `config/` or behaviour, though the dist is not
+  byte-identical because `README.md` ships in it.
+
 ### Changed
 
 - **A failing `composer check` now keeps its own output.** The script calls
