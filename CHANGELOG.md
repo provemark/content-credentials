@@ -331,26 +331,6 @@ Alongside that, the signing service gains the three controls a provenance system
 needs and did not have: it constrains what it will attest to, records every
 signing request, and can verify a certificate against a trust list.
 
-- **Four more media types (SPEC-023).** SPEC-021 left six formats out as
-  unmeasured rather than unsupported. They have now been measured: **SVG, MOV,
-  AVI and FLAC** sign, read back `Valid`, keep the Article 50 marking, pass
-  `c2patool` and agree across both readers. That makes **thirteen** media types.
-  `audio/x-flac` and `video/avi` are accepted as input spellings.
-
-  ⚠️ **Signing SVG needs a warning the other formats do not.** Measured: SVGO
-  with its default preset removes the manifest **silently** — the image renders
-  identically and a verifier cannot distinguish it from a file that was never
-  signed — and any tool that re-serialises the XML leaves a file c2pa-rs refuses
-  to parse. Every common bundler runs SVGO with defaults, so sign SVG as a final
-  deliverable, not as a build asset. The README carries the detail.
-
-  ⚠️ **Lossless audio is not "short audio".** A few minutes of FLAC approaches or
-  exceeds the 20 MB body limit, which the other audio formats rarely touch.
-
-  Four formats stay out, each for its own reason, now documented rather than
-  merely absent: **PDF** (c2pa-rs can read but not write it), **WEBM** (no
-  handler at all), **DNG** and **JPEG XL** (unmeasured).
-
 ### Upgrading
 
 **This release changes what `isTrusted()` answers.** No code has to change to

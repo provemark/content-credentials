@@ -32,7 +32,7 @@ function cc23RoundTrip(MediaType $type): void
         ->withSoftwareAgent('ACME GenAI', '1.0.0')
         ->build();
 
-    $signed = $signer->sign(new Asset(cc21Fixture($type), $type), $manifest);
+    $signed = $signer->sign(new Asset(ServiceHarness::mediaFixture($type), $type), $manifest);
     $report = $reader->read(new Asset($signed->bytes, $type));
 
     expect($signed->mediaType)->toBe($type)
@@ -114,7 +114,7 @@ it('refuses the formats c2pa-rs cannot sign, naming what it accepts', function (
     $response = (new Client)->post(ServiceHarness::baseUrl().'/v1/sign', [
         'headers' => ['Authorization' => 'Bearer '.ServiceHarness::apiKey()],
         'json' => [
-            'content' => base64_encode(cc21Fixture(MediaType::Png)),
+            'content' => base64_encode(ServiceHarness::mediaFixture(MediaType::Png)),
             'mime_type' => $mime,
             'extra_assertions' => [],
         ],

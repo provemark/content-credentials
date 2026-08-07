@@ -619,9 +619,15 @@ Reading works the same way with `SigningServiceReader` → `ManifestReport`.
 | `video/x-msvideo` | `Avi` | `.avi` |
 
 `audio/mp3`, `audio/x-flac` and `video/avi` are accepted as input spellings and
-normalised to the registered `audio/mpeg`, `audio/flac` and `video/x-msvideo`. Anything outside this table is refused — by the client with
-`UnsupportedMediaTypeException`, and by the service with a **400** naming what it
-does accept. A running service publishes its own list at `GET /health`
+normalised to the registered `audio/mpeg`, `audio/flac` and `video/x-msvideo`.
+**That normalisation happens in the PHP client**, which then sends the
+registered type — so if you call `/v1/sign` directly rather than through this
+package, use the registered spelling: the service's own allow-list holds those
+only, and answers an alias with a 400.
+
+Anything outside this table is refused — by the client with
+`UnsupportedMediaTypeException`, and by the service with a **400** naming what
+it does accept. A running service publishes its own list at `GET /health`
 (`media_types`), so you can check a deployment rather than trust this table.
 
 **Size applies to every media type, not per format.** `MAX_BODY_SIZE`
@@ -635,9 +641,10 @@ music rather than voice clips.
 It does **not** cover real video. `video/mp4`, `video/quicktime` and
 `video/x-msvideo` are supported as *containers* — they sign, read back and carry
 the Article 50 marking exactly like an image — but they are **bounded to small
-files**, because the transport is base64 in one HTTP body: the asset is inflated by a third, buffered whole, and held several
-times over while signing. A body over the limit is refused with a **413** that
-says so. Signing video of a realistic length needs a different transport
+files**, because the transport is base64 in one HTTP body: the asset is
+inflated by a third, buffered whole, and held several times over while signing.
+A body over the limit is refused with a **413** that says so. Signing video of a
+realistic length needs a different transport
 (streaming or path-based signing), which is a separate piece of work and not
 something this version does.
 
