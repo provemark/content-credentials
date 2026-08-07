@@ -2231,3 +2231,83 @@ it (Pint rewrites files, then PHPStan, then Pest, then Deptrac).
 For next time, concretely: run `composer check > /tmp/out.txt 2>&1` in a loop
 and inspect the file, rather than re-running afterwards. Twice now the evidence
 has been lost by re-running to confirm.
+
+---
+
+## Step 32 — The digitalSourceType research, and what it changed (2026-08-07)
+
+Step 26 settled the shape of the builder family (form A) and left one thing to
+verify before writing the spec: whether the manipulated case differs only in
+`digitalSourceType`, or also in the action sequence. Verified against the
+sources. **It differs, and much more than expected.**
+
+### The manipulated case needs ingredients, which this package does not have
+
+C2PA Implementation Guidance 2.4 is explicit: AI editing is recorded as a
+`c2pa.edited` or `c2pa.placed` action carrying the source type, with a
+`c2pa.opened` action first, "pointing to an ingredient assertion for the
+original photo, where a `parentOf` relationship is indicated".
+
+So Article 50(4)'s case is three things, not one constant:
+
+1. `c2pa.opened` first, referencing an ingredient;
+2. an ingredient assertion for the original, `relationship: parentOf`;
+3. `c2pa.edited` carrying the AI `digitalSourceType`.
+
+`ManifestBuilder` emits one assertion. `service/server.js` passes
+`ingredients: []`. Supporting this means the caller supplies the *original*
+asset so a hash can be computed over it — a new input to the entire signing
+path. That is a bigger piece of work than the whole source-type spec, which is
+why SPEC-026 (draft) ships the **created-time** terms and puts the edited ones
+out of scope behind an explicit exception.
+
+Had this not been checked first, the obvious implementation — one more enum case
+— would have produced a well-formed manifest making a **false claim**: that the
+asset was *created* by an operation which by definition acts on one that already
+existed.
+
+### ⚠️ The guidance misspells the IPTC term
+
+The guidance writes `compositedWithTrainedAlgorithmicMedia`. IPTC has no such
+concept. The registered term is `compositeWithTrainedAlgorithmicMedia` — no "d".
+Implementing from the prose would emit a URI resolving to nothing, inside the
+assertion whose entire purpose is machine readability.
+
+Rule for this project, now written down: **source-type URIs come from
+`cv.iptc.org`, never from a document quoting it.**
+
+### ⚠️ And the CAI docs describe that term more loosely than IPTC defines it
+
+CAI: "assets containing elements created by generative AI". IPTC: "Augmentation,
+correction or enhancement **using** a Generative AI model, such as with
+inpainting or outpainting". Those are different claims. For "a new asset mixing
+AI and non-AI elements" the registered term is `compositeSynthetic`.
+
+Reaching for `compositeWithTrainedAlgorithmicMedia` because its name sounds like
+"composite" would assert that an original existed and was edited. That is the
+kind of error nobody notices, because the manifest is valid and the assertion is
+present — it is simply about something that did not happen.
+
+### The vocabulary as it stands (fetched 2026-08-07)
+
+Active and relevant: `trainedAlgorithmicMedia`,
+`compositeWithTrainedAlgorithmicMedia`, `compositeSynthetic`, `composite`,
+`compositeCapture`, `algorithmicMedia`, `digitalCapture`, `computationalCapture`,
+`algorithmicallyEnhanced`, `humanEdits`, `digitalCreation`, `dataDrivenMedia`,
+`virtualRecording`, `screenCapture`, `negativeFilm`, `positiveFilm`, `print`.
+
+**Retired, never to be emitted:** `minorHumanEdits` and `digitalArt` (both
+2024-09-17), `softwareImage` (2022-06-14). Worth knowing because older examples
+on the web still use them.
+
+### What the draft asks the maintainer
+
+Three open questions, and the third is the one worth sleeping on: **does the
+authenticity case belong in this package at all?** Everything here is built
+around Article 50 and AI marking. `digitalCapture` is the opposite claim, made by
+cameras — and a PHP web application asserting that it captured a photograph is
+asserting something it cannot know. Cheap to support, and it may invite a use
+this package is not positioned for.
+
+Sources: C2PA Implementation Guidance 2.4; IPTC Digital Source Type NewsCodes;
+CAI open-source documentation on writing assertions and actions.
