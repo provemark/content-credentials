@@ -6,11 +6,13 @@ namespace Provemark\ContentCredentials\Tests\Integration;
 
 use GuzzleHttp\Client;
 use Nyholm\Psr7\Factory\Psr17Factory;
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
 use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
 use Provemark\ContentCredentials\Core\Reading\SigningServiceReader;
 use Provemark\ContentCredentials\Core\Signing\SignerInterface;
 use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
 use Provemark\ContentCredentials\Core\Signing\SigningServiceSigner;
+use RuntimeException;
 
 /**
  * Shared wiring for the integration suite (the `integration` group, excluded
@@ -69,6 +71,44 @@ final class ServiceHarness
     public static function fixtureBytes(): string
     {
         return (string) file_get_contents(dirname(__DIR__).'/fixture.png');
+    }
+
+    /**
+     * The committed fixture for a media type (SPEC-021, SPEC-023).
+     *
+     * Lives here rather than in one of the test files because two of them need
+     * it: a helper defined in `MediaTypesTest.php` is only loaded when Pest
+     * collects that file, so running a single other file — the ordinary
+     * development loop — died with "Call to undefined function".
+     *
+     * @throws RuntimeException when the fixture is missing
+     */
+    public static function mediaFixture(MediaType $type): string
+    {
+        $extension = match ($type) {
+            MediaType::Png => 'png',
+            MediaType::Jpeg => 'jpg',
+            MediaType::Webp => 'webp',
+            MediaType::Avif => 'avif',
+            MediaType::Gif => 'gif',
+            MediaType::Tiff => 'tiff',
+            MediaType::Svg => 'svg',
+            MediaType::Wav => 'wav',
+            MediaType::Mp3 => 'mp3',
+            MediaType::Flac => 'flac',
+            MediaType::Mp4 => 'mp4',
+            MediaType::Mov => 'mov',
+            MediaType::Avi => 'avi',
+        };
+
+        $path = dirname(__DIR__)."/Fixtures/fixture.{$extension}";
+        $bytes = file_get_contents($path);
+
+        if (! is_string($bytes) || $bytes === '') {
+            throw new RuntimeException("missing fixture {$path}");
+        }
+
+        return $bytes;
     }
 
     /**

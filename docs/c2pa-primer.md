@@ -130,16 +130,25 @@ manifest. Applies to code paths AND documentation examples.
 - PHP target is ^8.3; dev machines may run 8.5. Use no 8.4/8.5-only features.
   `curl_close()` is a deprecated no-op — do not call it.
 
-## 8. Supported asset types (SPEC-021, measured 2026-08-06/07)
+## 8. Supported asset types (SPEC-021/023, measured 2026-08-06/07)
 
 The engine was never limited to PNG and JPEG; two hand-written allow-lists
 were. Each type below was signed, read back `Valid` with the Article 50 marking
 intact, and confirmed with `c2patool` under trust settings:
 
 `image/png`, `image/jpeg`, `image/webp`, `image/avif`, `image/gif`,
-`image/tiff`, `audio/wav`, `audio/mpeg`, `video/mp4`.
+`image/tiff`, `image/svg+xml`, `audio/wav`, `audio/mpeg`, `audio/flac`,
+`video/mp4`, `video/quicktime`, `video/x-msvideo`.
 
-- `audio/mp3` is accepted as an input spelling and normalised to `audio/mpeg`.
+- `audio/mp3`, `audio/x-flac` and `video/avi` are accepted as input spellings,
+  normalised to the registered types.
+- **SVG is signable but fragile**: SVGO's default preset removes the manifest
+  silently, and re-serialising the XML makes the file unparseable as C2PA. Sign
+  it as a deliverable, never as a build asset (SPEC-023, measured).
+- **Not supported, each for its own reason** (NOTES Step 27): `application/pdf` —
+  c2pa-rs registers readers and writers separately and PDF is read-only upstream,
+  though the C2PA spec does define PDF embedding; `video/webm` — no Matroska
+  handler at all; `image/x-adobe-dng` and JPEG XL — unmeasured.
 - The declared media type is **advisory in both engines**: c2pa-rs recognises
   the format from the bytes, so a WAV offered as `image/webp` signs as a WAV.
   The 400 the service returns for e.g. `image/bmp` comes from our own
@@ -149,7 +158,7 @@ intact, and confirmed with `c2patool` under trust settings:
   one HTTP body. Small clips only; the 413 says so.
 - Three lists must agree: `MediaType`, `SUPPORTED_MIME` in `service/server.js`
   (compared through `GET /health`), and the extension map in `InfersMediaType`.
-- Unmeasured, therefore undeclared: SVG, PDF, DNG, AVI, MOV, WEBM.
+- Unmeasured, therefore undeclared: DNG, JPEG XL.
 
 ## Open items (spec required before touching)
 

@@ -11,7 +11,7 @@ trait InfersMediaType
 {
     /**
      * Extensions the commands accept, in the order MediaType declares them
-     * (SPEC-006 D4, widened by SPEC-021 AC8).
+     * (SPEC-006 D4, widened by SPEC-021 AC8 and SPEC-023).
      *
      * This is the third list of what this package supports, after the
      * `MediaType` enum and the service's `SUPPORTED_MIME`. Every enum case must
@@ -27,9 +27,13 @@ trait InfersMediaType
         'gif' => MediaType::Gif,
         'tif' => MediaType::Tiff,
         'tiff' => MediaType::Tiff,
+        'svg' => MediaType::Svg,
         'wav' => MediaType::Wav,
         'mp3' => MediaType::Mp3,
+        'flac' => MediaType::Flac,
         'mp4' => MediaType::Mp4,
+        'mov' => MediaType::Mov,
+        'avi' => MediaType::Avi,
     ];
 
     /**

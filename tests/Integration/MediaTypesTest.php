@@ -25,31 +25,6 @@ $skipUnlessReachable = fn () => ! ServiceHarness::reachable()
     ? 'signing service not reachable — start it with docker compose up -d'
     : false;
 
-/** The committed fixture for a media type. */
-function cc21Fixture(MediaType $type): string
-{
-    $extension = match ($type) {
-        MediaType::Png => 'png',
-        MediaType::Jpeg => 'jpg',
-        MediaType::Webp => 'webp',
-        MediaType::Avif => 'avif',
-        MediaType::Gif => 'gif',
-        MediaType::Tiff => 'tiff',
-        MediaType::Wav => 'wav',
-        MediaType::Mp3 => 'mp3',
-        MediaType::Mp4 => 'mp4',
-    };
-
-    $path = dirname(__DIR__)."/Fixtures/fixture.{$extension}";
-    $bytes = file_get_contents($path);
-
-    if (! is_string($bytes) || $bytes === '') {
-        throw new RuntimeException("missing fixture {$path}");
-    }
-
-    return $bytes;
-}
-
 /**
  * Raw POST to the service, so the error paths can be asserted directly.
  *
@@ -90,7 +65,7 @@ function cc21RoundTrip(MediaType $type): void
         ->withSoftwareAgent('ACME GenAI', '1.0.0')
         ->build();
 
-    $signed = $signer->sign(new Asset(cc21Fixture($type), $type), $manifest);
+    $signed = $signer->sign(new Asset(ServiceHarness::mediaFixture($type), $type), $manifest);
     $report = $reader->read(new Asset($signed->bytes, $type));
 
     expect($signed->mediaType)->toBe($type)
@@ -173,7 +148,7 @@ it('reports the accepted media types on /health', function () {
 
 it('refuses an unsupported media type and names what it supports', function (string $mime) {
     [$status, $body] = cc21Post('/v1/sign', [
-        'content' => base64_encode(cc21Fixture(MediaType::Png)),
+        'content' => base64_encode(ServiceHarness::mediaFixture(MediaType::Png)),
         'mime_type' => $mime,
         'extra_assertions' => [],
     ]);
@@ -205,7 +180,7 @@ it('signs what the engine detects when the declared type disagrees', function ()
         ->build();
 
     // WAV bytes offered as image/webp.
-    $signed = $signer->sign(new Asset(cc21Fixture(MediaType::Wav), MediaType::Webp), $manifest);
+    $signed = $signer->sign(new Asset(ServiceHarness::mediaFixture(MediaType::Wav), MediaType::Webp), $manifest);
 
     // Still a WAV, and still readable as one: the bytes decided.
     expect(substr($signed->bytes, 0, 4))->toBe('RIFF');

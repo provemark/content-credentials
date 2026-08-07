@@ -55,10 +55,12 @@ it('is a fixed point on its own canonical value', function () {
  * act on it. Normalisation must not accidentally widen what is accepted.
  */
 it('rejects unsupported types however they are formatted', function () {
-    // image/gif, image/webp and image/tiff used to live here; SPEC-021 made
-    // them supported, so the pool is the types that are still outside the set.
+    // This pool has been overtaken by scope twice now: image/gif, image/webp and
+    // image/tiff left it in SPEC-021, image/svg+xml in SPEC-023. What remains is
+    // types measured as genuinely outside reach (NOTES Step 27) plus malformed
+    // input, which no spec can make supported.
     $unsupported = Generators::elements([
-        'image/bmp', 'image/svg+xml', 'application/pdf', 'video/webm',
+        'image/bmp', 'application/pdf', 'video/webm', 'image/jxl',
         'text/plain', 'image/png-x', 'imagepng', '', 'image/',
     ]);
 

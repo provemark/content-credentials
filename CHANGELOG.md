@@ -37,10 +37,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   generic byte count. Streaming or path-based signing is what would change it,
   and that is a separate piece of work.
 
+- **Four more media types (SPEC-023).** SPEC-021 left six formats out as
+  unmeasured rather than unsupported. They have now been measured: **SVG, MOV,
+  AVI and FLAC** sign, read back `Valid`, keep the Article 50 marking, pass
+  `c2patool` and agree across both readers. That makes **thirteen** media types.
+  `audio/x-flac` and `video/avi` are accepted as input spellings.
+
+  ⚠️ **Signing SVG needs a warning the other formats do not.** Measured: SVGO
+  with its default preset removes the manifest **silently** — the image renders
+  identically and a verifier cannot distinguish it from a file that was never
+  signed — and any tool that re-serialises the XML leaves a file c2pa-rs refuses
+  to parse. Every common bundler runs SVGO with defaults, so sign SVG as a final
+  deliverable, not as a build asset. The README carries the detail.
+
+  ⚠️ **Lossless audio is not "short audio".** A few minutes of FLAC approaches or
+  exceeds the 20 MB body limit, which the other audio formats rarely touch.
+
+  Four formats stay out, each for its own reason, now documented rather than
+  merely absent: **PDF** (c2pa-rs can read but not write it), **WEBM** (no
+  handler at all), **DNG** and **JPEG XL** (unmeasured).
+
 ### Upgrading
 
-- **An exhaustive `match` over `MediaType` is no longer exhaustive.** Seven cases
-  were added, so code like `match ($asset->mediaType) { MediaType::Png => …,
+- **An exhaustive `match` over `MediaType` is no longer exhaustive.** Eleven
+  cases were added across SPEC-021 and SPEC-023, so code like `match ($asset->mediaType) { MediaType::Png => …,
   MediaType::Jpeg => … }` with no `default` arm now throws
   `\UnhandledMatchError` the first time it meets a WEBP. Composer sees this
   release as additive and it is — but adding cases to an enum a consumer matches

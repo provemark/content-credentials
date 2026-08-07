@@ -38,7 +38,8 @@ function cc21Infer(string $path): MediaType
  */
 function cc21Extensions(): array
 {
-    return ['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif', 'tif', 'tiff', 'wav', 'mp3', 'mp4'];
+    return ['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif', 'tif', 'tiff', 'svg',
+        'wav', 'mp3', 'flac', 'mp4', 'mov', 'avi'];
 }
 
 it('infers the declared type from a file extension', function (string $path, MediaType $expected) {
