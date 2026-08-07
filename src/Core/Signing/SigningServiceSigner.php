@@ -7,9 +7,11 @@ namespace Provemark\ContentCredentials\Core\Signing;
 use Provemark\ContentCredentials\Core\Manifest\Manifest;
 use Provemark\ContentCredentials\Core\Signing\Exception\AssetTooLargeException;
 use Provemark\ContentCredentials\Core\Signing\Exception\MediaTypeMismatchException;
+use Provemark\ContentCredentials\Core\Signing\Exception\MissingParentAssetException;
 use Provemark\ContentCredentials\Core\Signing\Exception\SigningFailedException;
 use Provemark\ContentCredentials\Core\Signing\Exception\SigningResponseException;
 use Provemark\ContentCredentials\Core\Signing\Exception\SigningTransportException;
+use Provemark\ContentCredentials\Core\Signing\Exception\UnexpectedParentAssetException;
 use Provemark\ContentCredentials\Core\Support\ResponseBody;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
@@ -36,9 +38,12 @@ final class SigningServiceSigner implements SignerInterface
         private readonly SigningServiceConfig $config,
     ) {}
 
-    public function sign(Asset $asset, Manifest $manifest): SignedAsset
+    public function sign(Asset $asset, Manifest $manifest, ?Asset $parent = null): SignedAsset
     {
         // AC6: a mismatch is a programming error — fail before any HTTP call.
+        // The PARENT's media type is deliberately not compared: editing a PNG
+        // and saving as JPEG is ordinary, and c2pa-rs reads the format from the
+        // bytes anyway (SPEC-028 OQ3).
         if ($asset->mediaType !== $manifest->mediaType()) {
             throw new MediaTypeMismatchException(sprintf(
                 'Asset media type "%s" does not match manifest media type "%s".',
@@ -47,21 +52,50 @@ final class SigningServiceSigner implements SignerInterface
             ));
         }
 
+        // SPEC-028 AC3/AC4: mandatory-by-manifest, checked before anything is
+        // encoded. c2pa-rs enforces neither direction — it signs an edit intent
+        // with no ingredient, and it signs a c2pa.created action sitting next to
+        // a parentOf ingredient, reporting Valid for both.
+        if ($manifest->requiresParentAsset() && $parent === null) {
+            throw new MissingParentAssetException(sprintf(
+                'This manifest marks the asset as "%s", which C2PA records as an operation on an asset '
+                .'that already existed: a c2pa.opened action pointing at a parentOf ingredient, then '
+                .'c2pa.edited. Signing it requires the original asset, whose bytes the ingredient hash '
+                .'covers. Pass it as the third argument to sign().',
+                $this->sourceTypeOf($manifest) ?? 'manipulated',
+            ));
+        }
+
+        if (! $manifest->requiresParentAsset() && $parent !== null) {
+            throw new UnexpectedParentAssetException(
+                'A parent asset was supplied for a manifest that marks creation rather than manipulation, '
+                .'so there is nothing for it to be the parent of. It would be silently dropped from the '
+                .'signed manifest; refusing instead, because the resulting manifest would read as valid '
+                .'while omitting the lineage you meant to record.'
+            );
+        }
+
         // SPEC-025 AC2: before encoding, not after. The base64 copy and the
         // JSON body together cost roughly 3.7x the asset, so a client that
         // discovers the limit from the service's 413 has already paid for it —
         // or died trying, which is the case this exists for.
-        $size = strlen($asset->bytes);
+        //
+        // SPEC-028 OQ5: ONE budget for the pair, not one each. A per-asset limit
+        // would pass two assets that each fit and leave the service to 413 the
+        // request they add up to — a client-side guard whose whole purpose is to
+        // fail before the server does, failing after it.
+        $size = strlen($asset->bytes) + ($parent === null ? 0 : strlen($parent->bytes));
         if ($size > $this->config->maxRequestBytes) {
             throw new AssetTooLargeException(sprintf(
-                'Asset is %d bytes, which exceeds the configured limit of %d bytes for a signing request. '
+                '%s %d bytes, which exceeds the configured limit of %d bytes for a signing request. '
                 .'The signing service accepts a body of MAX_BODY_SIZE; raise both if you sign larger assets.',
+                $parent === null ? 'Asset is' : 'The asset and its parent together are',
                 $size,
                 $this->config->maxRequestBytes,
             ));
         }
 
-        $body = json_encode($this->buildPayload($asset, $manifest), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        $body = json_encode($this->buildPayload($asset, $manifest, $parent), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
 
         $request = $this->requestFactory
             ->createRequest('POST', $this->endpoint())
@@ -97,13 +131,22 @@ final class SigningServiceSigner implements SignerInterface
     /**
      * @return array<string, mixed>
      */
-    private function buildPayload(Asset $asset, Manifest $manifest): array
+    private function buildPayload(Asset $asset, Manifest $manifest, ?Asset $parent): array
     {
         $payload = [
             'content' => base64_encode($asset->bytes),
             'mime_type' => $asset->mediaType->value,
             'extra_assertions' => $manifest->assertions(),
         ];
+
+        // Absent rather than null when there is no parent: every request that
+        // exists today stays byte-identical on the wire (SPEC-028 AC1).
+        if ($parent !== null) {
+            $payload['parent'] = [
+                'content' => base64_encode($parent->bytes),
+                'mime_type' => $parent->mediaType->value,
+            ];
+        }
 
         // D1: send the claim-generator name as creator_name when present; the
         // service composes its own claim_generator_info from it.
@@ -113,6 +156,26 @@ final class SigningServiceSigner implements SignerInterface
         }
 
         return $payload;
+    }
+
+    /**
+     * The digitalSourceType this manifest claims, for the error message.
+     *
+     * Read off the manifest rather than kept as a field, because the Signing
+     * layer receives a Manifest and never the builder that produced it.
+     */
+    private function sourceTypeOf(Manifest $manifest): ?string
+    {
+        $assertions = $manifest->assertions();
+        $actions = $assertions[0]['data']['actions'] ?? null;
+
+        if (! is_array($actions) || ! isset($actions[0]) || ! is_array($actions[0])) {
+            return null;
+        }
+
+        $value = $actions[0]['digitalSourceType'] ?? null;
+
+        return is_string($value) ? $value : null;
     }
 
     private function creatorName(Manifest $manifest): ?string

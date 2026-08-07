@@ -27,17 +27,27 @@ status = [s['code'] for s in d.get('validation_status', [])]
 sig_valid = 'claimSignature.validated' in succ
 trusted   = 'signingCredential.trusted' in succ
 
-ai = False
+# Article 50(2) covers content that is 'generated OR manipulated', and the two
+# are different manifests: generation rides on c2pa.created with
+# trainedAlgorithmicMedia, manipulation on c2pa.edited with
+# compositeWithTrainedAlgorithmicMedia (SPEC-028). Checking only the first
+# reported a correctly marked manipulated asset as FAIL.
+PREFIX = 'http://cv.iptc.org/newscodes/digitalsourcetype/'
+MARKS = {PREFIX + 'trainedAlgorithmicMedia': 'generated',
+         PREFIX + 'compositeWithTrainedAlgorithmicMedia': 'manipulated'}
+
+mark = None
 for a in m.get('assertions', []):
     for act in a.get('data', {}).get('actions', []):
-        if act.get('digitalSourceType') == 'http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia':
-            ai = True
+        if act.get('digitalSourceType') in MARKS:
+            mark = MARKS[act['digitalSourceType']]
+ai = mark is not None
 
 si = m.get('signature_info', {})
 print('Signed by      :', si.get('issuer'), '/ CN=' + str(si.get('common_name')), '[' + str(si.get('alg')) + ']')
 print('Signature valid:', 'PASS' if sig_valid else 'FAIL', '(claimSignature.validated)')
 print('Cert trusted   :', 'PASS' if trusted else 'FAIL', '(signingCredential.trusted)')
-print('AI Art.50 mark :', 'PASS' if ai else 'FAIL', '(digitalSourceType=trainedAlgorithmicMedia)')
+print('AI Art.50 mark :', 'PASS' if ai else 'FAIL', '(' + (mark or 'none') + ')')
 print('Remaining status/failures:', status or fail or 'none')
 sys.exit(0 if (sig_valid and trusted and ai) else 2)
 "

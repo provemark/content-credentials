@@ -11,6 +11,12 @@ of **AI-generated content** required by the **EU AI Act, Article 50** — a
 `c2pa.actions.v2` / `c2pa.created` assertion with
 `digitalSourceType = trainedAlgorithmicMedia`.
 
+Article 50(2) covers content that is *generated **or manipulated***, and both are
+supported. Marking manipulation takes one extra argument — **the original
+asset** — because C2PA records an edit as a `c2pa.opened` action pointing at an
+ingredient whose hash covers the original's bytes, not a filename or a digest
+you can supply instead. See [What you can mark](docs/marking.md).
+
 It ships as two pieces:
 
 - a **framework-agnostic Core** (`Provemark\ContentCredentials\Core\*`) that builds
@@ -158,7 +164,7 @@ page, so this one stays readable:
 | Page | What is on it |
 |---|---|
 | [Usage](docs/usage.md) | Building manifests, signing and reading — Laravel and plain PHP, configuration, the facade, jobs and commands |
-| [What you can mark](docs/marking.md) | The thirteen media types, the `digitalSourceType` terms, and what each one actually claims |
+| [What you can mark](docs/marking.md) | The thirteen media types, the `digitalSourceType` terms, what each one actually claims, and marking manipulated content |
 | [Choosing a reader](docs/readers.md) | Verifying without the signing service, binding the in-process reader, and the trade-off between the two |
 | [Running the signing service](docs/service.md) | Audit logging, rate limits, sizing the container, assertion limits, rotating the key |
 | [Going to production](docs/production.md) | Certificates a public verifier will trust, trust-list verification, C2PA Conformance Program alignment |

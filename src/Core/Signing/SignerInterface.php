@@ -15,7 +15,13 @@ use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 interface SignerInterface
 {
     /**
+     * @param  Asset|null  $parent  The original asset, for a manifest that marks
+     *                              manipulation rather than creation (SPEC-028).
+     *                              Mandatory-by-manifest: required exactly when
+     *                              {@see Manifest::requiresParentAsset()} is
+     *                              true, and refused otherwise.
+     *
      * @throws ContentCredentialsException on any signing failure
      */
-    public function sign(Asset $asset, Manifest $manifest): SignedAsset;
+    public function sign(Asset $asset, Manifest $manifest, ?Asset $parent = null): SignedAsset;
 }

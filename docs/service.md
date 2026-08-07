@@ -141,6 +141,14 @@ the 11.4 MB a 2000×2000 PNG of incompressible pixels measures — and peaks aro
 ~37 MB asset and peaked near 1 GB, which does not fit in the 512 MB container
 many people would give it.
 
+**Marking manipulation costs less, not more.** A request that records an edit
+carries two assets — the result and its parent — and `MAX_BODY_SIZE` bounds
+their sum, so the largest admissible pair is smaller than the largest admissible
+single asset. Measured at the concurrency cap against a 24.4 MiB idle baseline:
+a 12.6 MB pair peaks at **244 MiB**, or **4.6×** the pair, against the ~420 MiB
+that four maximum-size single-asset signings cost. The parent is hashed, not
+signed. So enabling manipulation raises no ceiling and needs no new limit.
+
 A body over the limit is refused with **413** before it reaches the signing
 path. Raise `MAX_BODY_SIZE` if you sign larger assets, but raise the container's
 memory with it — the concurrency cap will not save you, because the body is

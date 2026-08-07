@@ -206,6 +206,14 @@ const MAX_ASSERTION_DEPTH = Number(process.env.MAX_ASSERTION_DEPTH ?? 16);
 const MAX_CREATOR_NAME = Number(process.env.MAX_CREATOR_NAME ?? 256);
 const AI_MARKING = 'http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia';
 
+// SPEC-028: the editing counterpart of AI_MARKING. Content manipulated with a
+// generative model is AI marking too — Article 50(2) covers "generated OR
+// manipulated" — so a service configured to sign only AI markings must accept
+// it. algorithmicMedia is deliberately NOT here: synthetic, but explicitly not
+// trained, which is the whole point of that term.
+const AI_MARKING_EDITED = 'http://cv.iptc.org/newscodes/digitalsourcetype/compositeWithTrainedAlgorithmicMedia';
+const AI_MARKINGS = [AI_MARKING, AI_MARKING_EDITED];
+
 // Deployment policy, NOT a structural invariant, and permissive by default:
 // requiring trainedAlgorithmicMedia cannot make an attestation truer (the
 // service can verify it no better than digitalCapture), it only narrows the
@@ -271,11 +279,53 @@ function rejectAssertions(assertions) {
     return 'at most one c2pa.actions assertion is allowed';
   }
 
-  if (REQUIRE_AI_MARKING && !firstActionSourceTypes(assertions).includes(AI_MARKING)) {
-    return 'this service is configured to sign only trainedAlgorithmicMedia markings';
+  // SPEC-028 AC7: read the MARKING wherever the shape puts it. Under the edited
+  // shape the first action is c2pa.opened, which carries no digitalSourceType at
+  // all — so reading only the first action would refuse every manipulated asset,
+  // which is precisely the content the policy exists to require.
+  if (REQUIRE_AI_MARKING && !markingSourceTypes(assertions).some((t) => AI_MARKINGS.includes(t))) {
+    return 'this service is configured to sign only AI markings';
   }
 
   return null;
+}
+
+/**
+ * The source types a marking policy should consider: the first action's, plus
+ * any carried by a c2pa.edited action (SPEC-028).
+ *
+ * Deliberately not "every source type anywhere" — that would let an unrelated
+ * action smuggle a marking past the policy.
+ */
+function markingSourceTypes(assertions) {
+  const types = [...firstActionSourceTypes(assertions)];
+
+  for (const assertion of Array.isArray(assertions) ? assertions : []) {
+    if (!assertion || typeof assertion !== 'object') continue;
+    if (typeof assertion.label !== 'string' || !assertion.label.startsWith('c2pa.actions')) continue;
+
+    for (const action of assertion.data?.actions ?? []) {
+      if (action?.action === 'c2pa.edited' && typeof action.digitalSourceType === 'string') {
+        types.push(action.digitalSourceType);
+      }
+    }
+  }
+
+  return types;
+}
+
+/** Whether these assertions describe an operation on an asset that already existed. */
+function needsParentAsset(assertions) {
+  for (const assertion of Array.isArray(assertions) ? assertions : []) {
+    if (!assertion || typeof assertion !== 'object') continue;
+    if (typeof assertion.label !== 'string' || !assertion.label.startsWith('c2pa.actions')) continue;
+
+    for (const action of assertion.data?.actions ?? []) {
+      if (action?.action === 'c2pa.edited' || action?.action === 'c2pa.opened') return true;
+    }
+  }
+
+  return false;
 }
 
 /** digitalSourceType of the FIRST action of each actions assertion. */
@@ -490,9 +540,16 @@ app.use((err, req, res, next) => {
   // and the first person to try a real video must learn that here, from one
   // error, rather than learning "MP4 is supported" and then meeting a bare byte
   // count. The list is derived, so a fourth video type cannot leave it stale.
+  // SPEC-028 AC6: a manipulation request carries TWO assets, and the limit is
+  // on their sum. Same constraint as above — the parser refuses before routing,
+  // so this cannot be conditional on whether a parent was actually present; a
+  // caller sending 12 MB plus 12 MB must not read a message implying either one
+  // was too large on its own.
   const reason = tooLarge
     ? `request body too large (max ${MAX_BODY}); the limit applies to every media type, `
-      + `and the video containers (${VIDEO_MIME_LIST}) are accepted but bounded to small files by it`
+      + `the video containers (${VIDEO_MIME_LIST}) are accepted but bounded to small files by it, `
+      + 'and a request that marks manipulation carries both the edited asset and its parent, '
+      + 'which count against this limit together'
     : 'request body is not valid JSON';
 
   audit({
@@ -601,7 +658,7 @@ app.post('/v1/sign', (req, res, next) => {
 });
 
 app.post('/v1/sign', async (req, res) => {
-  const { content, mime_type, creator_name, extra_assertions } = req.body ?? {};
+  const { content, mime_type, creator_name, extra_assertions, parent } = req.body ?? {};
 
   // Every refusal is recorded and answered the same way: the reason names the
   // violated constraint (our own wording — never library internals, never an
@@ -636,7 +693,34 @@ app.post('/v1/sign', async (req, res) => {
   const assertionProblem = rejectAssertions(extra_assertions);
   if (assertionProblem !== null) return reject(assertionProblem);
 
+  // SPEC-028 AC5: the parent is mandatory-by-manifest, both ways. c2pa-rs
+  // enforces neither — an edit intent with no ingredient signs and reports
+  // Valid, and a c2pa.created action next to a parentOf ingredient does too
+  // (measured, NOTES Step 35). These guards are the only ones there are.
+  const wantsParent = needsParentAsset(extra_assertions);
+
+  if (parent !== undefined) {
+    if (parent === null || typeof parent !== 'object' || Array.isArray(parent)) {
+      return reject('parent must be an object with content and mime_type');
+    }
+    if (!parent.content || !parent.mime_type) {
+      return reject('parent requires content and mime_type');
+    }
+    if (typeof parent.mime_type !== 'string' || !SUPPORTED_MIME.has(parent.mime_type)) {
+      return reject(`unsupported parent mime_type "${cap(parent.mime_type, 64)}" (supported: ${SUPPORTED_MIME_LIST})`);
+    }
+    if (typeof parent.content !== 'string' || !isValidBase64(parent.content)) {
+      return reject('parent content is not valid base64');
+    }
+    if (!wantsParent) {
+      return reject('a parent asset was supplied but no c2pa.edited action references one');
+    }
+  } else if (wantsParent) {
+    return reject('this manifest records an edit, which requires a parent asset');
+  }
+
   const fileBuffer = Buffer.from(content, 'base64');
+  const parentBuffer = parent === undefined ? null : Buffer.from(parent.content, 'base64');
 
   const manifestDefinition = {
     claim_generator_info: [
@@ -654,6 +738,26 @@ app.post('/v1/sign', async (req, res) => {
     const builder = Builder.withJson(manifestDefinition);
     const source = { buffer: fileBuffer, mimeType: mime_type };
     const dest = { path: tmp };
+
+    // SPEC-028: the edit intent, and only then. c2pa-rs adds the c2pa.opened
+    // action and the JUMBF reference (url + a hash over the ingredient
+    // assertion) linking it to the ingredient. Building that action ourselves
+    // was measured as Invalid — assertion.action.ingredientMismatch — because
+    // the hash covers an assertion only the builder can produce.
+    //
+    // It merges c2pa.opened INTO the client's own actions assertion rather than
+    // adding a second one, so the invariant that exactly one exists survives.
+    if (parentBuffer !== null) {
+      builder.setIntent('edit');
+      await builder.addIngredient(
+        JSON.stringify({
+          title: 'parent',
+          format: parent.mime_type,
+          relationship: 'parentOf',
+        }),
+        { buffer: parentBuffer, mimeType: parent.mime_type },
+      );
+    }
 
     if (TSA_URL) {
       // Timestamping needs the ASYNC path: fetching the RFC 3161 token is an
@@ -696,6 +800,10 @@ app.post('/v1/sign', async (req, res) => {
         .map((a) => cap(a?.label, 128)).filter(Boolean),
       digital_source_types: allSourceTypes(extra_assertions),
       timestamped: Boolean(TSA_URL),
+      // SPEC-028 AC8: accountability for "we signed a claim that this was
+      // derived from something" requires recording that there was a something.
+      parent_bytes: parentBuffer === null ? null : parentBuffer.length,
+      parent_sha256: parentBuffer === null ? null : sha256(parentBuffer),
     });
 
     res.json({

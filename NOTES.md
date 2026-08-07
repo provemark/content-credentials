@@ -2457,3 +2457,327 @@ once.
 **A test that skips a case "for now" has to be re-read when the ground moves.**
 That exclusion was correct when it was written and wrong an hour later, and
 nothing about the test itself changed in between.
+
+---
+
+## Step 35 — SPEC-028 drafted, and the two questions it could not be written without (2026-08-07)
+
+Article 50(2) requires marking content that is "generated **or manipulated**".
+This package does the first half. SPEC-028 (draft) is the second half, and two of
+its open questions were blocking enough that the spec was written around
+measurements rather than around reasoning. Both were measured against the running
+container: `@contentauth/c2pa-node` **0.8.1**, c2pa-rs 0.90.4.
+
+No implementation code exists — the spec is `draft`. What follows is probe work.
+
+### ⚠️ The local `service/node_modules` is 0.7.0; the service runs 0.8.1
+
+Nearly read the wrong API surface. `service/package.json` and the lockfile say
+0.8.1 and the Docker build honours them (Step 10), but the checkout's own
+`node_modules` had never been refreshed. Any claim about "what the library
+offers" has to come from inside the container:
+
+```
+docker exec c2pa-spike-service-1 node -e "…require('/app/node_modules/…')"
+-> version: 0.8.1   addIngredient: function   setIntent: function   addAction: function
+```
+
+Same family as Step 23's "check the registry, not the prose", one layer down:
+**check the artefact that runs, not the one that happens to be on disk.**
+
+Also worth keeping: `@contentauth/c2pa-node`'s own `Builder.spec.js` ships inside
+the image, and it is the authoritative source for API shapes —
+`setIntent('edit')` takes a plain string, `addIngredient(parentJsonString,
+{buffer, mimeType})`. That is how Step 1 verified the 0.5.x API too, and it beats
+the README every time.
+
+### OQ1 — who builds the `c2pa.opened` → ingredient linkage
+
+Three shapes built and signed, then the signed manifests inspected.
+
+| Route | What we supply | `validation_state` |
+|---|---|---|
+| A | `c2pa.opened` + `c2pa.edited`, no intent | **`Invalid`** |
+| B | `setIntent('edit')`, only `c2pa.edited` | `Valid` |
+| B2 | `setIntent('edit')`, action via `addAction()` | `Valid` |
+
+**Route A is not a worse option — it is not an available one.** The failure is
+`assertion.action.ingredientMismatch`, and the reason is visible in what a
+correct `c2pa.opened` actually carries:
+
+```json
+"parameters": { "ingredients": [{
+  "url": "self#jumbf=c2pa.assertions/c2pa.ingredient.v3",
+  "hash": "nP3uvWkY9FColHEVkiXwzC/E90OQapMiYGge/AesTwg=" }] }
+```
+
+That hash is over the **ingredient assertion**, which the service constructs.
+PHP would have to reproduce c2pa-rs's own assertion serialisation and hashing to
+emit it. So the linkage is c2pa-rs's to build, and the only question was what it
+costs us.
+
+**It costs nothing.** All three routes produced exactly **one**
+`c2pa.actions.v2` assertion: c2pa-rs inserts `c2pa.opened` *into our assertion*
+rather than adding a second one, and our `c2pa.edited` survives with its
+`digitalSourceType` and `softwareAgent` intact. The double-actions problem that
+NOTES Step 1's divergence exists to prevent does not appear, so the invariant
+"the client owns the actions assertion" holds under route B.
+
+B over B2 because B leaves `extra_assertions` flowing through the service
+unchanged; the whole service delta is `setIntent('edit')` + `addIngredient()`,
+both conditional on a parent being present.
+
+### ⚠️ Three things the library will not do for us
+
+1. **`setIntent('edit')` with no ingredient signs anyway** — `Valid`, no error,
+   despite `BuilderInterface` documenting that "Edit requires a parent
+   ingredient". There is no enforcement underneath us. SPEC-028's AC3/AC5 are
+   the only guards that exist.
+2. **The contradictory shape signs clean.** Given `c2pa.created` + a `parentOf`
+   ingredient + the AI *edit* source type together, c2pa-rs returned `Valid`,
+   added no `c2pa.opened`, and warned about nothing — actions stayed
+   `[c2pa.created]`. That is exactly the well-formed-but-false manifest SPEC-026
+   was written to prevent, and **nothing outside our own builder catches it**.
+   Retroactive justification for SPEC-026's split of vocabulary (the enum) from
+   policy (the builder): the policy is not a nicety, it is the only check.
+3. **The existing created path is untouched.** No intent set, one actions
+   assertion, `c2pa.created`, `Valid` — measured alongside, so the regression
+   claim is evidence rather than an assumption. Written down as AC11.
+
+### OQ4 — a parent that is already signed
+
+Signed an original the ordinary way, then used that signed file as the
+`parentOf` ingredient of a route-B edit, with an unsigned parent as baseline.
+
+Provenance is preserved automatically: the store gains a **second manifest**
+(`manifestCount` 1 → 2), the ingredient gains `active_manifest`, `manifest_data`
+and `validation_results`, and `validation_state` stays `Valid`. Nothing needs
+building for it.
+
+**The check that mattered was our own reader, and it was run rather than
+reasoned.** `ManifestStoreParser` resolves `active_manifest` and reads only that
+manifest's assertions, so the parent's `trainedAlgorithmicMedia` must not leak
+into what we report about the child. Confirmed on the real file through
+`ExtC2paReader` (c2pa-rs **0.89.0**, the older engine):
+
+```
+isAiGenerated        : false   <- correct: edited, not created
+involvesGenerativeAi : true
+digitalSourceTypes   : ["compositeWithTrainedAlgorithmicMedia"]
+```
+
+A whole-store scan would have reported **both** terms and made `isAiGenerated()`
+wrongly true. One accessor away from a bug, in the same predicate SPEC-013 spent
+a whole step repairing.
+
+### ⚠️ Provenance accumulates in the bytes
+
+From a 1.7 KB fixture:
+
+| | bytes |
+|---|---|
+| signed original | 47,748 |
+| derived, unsigned parent | 80,840 |
+| derived, **signed** parent | **128,448** |
+
+The extra ~47.6 KB is the parent's entire manifest store, carried inside the
+child. A second edit carries two, a third all three.
+
+This lands twice: the output is larger, and when it is edited again it is also
+the larger *input* to the next request. So a deployment can approach
+`MAX_BODY_SIZE` through **edit-chain depth rather than asset size** — a path
+neither SPEC-017 nor SPEC-025 was sized for. SPEC-028 AC9 therefore requires
+measurement across at least three generations (one before/after pair cannot show
+whether a cost compounds), and AC10 requires the README to publish the number
+rather than an adjective.
+
+### Where SPEC-028 stands
+
+OQ1 and OQ4 are answered by measurement. OQ2 (do `algorithmicallyEnhanced` and
+`humanEdits` unlock too), OQ3 (may the parent's media type differ) and OQ5 (one
+size budget for the pair, or two) are maintainer decisions with recommendations
+attached, not open investigations. Status stays `draft`.
+
+---
+
+## Step 36 — ADR-0004, and the same link check failing the same way twice (2026-08-07)
+
+### The ADR was holding a decision that had been reversed
+
+Went looking for where to record why WebAssembly, browser-held keys and
+in-process signing all get declined, and found that **ADR-0003 decision 3 still
+says "plan an `ExtC2paSigner` adapter"**. NOTES Step 23 found the extension
+cannot timestamp (`tsa_url = None`), Step 24 corrected the reach argument, and
+CLAUDE.md says the adapter stays unbuilt — but the artefact whose entire job is
+to hold architectural decisions held the superseded one.
+
+That is worth noticing as a class: this repository keeps its reasoning in four
+places (specs, ADRs, NOTES, CLAUDE.md), and only specs have a lifecycle that
+forces them to be revisited. An ADR can quietly go stale because nothing ever
+reads it back.
+
+**ADR-0004** (`proposed`, amending ADR-0003 §3) now carries all four answers in
+one place: no `ExtC2paSigner`, no WASM runtime inside PHP, no per-user or
+browser-held signing keys, and HSM/KMS through SPEC-007's existing
+`CallbackSigner` as the one sanctioned upgrade — unbuilt, with the trigger and
+the three things to measure written down. Opened as `proposed` rather than
+`accepted`, because it reverses a decision the maintainer had accepted and that
+ratification is not an assistant's to make. **Accepted the same day.**
+
+### ⚠️ SPEC-027 AC2 did not check `docs/adr/` — eighth instance
+
+The new ADR link went green immediately, which by now is a reason for suspicion
+rather than comfort. Broke it deliberately:
+
+```
+sed 's#ADR-0004-where-the-signing-key-lives.md#ADR-0004-does-not-exist.md#'
+-> ✓ it resolves every relative link in the documentation   (1 passed)
+```
+
+The check globbed `docs/*.md` — one level — so every ADR was outside it, and the
+ADRs link to each other. Fixed with a recursive walk (`spec027DocPages()`) and
+confirmed red before trusting green, with the failure naming the file by its
+root-relative path rather than its basename, since basenames stop being unique
+once subdirectories are in scope.
+
+**This is the second defect in the same criterion in one day.** Step 34 fixed it
+skipping in-page anchors; this fixed it skipping a whole directory. Both times
+the criterion was right and the implementation was narrower than the sentence it
+implemented — and both times it reported green over the exact failure it was
+written to catch.
+
+The generalisation, which is not "write better tests": a check that enumerates
+*where* to look is a check with a scope that silently ages. `spec027Pages()`
+lists the five pages SPEC-027 created, and that is correct because the criterion
+is about those five. AC2's sentence says "the documentation", so it must
+discover, not enumerate.
+
+`composer check` green (273 passed), SPEC-027 group 10 passed.
+
+---
+
+## Step 37 — SPEC-028 implemented: the second half of Article 50(2) (2026-08-07)
+
+Content *manipulated* with AI can now be marked. Route B throughout, as Step 35
+measured: the client emits one `c2pa.edited` action, the service sets
+`setIntent('edit')` and calls `addIngredient()`, and c2pa-rs writes the
+`c2pa.opened` action and its linkage into our own actions assertion.
+
+Verified end to end rather than through our own reader alone — `c2patool` with
+trust settings on a signed manipulated PNG:
+
+```
+c2pa.opened  -> parameters.ingredients[0] = {url: self#jumbf=…/c2pa.ingredient.v3, hash: …}
+c2pa.edited  -> softwareAgent + compositeWithTrainedAlgorithmicMedia
+ingredients  : [('parent', 'parentOf')]     validation_state: Trusted     status: []
+```
+
+### ⚠️ The measurement that was wrong looked like good news
+
+AC9's first run reported a memory multiplier of **0.8×**, against SPEC-017's ~7×
+for a single asset. A number that low is not a pleasant surprise, it is a broken
+measurement — and this one was broken twice over: the baseline was 133 MiB
+because the container had just run the full integration suite, and the asset
+pair was sized so close to the body limit that the requests were plausibly
+refused rather than signed.
+
+Restarted the container and made the script **assert the HTTP statuses**:
+
+```
+HTTP statuses : 200 200 200 200
+idle baseline : 24.4 MiB   peak with 4 in flight : 244.1 MiB
+per request   : 54.9 MiB   multiplier vs the PAIR : 4.6x
+```
+
+The lesson is the sibling of everything in Steps 20, 21 and 34: **a measurement
+taken over work that did not happen reads as a small number, not as an error.**
+Any load measurement has to prove the load arrived. The script now prints a
+warning when a status is not 200.
+
+The answer AC9 wanted: **`MAX_BODY_SIZE` needs no change.** A manipulation
+request is bounded by the same limit, and the largest admissible *pair* is
+smaller than the largest admissible single asset, so the peak (≈245 MiB) sits
+below SPEC-017's ≈420 MiB. The parent is hashed, not signed.
+
+### Generational growth is linear, and that was worth measuring
+
+```
+gen 1 (created)  55,455    gen 2  144,301 (+88,846)
+gen 3  233,924 (+89,623)   gen 4  323,547 (+89,623)
+```
+
+Constant ~89.6 KB per generation. Step 35 established that a signed parent's
+manifest is carried into the child and worried in the spec that it "compounds";
+four generations show it does not. Had the child embedded the parent's whole
+accumulated store, gen 3 would have been ≈288 KB rather than 234 KB. The
+mechanism was deliberately not chased — the measured shape is what the README
+publishes, and a mechanism nobody verified is how this log fills with things
+that turn out to be wrong.
+
+### ⚠️ `bin/verify.sh` gave a wrong answer, and it is the authoritative check
+
+CLAUDE.md names it as the authoritative verification. It reported a correctly
+marked manipulated asset as `AI Art.50 mark : FAIL`, because it tested for
+`trainedAlgorithmicMedia` alone — while Article 50(2) covers generated **or**
+manipulated. So the one tool the project trusts to arbitrate would have said no
+to exactly the content this spec added. Now recognises both and names which it
+found; checked in both directions.
+
+Worth generalising: this is the fourth place in the repo where a list of
+"what counts as supported" had gone stale (SPEC-021's three allow-lists, SPEC-023's
+413 wording, SPEC-027 AC2's directory glob, now this). Every one of them was a
+hand-written enumeration of something that grew.
+
+### ⚠️ A documented example that did not compile
+
+SPEC-028's API sketch and `docs/marking.md` both show
+`ContentCredentials::sign($asset, $manifest, parent: ...)` — the Laravel facade.
+`ContentCredentialsManager::sign()` still took two parameters, and **no
+acceptance criterion covered the Laravel layer at all**, so nothing would have
+caught it: the Core signer's tests bypass the manager entirely.
+
+Added, plus a test asserting the third parameter exists by reflection rather
+than trusting the prose. The spec gap is recorded in its implementation notes
+rather than papered over — the criteria were written about Core and the service,
+and the sketch quietly assumed a third layer.
+
+### ⚠️ `?? 'missing'` cannot test for null
+
+AC8 asserts the audit record's `parent_bytes` is null when nothing was derived.
+Written as `expect($record['parent_bytes'] ?? 'missing')->toBeNull()`, which
+**cannot pass**: null coalescing returns the fallback for a real `null` exactly
+as it does for an absent key. It reported correct behaviour as broken. Presence
+and nullness are now asserted separately, which is also the stricter contract —
+the field must be *there* and null, so a reader can tell lineage was considered.
+
+Same family as Step 14's over-long `creator_name`: a test of mine that was wrong
+about the code rather than the other way round.
+
+### SPEC-026's AC4 tests were rewritten, not deleted
+
+They asserted the refusal SPEC-028 removes. Deleting them would have lost the
+criterion; leaving them would have pinned behaviour that no longer exists. What
+AC4 actually guarded survives intact — an editing term must never ride on
+`c2pa.created` — so they now assert that, and SPEC-026's traceability row was
+updated (the only section of an `approved` spec that may change). Same move as
+Step 13 when SPEC-013 amended SPEC-003 D3.
+
+### Two smaller findings
+
+- **PHPStan caught a vacuous test again**, the eighth in this log and the second
+  by a tool: `is_subclass_of(MissingParentAssetException::class,
+  ContentCredentialsException::class)` is provably always true once the class
+  exists, because `implements` is enforced by the type system. Removed rather
+  than silenced, with a comment where it stood so nobody restores it.
+- **`bin/spec-check.php` needs the bolded AC title on ONE line.** Its criteria
+  regex is `/m` without `/s`, so a title wrapped across two lines is invisible
+  and the traceability row is reported as stale. It reported that clearly —
+  `AC12 has a traceability row but no entry in Behavior` — which is the tool
+  working, not failing.
+
+### Verified
+
+`composer check` green (293 passed), integration **109 passed / 11 skipped**
+(defaults) and **107 / 13** (hardened, `REQUIRE_AI_MARKING=true`),
+`php bin/spec-check.php` 0 errors, `bin/e2e.php` green, `bin/verify.sh` PASS on
+both a generated and a manipulated asset.

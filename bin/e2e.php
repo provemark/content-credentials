@@ -163,7 +163,7 @@ echo match (true) {
 // 0.90.4 in the service — so agreement is a result, not a given. Skipped rather
 // than failed where the extension is absent, which is the normal case.
 if (! ExtC2paReader::isAvailable()) {
-    echo "· ext-c2pa not installed — in-process reading not exercised"
+    echo '· ext-c2pa not installed — in-process reading not exercised'
         ." (pie install ericmann/ext-c2pa)\n";
 } else {
     $inProcess = (new ExtC2paReader)->read(new Asset($signed->bytes, MediaType::Png));

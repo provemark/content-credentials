@@ -7,11 +7,12 @@ namespace Provemark\ContentCredentials\Core\Manifest;
 /**
  * IPTC DigitalSourceType values (SPEC-001, widened by SPEC-026).
  *
- * **This enum is the vocabulary; `ManifestBuilder` is the policy.** Not every
- * case here can be emitted: the three editing terms describe an operation on an
- * asset that already existed, which C2PA records as `c2pa.opened` + an ingredient
- * + `c2pa.edited`. This package cannot build that, so the builder refuses them —
- * and it can only refuse what it can be handed, which is why they are declared.
+ * **This enum is the vocabulary; `ManifestBuilder` is the policy.** The three
+ * editing terms describe an operation on an asset that already existed, which
+ * C2PA records as `c2pa.opened` + an ingredient + `c2pa.edited`. SPEC-026
+ * declared them and refused them, because this package could not build that
+ * structure; SPEC-028 builds it, so they are emittable — on `c2pa.edited`, and
+ * only when the caller supplies the original asset.
  *
  * Two kinds of term are deliberately absent:
  *
@@ -39,7 +40,7 @@ enum DigitalSourceType: string
     /** Purely algorithmic, not based on any sampled training data. */
     case AlgorithmicMedia = 'http://cv.iptc.org/newscodes/digitalsourcetype/algorithmicMedia';
 
-    // --- Declared, refused by the builder: operations on an existing asset --
+    // --- Operations on an existing asset: need a parentOf ingredient --------
 
     /** Augmentation or enhancement USING a generative AI model (inpainting). */
     case CompositeWithTrainedAlgorithmicMedia = 'http://cv.iptc.org/newscodes/digitalsourcetype/compositeWithTrainedAlgorithmicMedia';
@@ -54,8 +55,11 @@ enum DigitalSourceType: string
      * Whether this term describes an operation on an asset that already existed.
      *
      * Such a manifest needs `c2pa.opened` pointing at an ingredient with a
-     * `parentOf` relationship, then `c2pa.edited` carrying the source type — not
-     * the single `c2pa.created` action this package builds.
+     * `parentOf` relationship, then `c2pa.edited` carrying the source type.
+     *
+     * Since SPEC-028 this no longer gates the builder — it decides which action
+     * verb is emitted, and becomes {@see Manifest::requiresParentAsset()}, which
+     * the Signing layer turns into a hard precondition.
      */
     public function requiresIngredient(): bool
     {

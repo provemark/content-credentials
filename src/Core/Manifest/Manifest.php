@@ -22,12 +22,27 @@ final readonly class Manifest
         private MediaType $mediaType,
         private array $assertions,
         private array $claimGeneratorInfo = [],
+        private bool $requiresParentAsset = false,
     ) {}
 
     /** The asset format this manifest is built for (SPEC-001 amendment via SPEC-002). */
     public function mediaType(): MediaType
     {
         return $this->mediaType;
+    }
+
+    /**
+     * Whether signing this manifest needs the original asset as an ingredient
+     * (SPEC-028).
+     *
+     * True for the editing source types, whose manifest C2PA records as
+     * `c2pa.opened` + a `parentOf` ingredient + `c2pa.edited`. The Signing layer
+     * turns this into a hard precondition, because nothing below it does:
+     * c2pa-rs signs an edit intent with no ingredient without complaint.
+     */
+    public function requiresParentAsset(): bool
+    {
+        return $this->requiresParentAsset;
     }
 
     /**

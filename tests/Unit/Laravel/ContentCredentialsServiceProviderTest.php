@@ -122,7 +122,7 @@ it('proxies sign() through the facade to the bound signer', function () {
     {
         public function __construct(private SignedAsset $signed) {}
 
-        public function sign(Asset $asset, Manifest $manifest): SignedAsset
+        public function sign(Asset $asset, Manifest $manifest, ?Asset $parent = null): SignedAsset
         {
             return $this->signed;
         }

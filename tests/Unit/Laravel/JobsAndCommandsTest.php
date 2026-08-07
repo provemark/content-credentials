@@ -111,7 +111,7 @@ final class Cc6RecordingSigner implements SignerInterface
 
     public function __construct(private string $returns = 'SIGNED-BYTES') {}
 
-    public function sign(Asset $asset, Manifest $manifest): SignedAsset
+    public function sign(Asset $asset, Manifest $manifest, ?Asset $parent = null): SignedAsset
     {
         $this->manifest = $manifest;
         $this->mediaType = $asset->mediaType;
@@ -228,7 +228,7 @@ it('SignAssetJob lets a signing failure propagate and leaves no output', functio
     $out = h6DestPath();
     $failing = new class implements SignerInterface
     {
-        public function sign(Asset $asset, Manifest $manifest): SignedAsset
+        public function sign(Asset $asset, Manifest $manifest, ?Asset $parent = null): SignedAsset
         {
             throw new SigningTransportException('boom');
         }
