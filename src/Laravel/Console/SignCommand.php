@@ -10,6 +10,7 @@ use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
 use Provemark\ContentCredentials\Core\Signing\Asset;
 use Provemark\ContentCredentials\Core\Signing\SignerInterface;
 use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
+use Provemark\ContentCredentials\Laravel\Support\AtomicWrite;
 
 final class SignCommand extends Command
 {
@@ -79,7 +80,7 @@ final class SignCommand extends Command
             return self::FAILURE;
         }
 
-        if (! is_dir(dirname($output)) || @file_put_contents($output, $signed->bytes) === false) {
+        if (! AtomicWrite::toPath($output, $signed->bytes)) {
             $this->error("Cannot write signed image to: {$output}");
 
             return self::FAILURE;

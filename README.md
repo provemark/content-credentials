@@ -700,6 +700,32 @@ Not excluded on principle — each has a reason:
 
 This project does not ship what it has not seen work.
 
+### Which reader, and what it costs
+
+`SigningServiceReader` sends the asset to the service; `ExtC2paReader` parses it
+in-process through `ext-c2pa`. The usual comparison is operational — no second
+process, no network hop, faster — and that is real. There is a second difference
+worth deciding deliberately.
+
+**The extension parses untrusted input inside your application process.** A
+manifest arrives as bytes from somewhere you do not control, and verifying it
+means parsing a container format in native code. With the service reader that
+parsing happens in a separate, disposable process; with the extension it happens
+in the PHP worker that also holds your session data and your database
+connections.
+
+This is the mirror image of the argument in
+[ADR-0003](docs/adr/0003-signing-service-over-ffi.md): the signing *key* is kept
+out of the web process by putting the signer behind a service, and the extension
+reader moves parsing in the opposite direction. Neither is wrong — a memory-safety
+bug in c2pa-rs is not a thing anyone has demonstrated — but the trade is worth
+making on purpose rather than inheriting it because an extension happened to be
+installed.
+
+That is also why `reader` defaults to `service` and why `auto` has to be chosen
+explicitly (SPEC-020): installing the extension for an unrelated reason should
+not silently move where hostile input is parsed.
+
 ## Verifying the output
 
 `bin/verify.sh` runs [`c2patool`](https://github.com/contentauth/c2pa-rs) with

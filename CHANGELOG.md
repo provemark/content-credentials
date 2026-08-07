@@ -72,6 +72,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the read cap defaults to the same 4 rather than to something generous. Four
   signs plus four reads of maximum-size assets is roughly 650 MiB.
 
+- **The client keeps its own bounds now (SPEC-025).** The service has been
+  hardened six times; the client once, and that one bound was sized against a
+  limit SPEC-017 replaced. Four changes, all on the PHP side:
+
+  - `max_request_bytes` (new, 15 MiB): an asset too large for the service is
+    refused with `AssetTooLargeException` **before** it is base64-encoded.
+    Encoding costs ~3.7× the file, so learning the limit from the service's 413
+    meant paying for it first — or dying before the answer arrived.
+  - `require_secure_transport` (new, off): plain HTTP to anything other than
+    loopback sends the API key across a network in clear. That is now a logged
+    warning by default, and an exception when this is set. Loopback stays
+    silent, because that is the documented deployment.
+  - A service error message copied into an exception is capped at 256
+    characters. Whatever answers on that URL controls that string, and it ends
+    up in your logs.
+  - The signed file is written atomically — temporary file plus rename, in the
+    destination's own directory — so a crash mid-write can no longer leave a
+    truncated file that looks signed.
+
+  The README and the primer now also state what choosing `ExtC2paReader` means:
+  it parses untrusted assets **inside the application process**, where the
+  service reader keeps that in a separate one. That is the mirror image of
+  ADR-0003's key-isolation argument, and worth deciding on purpose.
+
 ### Fixed
 
 - **A deeply nested assertion crashed past its own guard.** SPEC-011's depth
@@ -86,6 +110,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   other refusal.
 
 ### Upgrading
+
+- **`max_response_bytes` drops from 96 MiB to 32 MiB.** It was documented as
+  "headroom over the service's 50 MB request cap", and SPEC-017 lowered that cap
+  to 20 MB — so the guard permitted about five times what a correct service can
+  send, and sat far above the `memory_limit = 128M` many deployments run. If you
+  raised `MAX_BODY_SIZE` on the service, raise `CONTENTAUTH_MAX_RESPONSE_BYTES`
+  and `CONTENTAUTH_MAX_REQUEST_BYTES` with it.
 
 - **Verification traffic is now rate-limited.** If a deployment reads more than
   240 assets per minute per token, or runs more than 4 verifications at once, it

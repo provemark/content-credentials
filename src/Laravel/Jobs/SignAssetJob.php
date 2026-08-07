@@ -11,6 +11,7 @@ use Provemark\ContentCredentials\Core\Manifest\MediaType;
 use Provemark\ContentCredentials\Core\Signing\Asset;
 use Provemark\ContentCredentials\Core\Signing\SignerInterface;
 use Provemark\ContentCredentials\Laravel\Events\AssetSigned;
+use Provemark\ContentCredentials\Laravel\Support\AtomicWrite;
 
 /**
  * Queued signing of a local file: reads the source, builds the AI-generated
@@ -58,7 +59,7 @@ final class SignAssetJob implements ShouldQueue
 
         // Only write once signing succeeded — a failure leaves no partial file.
         // A failed write must surface, not silently "succeed" (no AssetSigned).
-        if (! is_dir(dirname($this->destinationPath)) || @file_put_contents($this->destinationPath, $signed->bytes) === false) {
+        if (! AtomicWrite::toPath($this->destinationPath, $signed->bytes)) {
             throw new \RuntimeException("Cannot write signed file: {$this->destinationPath}");
         }
 

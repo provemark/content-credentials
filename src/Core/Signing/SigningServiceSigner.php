@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Provemark\ContentCredentials\Core\Signing;
 
 use Provemark\ContentCredentials\Core\Manifest\Manifest;
+use Provemark\ContentCredentials\Core\Signing\Exception\AssetTooLargeException;
 use Provemark\ContentCredentials\Core\Signing\Exception\MediaTypeMismatchException;
 use Provemark\ContentCredentials\Core\Signing\Exception\SigningFailedException;
 use Provemark\ContentCredentials\Core\Signing\Exception\SigningResponseException;
@@ -25,6 +26,9 @@ use Psr\Http\Message\StreamFactoryInterface;
  */
 final class SigningServiceSigner implements SignerInterface
 {
+    /** How much of a service error message is carried into an exception (SPEC-025 AC4). */
+    private const MAX_ERROR_CHARS = 256;
+
     public function __construct(
         private readonly ClientInterface $httpClient,
         private readonly RequestFactoryInterface $requestFactory,
@@ -40,6 +44,20 @@ final class SigningServiceSigner implements SignerInterface
                 'Asset media type "%s" does not match manifest media type "%s".',
                 $asset->mediaType->value,
                 $manifest->mediaType()->value,
+            ));
+        }
+
+        // SPEC-025 AC2: before encoding, not after. The base64 copy and the
+        // JSON body together cost roughly 3.7x the asset, so a client that
+        // discovers the limit from the service's 413 has already paid for it —
+        // or died trying, which is the case this exists for.
+        $size = strlen($asset->bytes);
+        if ($size > $this->config->maxRequestBytes) {
+            throw new AssetTooLargeException(sprintf(
+                'Asset is %d bytes, which exceeds the configured limit of %d bytes for a signing request. '
+                .'The signing service accepts a body of MAX_BODY_SIZE; raise both if you sign larger assets.',
+                $size,
+                $this->config->maxRequestBytes,
             ));
         }
 
@@ -130,6 +148,13 @@ final class SigningServiceSigner implements SignerInterface
         return $bytes;
     }
 
+    /**
+     * The service's own error text, capped (SPEC-025 AC4).
+     *
+     * Whatever answers on that URL controls this string, and it ends up in an
+     * application's logs through the exception message. The service caps every
+     * caller-supplied string it records for the same reason; this reciprocates.
+     */
     private function extractError(string $body): string
     {
         try {
@@ -139,7 +164,11 @@ final class SigningServiceSigner implements SignerInterface
         }
 
         if (is_array($decoded) && isset($decoded['error']) && is_string($decoded['error'])) {
-            return $decoded['error'];
+            $error = $decoded['error'];
+
+            return strlen($error) > self::MAX_ERROR_CHARS
+                ? substr($error, 0, self::MAX_ERROR_CHARS).'… (truncated)'
+                : $error;
         }
 
         return 'unknown error';

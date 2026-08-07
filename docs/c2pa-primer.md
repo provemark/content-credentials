@@ -160,6 +160,18 @@ intact, and confirmed with `c2patool` under trust settings:
   (compared through `GET /health`), and the extension map in `InfersMediaType`.
 - Unmeasured, therefore undeclared: DNG, JPEG XL.
 
+## 9. The two readers, and where parsing happens
+
+`SigningServiceReader` (HTTP, c2pa-rs 0.90.4) and `ExtC2paReader` (in-process,
+0.89.0) answer the same questions. Two differences matter when choosing:
+
+- **Engine version.** The extension lags the service, which is why `auto` is not
+  the default (SPEC-020).
+- **Process boundary.** The extension parses untrusted assets *inside the
+  application process*; the service reader keeps that in a separate one. This is
+  the mirror image of ADR-0003's key-isolation argument, and it is a deliberate
+  trade rather than a free operational win (SPEC-025 AC6).
+
 ## Open items (spec required before touching)
 
 - `c2pa.actions` vs `c2pa.actions.v2` naming in public API/docs wording.

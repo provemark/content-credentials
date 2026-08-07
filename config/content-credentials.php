@@ -64,8 +64,27 @@ return [
         /*
         | Reject a signing-service response larger than this many bytes before
         | buffering it into memory (defends against an oversized/hostile
-        | response). Default 96 MiB — headroom over the service's request cap.
+        | response). Default 32 MiB: the service caps a body at 20 MB, which
+        | carries a ~15 MiB asset, so the largest legitimate response is ~20 MiB
+        | plus JSON overhead. Raise both together if you raise MAX_BODY_SIZE.
         */
-        'max_response_bytes' => env('CONTENTAUTH_MAX_RESPONSE_BYTES', 100663296),
+        'max_response_bytes' => env('CONTENTAUTH_MAX_RESPONSE_BYTES', 33554432),
+
+        /*
+        | Refuse an asset larger than this before encoding it, instead of
+        | discovering the limit as an HTTP 413 after holding ~3.7x the file in
+        | memory. Default 15 MiB — what fits in the service's 20 MB body once
+        | base64 inflates it. The service enforces its own limit regardless, so
+        | a mismatch costs a worse error message, never a wrong outcome.
+        */
+        'max_request_bytes' => env('CONTENTAUTH_MAX_REQUEST_BYTES', 15728640),
+
+        /*
+        | Plain HTTP to anything other than loopback sends the API key across a
+        | network in clear. That is reported as a warning by default, because
+        | http://signer:3000 between containers on one private network is a
+        | normal deployment. Set this to true to make it fatal instead.
+        */
+        'require_secure_transport' => env('CONTENTAUTH_REQUIRE_SECURE_TRANSPORT', false),
     ],
 ];
