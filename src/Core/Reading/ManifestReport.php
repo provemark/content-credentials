@@ -128,6 +128,28 @@ final readonly class ManifestReport
     }
 
     /**
+     * True when any generative AI model was involved (SPEC-026 AC7).
+     *
+     * Wider than {@see isAiGenerated()}, which means exactly
+     * `trainedAlgorithmicMedia` and stays that way — it gates Article 50
+     * decisions in code already written against it, and silently changing what
+     * it answers is the failure SPEC-013 exists to remember.
+     *
+     * False for `algorithmicMedia`, and that is the point of that term:
+     * synthetic, but no model and no training data.
+     */
+    public function involvesGenerativeAi(): bool
+    {
+        foreach ($this->digitalSourceTypes() as $value) {
+            if (DigitalSourceType::tryFrom($value)?->involvesGenerativeAi() === true) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * True when the asset is marked as AI-generated **and** that marking came
      * from a manifest whose signature checked out — the check to reach for when
      * a decision hangs on the Article 50 marking (SPEC-013 AC6).

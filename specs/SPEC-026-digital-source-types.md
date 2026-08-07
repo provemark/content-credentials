@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — (draft)                                         |
+| Approved   | 2026-08-07 (maintainer)                           |
 | Supersedes | —                                                 |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -110,11 +110,20 @@ Retired, and therefore never to be emitted: `minorHumanEdits`, `digitalArt`,
 
 **In scope**
 
-- `DigitalSourceType` gains the two **created-time synthetic** cases:
+- `DigitalSourceType` becomes **the vocabulary**, and `ManifestBuilder` becomes
+  **the policy**. The enum gains the two emittable synthetic cases —
   `compositeSynthetic` (a mix, at least one element generative AI) and
-  `algorithmicMedia` (purely algorithmic, not trained on sampled data). Both
-  describe how an asset came into being, so both ride on the existing single
-  `c2pa.created` action.
+  `algorithmicMedia` (purely algorithmic, not trained on sampled data), both of
+  which ride on the existing single `c2pa.created` action — *and* the three
+  editing cases the builder refuses (`compositeWithTrainedAlgorithmicMedia`,
+  `algorithmicallyEnhanced`, `humanEdits`).
+- *(Amendment made while this spec was still `draft`, 2026-08-07. The first
+  version had the enum gain only the two emittable cases while AC4 required the
+  builder to refuse the other three — which cannot be expressed if they are not
+  in the enum. Splitting vocabulary from policy resolves it, and is better: the
+  refusal can then say **why**, where an absent constant only says "no such
+  thing". A caller who reaches for the editing term learns that it needs
+  ingredients, which is the fact worth conveying.)*
 - Named constructors in the form settled in NOTES Step 26:
   `ManifestBuilder::forSynthetic()`, `::forAlgorithmic()`, and a general
   `::forSourceType(DigitalSourceType, MediaType)` behind them.
@@ -125,11 +134,12 @@ Retired, and therefore never to be emitted: `minorHumanEdits`, `digitalArt`,
 
 **Out of scope** (each needs its own spec before it may be built)
 
-- **The manipulated case** — `compositeWithTrainedAlgorithmicMedia`,
+- **Emitting the manipulated case** — `compositeWithTrainedAlgorithmicMedia`,
   `algorithmicallyEnhanced`, `humanEdits`. All three describe an operation on an
   existing asset, so all three need `c2pa.opened` + an ingredient +
   `c2pa.edited`. That is ingredient support, and it is a larger piece of work
-  than this whole spec.
+  than this whole spec. They are *declared* here so the refusal can name them;
+  building a manifest with them is what a later spec adds.
 - **Every authenticity claim** — `digitalCapture`, `computationalCapture`,
   `digitalCreation`, the film and print terms. Settled before approval: they do
   not belong in this package. See Open questions; the short version is that this
@@ -155,7 +165,7 @@ covered by a Pest test tagged `->group('SPEC-026')`.
   - And it reads back `Valid` with the marking intact
 
 - **AC2 — the URIs are IPTC's, verbatim**
-  - Given the enum
+  - Given the enum, emittable and refused cases alike
   - When each case's value is compared with the IPTC vocabulary
   - Then it matches exactly, including `compositeWithTrainedAlgorithmicMedia`
     having no "d"
@@ -201,6 +211,23 @@ covered by a Pest test tagged `->group('SPEC-026')`.
     "edited with AI". Choosing it for a composite is a false statement about
     provenance.)*
 
+- **AC7 — the reading side keeps its meaning, and gains one** *(amendment,
+  2026-08-07, before implementation)*
+  - Given a manifest marked `compositeSynthetic` or `algorithmicMedia`
+  - When it is read back
+  - Then `isAiGenerated()` is **false** for both, unchanged: it means exactly
+    `trainedAlgorithmicMedia` and SPEC-013 is the record of what a too-permissive
+    predicate costs
+  - And a new `involvesGenerativeAi()` is **true** for `trainedAlgorithmicMedia`
+    and `compositeSynthetic`, and **false** for `algorithmicMedia` — which is the
+    whole point of that term: synthetic, but no model, no training data
+  - *(Found while scoping the implementation: shipping the writing side without
+    deciding the reading side would leave a caller who marks `compositeSynthetic`
+    unable to detect it except by string-matching `digitalSourceTypes()`. Widening
+    `isAiGenerated()` instead was rejected: it gates Article 50 decisions in code
+    already written against it, and silently changing what it answers is the
+    failure SPEC-013 exists to remember.)*
+
 ## API sketch
 
 Illustrative only.
@@ -224,18 +251,20 @@ ManifestBuilder::forSourceType(DigitalSourceType::CompositeSynthetic, MediaType:
 
 ## Open questions
 
-- **Does `forAiManipulated()` stay reserved?** The family settled in NOTES Step
-  26 assumed it would arrive alongside the others. It cannot, because it needs
-  ingredients. Recommendation: **do not add the name now**, and let AC4's
-  exception name the gap. A constructor that throws is worse than one that does
-  not exist — it looks like a supported path with a bug.
+- ~~**Does `forAiManipulated()` stay reserved?**~~ **Settled before approval: no
+  name is added now.** The family settled in NOTES Step 26 assumed it would
+  arrive alongside the others; it cannot, because it needs ingredients. A
+  constructor that throws is worse than one that does not exist — it looks like a
+  supported path with a bug, and an IDE will offer it for completion. AC4's
+  exception, raised from `forSourceType()`, names the gap where someone actually
+  meets it.
 
-- **Should `forSourceType()` be public at all?** It is the general form under the
-  named ones, and exposing it means a caller can pass any case, including ones a
-  future spec adds for the edited path. Recommendation: **public**, with AC4
-  guarding the cases that need ingredients. The alternative — named constructors
-  only — means a new constructor for every term IPTC registers, and IPTC has
-  registered three new ones since 2024.
+- ~~**Should `forSourceType()` be public at all?**~~ **Settled before approval:
+  public.** It is the general form under the named ones, and exposing it means a
+  caller can pass any case — including the editing ones, which is exactly where
+  AC4's refusal has to live for it to be reachable at all. The alternative, named
+  constructors only, means a new constructor for every term IPTC registers, and
+  IPTC has registered three since 2024.
 
 - ~~**Does the authenticity case belong to this package at all?**~~ **Settled
   before approval, 2026-08-07: no, not in this package, not now.**
@@ -270,9 +299,37 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
+| AC1 | `tests/Unit/Manifest/DigitalSourceTypeTest.php` :: "emits one c2pa.created action carrying the requested source type", "offers a named constructor for each emittable type"; `tests/Integration/DigitalSourceTypeTest.php` :: "signs and reads back trainedAlgorithmicMedia", "signs and reads back compositeSynthetic", "signs and reads back algorithmicMedia" | `src/Core/Manifest/ManifestBuilder.php` `forSourceType()`, `forSynthetic()`, `forAlgorithmic()` |
+| AC2 | `tests/Unit/Manifest/DigitalSourceTypeTest.php` :: "carries the exact IPTC URI for every case", "spells the composite term without the d the guidance adds", "declares no term IPTC has retired" | `src/Core/Manifest/DigitalSourceType.php` |
+| AC3 | `tests/Unit/Manifest/DigitalSourceTypeTest.php` :: "leaves the AI-generated manifest byte-identical to what SPEC-001 fixes" | `src/Core/Manifest/ManifestBuilder.php` `forAiGenerated()` |
+| AC4 | `tests/Unit/Manifest/DigitalSourceTypeTest.php` :: "refuses a source type that describes an operation on an existing asset", "names ingredients as the missing capability when refusing", "refuses rather than emitting a created action for an editing term" | `src/Core/Manifest/DigitalSourceType.php` `requiresIngredient()`, `src/Core/Manifest/Exception/UnsupportedSourceTypeException.php` |
+| AC5 | `tests/Integration/DigitalSourceTypeTest.php` :: "refuses algorithmicMedia when the service requires AI marking", "still signs trainedAlgorithmicMedia when the service requires AI marking" | `service/server.js` `REQUIRE_AI_MARKING` (unchanged) |
+| AC6 | `tests/Unit/SourceTypeGuidanceTest.php` :: all five | `README.md` § What you are claiming, `docs/c2pa-primer.md` §10 |
+| AC7 | `tests/Unit/Reading/GenerativeAiDetectionTest.php` :: all four; `tests/Integration/DigitalSourceTypeTest.php` :: "reads a compositeSynthetic asset as generative but not AI-generated", "reads an algorithmicMedia asset as neither" | `src/Core/Reading/ManifestReport.php` `involvesGenerativeAi()`, `src/Core/Manifest/DigitalSourceType.php` `involvesGenerativeAi()` |
+
+## Implementation notes (2026-08-07)
+
+- **Two amendments while still `draft`, both found by trying to write the code.**
+  The first version had the enum gain only the emittable cases while AC4 required
+  the builder to refuse three others — which cannot be expressed if they are not
+  in the enum. Splitting vocabulary (enum) from policy (builder) resolved it, and
+  is better: the refusal can say *why*, where an absent constant only says "no
+  such thing". The second was AC7: shipping the writing side without deciding the
+  reading side would have left a caller who marks `compositeSynthetic` unable to
+  detect it except by string-matching.
+- **AC1 and AC5 describe configurations that cannot coexist**, exactly like
+  SPEC-014's trust-on/trust-off split. A service with `REQUIRE_AI_MARKING=true`
+  refuses the non-AI terms *by design*, so the round-trip criteria skip there and
+  AC5 skips everywhere else. The `defaults` and `hardened` CI profiles cover one
+  half each; no new profile was needed.
+- **`isAiGenerated()` was deliberately not widened.** It gates Article 50
+  decisions in code already written against it, and SPEC-013 is the record of what
+  a predicate that quietly answers more than it says costs. `involvesGenerativeAi()`
+  is additive and explicit instead.
+- **Verified beyond our own reader**: a signed `compositeSynthetic` and
+  `algorithmicMedia` asset each inspected with `c2patool` under trust settings —
+  `c2pa.created`, the exact IPTC URI, `validation_state: Trusted`, no status
+  codes.
+- **The AC6 phrases were checked against `origin/main` before trusting the
+  green**, the same way SPEC-025 AC6 was: all six were absent, so the tests would
+  have failed on the previous revision.

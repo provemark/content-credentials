@@ -700,6 +700,44 @@ Not excluded on principle — each has a reason:
 
 This project does not ship what it has not seen work.
 
+### What you are claiming: digitalSourceType
+
+The marking says *how the asset came about*, and choosing the wrong term is a
+false statement about provenance rather than a style error. Three can be
+emitted, each with IPTC's own definition:
+
+| Constructor | Term | IPTC's definition |
+|---|---|---|
+| `forAiGenerated()` | `trainedAlgorithmicMedia` | created algorithmically using an AI model trained on captured content |
+| `forSynthetic()` | `compositeSynthetic` | a mix or composite of several elements, at least one of which is generative AI |
+| `forAlgorithmic()` | `algorithmicMedia` | created purely by an algorithm not based on any sampled training data |
+
+`ManifestBuilder::forSourceType($type, $mediaType)` is the general form beneath
+them.
+
+**Do not reach for `compositeWithTrainedAlgorithmicMedia` because it sounds like
+"composite".** IPTC defines it as *"augmentation, correction or enhancement
+using a Generative AI model"* — an edit of something that already existed, not a
+new asset assembled from parts. For a new asset mixing AI and non-AI elements
+the term is `compositeSynthetic`, above.
+
+That distinction is also why the editing terms cannot be built here at all.
+C2PA records an edit as `c2pa.opened` pointing at an **ingredient** for the
+original, then `c2pa.edited` carrying the source type — three things this package
+does not produce. Asking for one raises `UnsupportedSourceTypeException` rather
+than emitting a `c2pa.created` action that would claim the asset was *created* by
+an operation which by definition acts on one that already existed.
+
+**On the reading side**, `isAiGenerated()` means exactly `trainedAlgorithmicMedia`
+and always will — code already gates Article 50 decisions on it. Use
+`involvesGenerativeAi()` for the wider question: true for
+`trainedAlgorithmicMedia` and `compositeSynthetic`, false for `algorithmicMedia`,
+which is the point of that term — synthetic, but no model and no training data.
+
+This package deliberately cannot assert that something was **captured**. A web
+application receives bytes; whatever it says about a physical origin it is
+repeating, and a C2PA assertion is signed, which turns hearsay into attestation.
+
 ### Which reader, and what it costs
 
 `SigningServiceReader` sends the asset to the service; `ExtC2paReader` parses it
