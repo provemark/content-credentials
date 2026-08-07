@@ -1694,6 +1694,39 @@ cannot detect it breaking.
 `bin/e2e.php` sign+read OK with the Art.50 mark and `hasTimestamp` true,
 `bin/verify.sh` all PASS, `php bin/spec-check.php` 0 errors.
 
+### Open question 2, settled the same day: the family shape (A)
+
+`forAiGenerated()` is one of a family, not a shortcut. The next spec adds
+siblings rather than a general constructor:
+
+```php
+ManifestBuilder::forAiGenerated(MediaType::Png)     // trainedAlgorithmicMedia
+ManifestBuilder::forAiManipulated(MediaType::Png)   // the Art. 50(4) case
+ManifestBuilder::forCaptured(MediaType::Png)        // digitalCapture
+```
+
+and **not** `ManifestBuilder::for(DigitalSourceType $source, MediaType $type)`.
+
+So what SPEC-022 shipped is final: `forAiGenerated()` stays *the* canonical entry
+point for the AI-generated case rather than being demoted to a convenience
+wrapper in the next release. That was the whole point of asking — the cost of
+getting it wrong is telling users in two consecutive releases what the canonical
+call is.
+
+What it commits us to: every additional source type is a new public method.
+Additive and cheap, but it means each name is a decision that ships, and the
+IPTC vocabulary is long — the next spec must pick which cases we actually
+support rather than mirroring the whole list.
+
+**Still to verify before that spec, not assumed here:** whether the manipulated
+case differs only in `digitalSourceType`, or also in the action sequence. Claim
+v2 requires the first action to be `c2pa.created` or `c2pa.opened`, and "edited
+with AI" is plausibly `c2pa.opened` plus an edit action — which would make it a
+different assertion shape, not a different constant. If so, form A was the right
+call for a second reason: one parameter would have implied a symmetry that does
+not exist. Do not write that spec from memory; check it against the C2PA spec
+first (CLAUDE.md: ask rather than guess).
+
 ### Also recorded: an upgrade note SPEC-021 needed and did not have
 
 Adding seven enum cases is additive for Composer, and not free for consumers:
