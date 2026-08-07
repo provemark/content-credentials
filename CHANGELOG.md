@@ -6,6 +6,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **A failing `composer check` now keeps its own output.** The script calls
+  `bin/check.sh`, which runs the sequence, tees it to `out/check-<stamp>.log`
+  and keeps that file **only when the run fails**; a green run leaves nothing
+  behind. The sequence itself moved unchanged to `composer check:run`, so what
+  green *means* is identical — only what survives a red run changed.
+
+  Built for a specific reason: an intermittent test failure has been seen five
+  times and reproduced zero times, and four of those five the output was lost to
+  a pipe or to a confirming re-run. A habit that has failed four times will fail
+  a fifth, so the fix is mechanical rather than behavioural.
+
+  **Nothing changes for consumers of the package.** Composer runs scripts only
+  for the root package, never for a dependency, so these entries are inert once
+  installed. Note that `/bin` is `export-ignore`d: the dist carries the
+  `composer.json` entry but not `bin/check.sh` itself. That is deliberate —
+  shipping developer tooling to make an inert path resolve would be the worse
+  trade.
+
 ## [0.9.1] - 2026-08-07
 
 Two defects found by reviewing 0.9.0 the same day, both in the same place: what
