@@ -54,6 +54,14 @@ and an extension installed for an unrelated reason should not silently change
 which engine decides your trust verdicts. `auto` is the setting most people want
 — but as a choice you made, not one that happened to you.
 
+One property of `auto` worth knowing: it picks the extension whenever the
+extension is loaded, **without considering the media type**. That is harmless
+today, because both engines sign and read all thirteen supported types. It would
+stop being harmless if a format were ever readable by one engine and not the
+other — which is the situation a capability method would exist for, and which
+does not exist yet. See [Stability and support](stability.md) for why that is
+left unbuilt.
+
 `php artisan content-credentials:read <file>` prints the mode it resolved, so
 "which engine produced this report?" is answerable without reading config:
 

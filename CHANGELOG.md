@@ -178,11 +178,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   catch-up. And the signing service is not in the Composer package at all, so its
   changes arrive through `git pull` rather than through a release.
 
+  `ReaderInterface` and `SignerInterface` are stated to be contracts you program
+  **against**, not extension points: adding a method to either is not a breaking
+  change under this policy. Only the readers and signer in this package implement
+  them, and the realistic third-party implementation is a test double, which
+  breaks loudly and is fixed in a line. Reserving that room now means a future
+  capability method — needed only if a media type ever becomes readable but not
+  signable — would not have to wait for a major.
+
   It also records what 1.0 would require, which is deliberately not feature
-  completeness: real use by someone other than the maintainer, and a decision on
-  whether `ReaderInterface` grows a capability method — breaking for implementers,
-  so cheaper before 1.0 than after. `ExtC2paReader` is explicitly *not* a
-  condition: hanging our own versioning on another project's roadmap buys
+  completeness: **real use by someone other than the maintainer**, and nothing
+  else. `ExtC2paReader` is explicitly *not* a condition: hanging our own versioning on another project's roadmap buys
   nothing, given that its contract is insulated, the feature is opt-in and off by
   default, and CI now pins the version it tests against.
 
