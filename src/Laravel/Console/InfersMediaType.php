@@ -37,6 +37,21 @@ trait InfersMediaType
     ];
 
     /**
+     * Every accepted extension, for help text (SPEC-032 AC1).
+     *
+     * Derived, never restated. NOTES Step 37 counted four hand-written lists of
+     * "what counts as supported" that had gone stale; the command help was the
+     * fifth, and it is the one a user reads first.
+     */
+    private function supportedExtensions(): string
+    {
+        return implode(', ', array_map(
+            static fn (string $known): string => ".{$known}",
+            array_keys(self::EXTENSIONS),
+        ));
+    }
+
+    /**
      * Map a file extension to a supported MediaType (SPEC-006 D4).
      *
      * @throws UnsupportedMediaTypeException

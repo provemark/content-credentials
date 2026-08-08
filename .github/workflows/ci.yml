@@ -38,6 +38,7 @@ jobs:
             --with="illuminate/config:^${{ matrix.laravel }}.0" \
             --with="illuminate/console:^${{ matrix.laravel }}.0" \
             --with="illuminate/container:^${{ matrix.laravel }}.0" \
+            --with="illuminate/queue:^${{ matrix.laravel }}.0" \
             --with="illuminate/support:^${{ matrix.laravel }}.0"
 
       # Run the same tools as `composer check`, but with Pint in --test mode so

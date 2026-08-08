@@ -35,6 +35,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Service only — no change to `src/` or `config/`, and no change for a caller
   using `ManifestBuilder`, which has always emitted the correct shape.
 
+- **Four places the client layer said something it did not do** (SPEC-032).
+
+  - **The artisan commands advertised three formats and accepted fifteen.**
+    `content-credentials:sign` described its input as "the source image
+    (.png/.jpg/.jpeg)" and had done since SPEC-021 added audio and video. Both
+    commands now derive that list from the extension map they actually use, and
+    describe an *asset* rather than an image.
+  - **The signer and the reader each built their own HTTP client**, so a
+    sign-then-verify round-trip opened connections from two pools. They now share
+    one. It is memoised on the service provider rather than bound as
+    `ClientInterface` in the container: binding a global interface from a library
+    would hand our client, and our timeouts, to anything else that resolves it.
+    An application that binds its own still wins, unchanged.
+  - **`ExtC2paReader` configured trust anchors and never confirmed they took.**
+    It now asserts the extension reports them as applied and throws
+    `TrustAnchorsNotAppliedException` if not. Measured against ext-c2pa v0.1.0:
+    garbage PEM is accepted by the setter and then fails loudly at read time, so
+    what this guards is the setter ceasing to take effect — after which every
+    asset would read as untrusted while trust appeared configured.
+  - **`SignAssetJob` retried failures that cannot succeed.** With `tries = 3` and
+    a `[10, 60, 300]` backoff, an oversized asset or a media-type mismatch slept
+    up to six minutes to fail identically three times. Those now fail
+    immediately; transport failures, 429 and 5xx are still retried.
+
+  `illuminate/queue` joins `require-dev` (and the CI matrix) for
+  `InteractsWithQueue`. It is not a runtime dependency and consumers are
+  unaffected.
+
 - **A failing read could put 32 MiB into one log line** (SPEC-031). The client
   caps the service's own error text before copying it into an exception —
   whatever answers on that URL controls that string — but the cap existed in

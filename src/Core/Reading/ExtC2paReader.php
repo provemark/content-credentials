@@ -108,6 +108,12 @@ final class ExtC2paReader implements ReaderInterface
         $settings = new ExtSettings;
         $settings->withTrustAnchors($this->trustAnchorsPem);
 
+        // Configured is not the same as effective (SPEC-032 AC3/AC4). This
+        // project has three records of trust configuration that silently
+        // verified nothing (NOTES Steps 11, 14, 21); this is the one surface
+        // left where the two were not distinguished.
+        TrustAnchorsGuard::ensureApplied($settings->hasTrustAnchors());
+
         return $settings;
     }
 }
