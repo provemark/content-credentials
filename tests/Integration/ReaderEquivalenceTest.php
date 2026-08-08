@@ -45,6 +45,32 @@ function spec019AnchorsPem(): string
 }
 
 /**
+ * The extension reader, configured to match the SERVICE's trust setup (AC2).
+ *
+ * AC2 compares two ENGINES — c2pa-rs 0.89.0 against 0.90.4. Comparing them
+ * requires equivalent configuration, and the two are configured in different
+ * places: the service's trust verification comes from `CONTENTAUTH_TRUST_SETTINGS`
+ * on the container, the extension's from PEM contents passed in PHP. Reading with
+ * an unconfigured extension against a trust-verifying service compares a
+ * configuration difference and reports it as an engine divergence.
+ *
+ * That is not hypothetical: it failed exactly that way on 2026-08-08, on a
+ * machine with the extension installed while the service ran with the hardened
+ * profile. CI never saw it, because the only profile that installs the extension
+ * is the one that does NOT enable trust settings — so the combination existed
+ * only on a developer's machine.
+ *
+ * The material is the same either way: `certs/trust_anchors.pem` is what
+ * `certs/c2pa-trust.settings.json` embeds for the service.
+ */
+function spec019MatchingExtensionReader(): ExtC2paReader
+{
+    return ServiceHarness::trustVerificationActive() === true
+        ? new ExtC2paReader(spec019AnchorsPem())
+        : new ExtC2paReader;
+}
+
+/**
  * A signed asset carrying our Article 50 marking.
  *
  * Produced through the service, because signing is not what this spec changes —
@@ -186,7 +212,7 @@ it('agrees with the signing-service reader on every public accessor', function (
 
     [, $serviceReader] = ServiceHarness::signerAndReader();
 
-    $viaExtension = spec019Accessors((new ExtC2paReader)->read($asset));
+    $viaExtension = spec019Accessors(spec019MatchingExtensionReader()->read($asset));
     $viaService = spec019Accessors($serviceReader->read($asset));
 
     // Named per accessor rather than as one array comparison, so a divergence
@@ -215,7 +241,7 @@ it('agrees that a declared media type is advisory, not enforced', function () {
 
     [, $serviceReader] = ServiceHarness::signerAndReader();
 
-    $viaExtension = (new ExtC2paReader)->read($asset);
+    $viaExtension = spec019MatchingExtensionReader()->read($asset);
     $viaService = $serviceReader->read($asset);
 
     expect($viaExtension->hasManifest())->toBe(
@@ -232,6 +258,6 @@ it('agrees on an unsigned asset too', function () {
 
     [, $serviceReader] = ServiceHarness::signerAndReader();
 
-    expect(spec019Accessors((new ExtC2paReader)->read($asset)))
+    expect(spec019Accessors(spec019MatchingExtensionReader()->read($asset)))
         ->toBe(spec019Accessors($serviceReader->read($asset)));
 })->group('SPEC-019', 'integration')->skip($skipUnlessBoth);
