@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Config\Repository;
 use Illuminate\Container\Container;
-use Illuminate\Contracts\Queue\Job as QueueJob;
+use Illuminate\Queue\Jobs\SyncJob;
 use Provemark\ContentCredentials\Core\Manifest\Manifest;
 use Provemark\ContentCredentials\Core\Manifest\MediaType;
 use Provemark\ContentCredentials\Core\Reading\Exception\TrustAnchorsNotAppliedException;
@@ -83,136 +83,32 @@ final class Cc32ThrowingSigner implements SignerInterface
     }
 }
 
-/** A queue job double that records whether it was failed or released. */
-final class Cc32QueueJob implements QueueJob
+/**
+ * A queue job double that records whether it was failed.
+ *
+ * Extends the framework's own SyncJob rather than implementing the interface by
+ * hand. Hand-implementing it passed locally on Laravel 11 and failed CI on 12 and
+ * 13, which had added `resolveQueuedJobClass()`: a double written against a
+ * moving interface goes stale the moment that interface grows, and the CI matrix
+ * is the only thing that says so. SyncJob is maintained alongside the contract in
+ * every supported version, so only `fail()` is overridden here — recorded rather
+ * than performed, because the real one deletes the job and resolves a payload.
+ */
+final class Cc32QueueJob extends SyncJob
 {
     public ?Throwable $failedWith = null;
 
     public bool $wasFailed = false;
 
-    /**
-     * Returned by the nullable ?int/?string members below.
-     *
-     * A literal would let PHPStan narrow each declared union to one arm and then
-     * report the other as removable — a true observation about a double that
-     * exists to satisfy an interface, and a pointless edit. The property keeps
-     * the declared types honest.
-     */
-    public ?int $unset = null;
+    public function __construct()
+    {
+        parent::__construct(new Container, '{}', 'sync', 'default');
+    }
 
-    public function fail($e = null): void
+    public function fail($e = null)
     {
         $this->wasFailed = true;
         $this->failedWith = $e instanceof Throwable ? $e : null;
-    }
-
-    public function uuid(): ?string
-    {
-        return $this->unset === null ? null : (string) $this->unset;
-    }
-
-    public function getJobId(): ?string
-    {
-        return $this->unset === null ? null : (string) $this->unset;
-    }
-
-    /** @return array<array-key, mixed> */
-    public function payload(): array
-    {
-        return [];
-    }
-
-    public function attempts(): int
-    {
-        return 1;
-    }
-
-    public function body(): string
-    {
-        return '';
-    }
-
-    public function fire(): void {}
-
-    public function markAsFailed(): void {}
-
-    public function delete(): void {}
-
-    public function isDeleted(): bool
-    {
-        return false;
-    }
-
-    public function release($delay = 0): void {}
-
-    public function isReleased(): bool
-    {
-        return false;
-    }
-
-    public function isDeletedOrReleased(): bool
-    {
-        return false;
-    }
-
-    public function hasFailed(): bool
-    {
-        return $this->wasFailed;
-    }
-
-    public function getName(): string
-    {
-        return 'cc32';
-    }
-
-    public function resolveName(): string
-    {
-        return 'cc32';
-    }
-
-    public function getConnectionName(): string
-    {
-        return 'sync';
-    }
-
-    public function getQueue(): string
-    {
-        return 'default';
-    }
-
-    public function getRawBody(): string
-    {
-        return '';
-    }
-
-    public function maxTries(): ?int
-    {
-        return $this->unset;
-    }
-
-    public function maxExceptions(): ?int
-    {
-        return null;
-    }
-
-    public function backoff(): ?int
-    {
-        return $this->unset;
-    }
-
-    public function retryUntil(): ?int
-    {
-        return $this->unset;
-    }
-
-    public function timeout(): ?int
-    {
-        return $this->unset;
-    }
-
-    public function shouldFailOnTimeout(): bool
-    {
-        return false;
     }
 }
 
