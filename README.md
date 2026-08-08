@@ -174,6 +174,7 @@ page, so this one stays readable:
 | [Choosing a reader](docs/readers.md) | Verifying without the signing service, binding the in-process reader, and the trade-off between the two |
 | [Running the signing service](docs/service.md) | Audit logging, rate limits, sizing the container, assertion limits, rotating the key |
 | [Going to production](docs/production.md) | Certificates a public verifier will trust, trust-list verification, C2PA Conformance Program alignment |
+| [Stability and support](docs/stability.md) | What is public API, which PHP and Laravel versions are supported, the deprecation policy, and what 1.0 would require |
 
 Deeper background: [`docs/c2pa-primer.md`](docs/c2pa-primer.md) for the domain
 rules this package is built on, and [`docs/adr/`](docs/adr/) for the decisions

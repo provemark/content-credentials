@@ -159,6 +159,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **A stability and support policy** ([`docs/stability.md`](docs/stability.md)).
+  The package had no statement of what it promises not to break: 44 of its 48
+  classes were implicitly public API, the supported Laravel range existed only in
+  the CI matrix, and there was no deprecation policy beyond one docblock.
+
+  The page states what counts as public API and what is `@internal`, that the
+  supported range is PHP 8.3–8.5 and Laravel 11–13, that a deprecated method
+  raises no runtime notice and is removed no earlier than a major, and what is
+  and is not a breaking change — including the reminder that adding an enum case
+  is additive for Composer and still breaks an exhaustive `match` with no
+  `default` arm.
+
+  Two caveats are stated rather than left implicit. **`ExtC2paReader` is outside
+  the stability promise** while the extension it wraps is at v0.1.0; write
+  against `ReaderInterface` and you are insulated. And the signing service is not
+  in the Composer package at all, so its changes arrive through `git pull` rather
+  than through a release.
+
+  It also records what 1.0 would require, which is deliberately not feature
+  completeness: real use by someone other than the maintainer, a settled position
+  for the extension reader, and a decision on whether `ReaderInterface` grows a
+  capability method — the last being breaking for implementers, so cheaper before
+  1.0 than after.
+
 - **The README records the listing on the Content Authenticity Initiative's
   [community resources](https://opensource.contentauthenticity.org/docs/community-resources/)
   page**, where this package appears as the PHP library under *Related
