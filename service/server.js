@@ -520,6 +520,21 @@ const HEADERS_TIMEOUT_MS = Number(process.env.HEADERS_TIMEOUT_MS ?? 10_000);
 // needs to sign its own output, and that failure presents as "signing is
 // broken". It stays generous, because sustained rate is about fair use over
 // time while the concurrency cap is what bounds peak memory.
+// --- SPEC-030: the path before authentication -------------------------------
+// A SINGLE GLOBAL budget, never keyed on the client address. Measured
+// 2026-08-08: with the shipped docker-compose deployment every host-side request
+// arrives as the bridge gateway address, so per-address keying discriminates
+// nothing — and an address-keyed map would have attacker-controlled cardinality,
+// which is exactly what SPEC-015's map is safe from and this one would not be.
+//
+// It is NOT a load control. Once authentication runs ahead of the parser an
+// unauthenticated request costs a header parse, one SHA-256 and a 401 — about
+// what GET /health costs, which SPEC-024 AC6 already decided is not worth
+// bounding. This exists so that credential guessing is visible at all.
+const AUTH_FAIL_LIMIT = Number(process.env.AUTH_FAIL_LIMIT ?? 30);
+
+let authFailures = 0;
+
 const MAX_CONCURRENT_READS = Number(process.env.MAX_CONCURRENT_READS ?? 4);
 const READ_RATE_LIMIT_REQUESTS = Number(process.env.READ_RATE_LIMIT_REQUESTS ?? 240);
 
@@ -691,6 +706,10 @@ app.get('/health', (_req, res) => {
     // SPEC-024 AC5: reported separately from signing, because the two paths cost
     // different amounts and an operator cannot size an instance from one number.
     reads_in_flight: readsInFlight,
+    // SPEC-030 AC6: with a global budget there is no per-source detail worth a
+    // record per attempt, so this counter is the only thing that turns "somebody
+    // is guessing our token" from invisible into observable.
+    auth_failures: authFailures,
     limits: {
       max_concurrent_signs: MAX_CONCURRENT_SIGNS,
       rate_limit_requests: RATE_LIMIT_REQUESTS,
@@ -700,6 +719,7 @@ app.get('/health', (_req, res) => {
       request_timeout_ms: REQUEST_TIMEOUT_MS,
       headers_timeout_ms: HEADERS_TIMEOUT_MS,
       max_body_bytes: maxBodyBytes(),
+      auth_fail_limit: AUTH_FAIL_LIMIT,
     },
   });
 });
