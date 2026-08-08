@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+> **On the early release cadence.** Versions 0.5.x through 0.9.x were tagged
+> between 5 and 7 August 2026 — an intensive build-out phase in which the
+> security review, the media-type work and the Article 50 marking all landed in
+> quick succession. The pace reflects that phase and not instability in what each
+> release contained.
+>
+> Two things are worth knowing when reading those entries. **0.5.1 through 0.5.3
+> changed no application code at all** — they were service and documentation
+> releases; `src/` was unchanged from 0.5.0 to 0.6.0. And the signing service is
+> **not part of the Composer package** (`service/` is `export-ignore`d), so every
+> service-side change reaches you through `git pull` and a rebuild rather than
+> through a Composer update, whether or not it carries a tag.
+
 ## [Unreleased]
 
 ### Fixed
