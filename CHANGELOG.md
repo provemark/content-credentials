@@ -4,7 +4,158 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+> **On the early release cadence.** Versions 0.5.x through 0.9.x were tagged
+> between 5 and 7 August 2026 — an intensive build-out phase in which the
+> security review, the media-type work and the Article 50 marking all landed in
+> quick succession. The pace reflects that phase and not instability in what each
+> release contained.
+>
+> Two things are worth knowing when reading those entries. **0.5.1 through 0.5.3
+> changed no application code at all** — they were service and documentation
+> releases; `src/` was unchanged from 0.5.0 to 0.6.0. And the signing service is
+> **not part of the Composer package** (`service/` is `export-ignore`d), so every
+> service-side change reaches you through `git pull` and a rebuild rather than
+> through a Composer update, whether or not it carries a tag.
+
 ## [Unreleased]
+
+### Fixed
+
+- **The signing service now validates the actions structure it reads**
+  (SPEC-029). SPEC-011 bounded the assertion *envelope* — count, size, nesting
+  depth, label — and never the one structure the service then walks, so four
+  malformed shapes got past it with a valid token:
+
+  | `data.actions` | Was | Now |
+  |---|---|---|
+  | a non-iterable value | 500, no named constraint | **400** |
+  | a non-array value | 500, after a real signing attempt | **400**, nothing signed |
+  | absent | 500, after a real signing attempt | **400**, nothing signed |
+  | an empty array | **200 — signed** | **400**, nothing signed |
+
+  The last row is why this is filed as a fix rather than a limit. An empty
+  actions array was the one malformed shape that produced a *signature*, and the
+  signed asset cannot be read by the signing service (c2pa-rs 0.90.4),
+  `c2patool` 0.27.3 or `ext-c2pa` (c2pa-rs 0.89.0) — all three answer
+  `No Action array in Actions`. The certificate was being spent on an artefact
+  no verifier can parse.
+
+  **Sending no actions assertion at all is unchanged and still permitted**
+  (SPEC-011 settled "at most one, not required"): that manifest signs and reads
+  back `Invalid` with `assertion.action.malformed`, which is a verifier
+  correctly reporting a claim-v2 rule.
+
+  Service only — no change to `src/` or `config/`, and no change for a caller
+  using `ManifestBuilder`, which has always emitted the correct shape.
+
+- **Four places the client layer said something it did not do** (SPEC-032).
+
+  - **The artisan commands advertised three formats and accepted fifteen.**
+    `content-credentials:sign` described its input as "the source image
+    (.png/.jpg/.jpeg)" and had done since SPEC-021 added audio and video. Both
+    commands now derive that list from the extension map they actually use, and
+    describe an *asset* rather than an image.
+  - **The signer and the reader each built their own HTTP client**, so a
+    sign-then-verify round-trip opened connections from two pools. They now share
+    one. It is memoised on the service provider rather than bound as
+    `ClientInterface` in the container: binding a global interface from a library
+    would hand our client, and our timeouts, to anything else that resolves it.
+    An application that binds its own still wins, unchanged.
+  - **`ExtC2paReader` configured trust anchors and never confirmed they took.**
+    It now asserts the extension reports them as applied and throws
+    `TrustAnchorsNotAppliedException` if not. Measured against ext-c2pa v0.1.0:
+    garbage PEM is accepted by the setter and then fails loudly at read time, so
+    what this guards is the setter ceasing to take effect — after which every
+    asset would read as untrusted while trust appeared configured.
+  - **`SignAssetJob` retried failures that cannot succeed.** With `tries = 3` and
+    a `[10, 60, 300]` backoff, an oversized asset or a media-type mismatch slept
+    up to six minutes to fail identically three times. Those now fail
+    immediately; transport failures, 429 and 5xx are still retried.
+
+  `illuminate/queue` joins `require-dev` (and the CI matrix) for
+  `InteractsWithQueue`. It is not a runtime dependency and consumers are
+  unaffected.
+
+- **A failing read could put 32 MiB into one log line** (SPEC-031). The client
+  caps the service's own error text before copying it into an exception —
+  whatever answers on that URL controls that string — but the cap existed in
+  `SigningServiceSigner` only. `SigningServiceReader` carried the identical
+  method without it, so `ReadFailedException` was bounded only by
+  `max_response_bytes` (32 MiB since 0.9.0).
+
+  SPEC-025's scope covered "capping the service error text copied into an
+  exception"; its acceptance criterion named `SigningFailedException`, and the
+  implementation followed the criterion. Both clients now route through one
+  `ServiceError` helper, so there is no second copy to fix next time.
+
+  The same change makes truncation **character-wise**. It used `substr()`, which
+  cuts by bytes, so a UTF-8 message capped at byte 256 could end mid-codepoint
+  and hand an invalid byte sequence to a log pipeline. No new dependency:
+  `preg_match` with `/u` gives character semantics, and the input is valid UTF-8
+  by construction because `json_decode()` rejects anything else.
+
+- **The signing service now authenticates before it parses a body** (SPEC-030).
+  Every budget the service has — SPEC-015's signing limits, SPEC-024's read
+  limits — is spent per token, and the body parser ran *before* the token was
+  checked. So an oversized body with an invalid token was answered **413**,
+  which only the parser can produce, and sixty invalid-token requests produced
+  sixty 401s and zero 429s: the unauthenticated path had no budget at all.
+
+  Measured, eight concurrent 21 MB unauthenticated requests against a 17.3 MiB
+  idle baseline: the burst cost **+37.1 MiB** before and **+9.5 MiB** after. The
+  residual is the bytes still arriving on the socket — refusing before the parser
+  removes the allocation and the parse, not the transfer.
+
+  Repeated failures are now bounded by `AUTH_FAIL_LIMIT` (default 30 per
+  window), answered 429 with `Retry-After`. It is one **global** counter rather
+  than one per client, because measurement showed per-client keying would
+  discriminate nothing in the shipped deployment — every host-side request
+  reaches the container as the bridge gateway address — while a caller-controlled
+  key would be an unbounded map. `GET /health` reports `auth_failures` as a
+  running count, and the audit stream carries at most two records per window, so
+  a flood cannot grow an operator's log.
+
+  A body-parser refusal now carries a `token_id`, which it could not before:
+  there was no verified caller at that point. "Which client keeps sending 25 MB
+  assets" is answerable from the log for the first time.
+
+### Security
+
+- **The service image moves to Node 24 and the container is contained.** Node 20
+  left maintenance in April 2026, so the image holding the signing key was on a
+  runtime receiving no security fixes — and `npm audit` cannot see that, because
+  it audits packages and not the interpreter beneath them.
+
+  The container also no longer runs as root. It runs as the unprivileged `node`
+  user, with **all Linux capabilities dropped**, `no-new-privileges`, and a
+  **read-only root filesystem**; only a `tmpfs` at `/tmp` is writable, which the
+  signing path needs because `builder.sign()` writes the signed asset to a file.
+  `mem_limit` is set from the measured saturation figure (~650 MiB) so a runaway
+  meets a ceiling rather than the host's OOM killer, and `pids_limit` caps
+  process creation. A `HEALTHCHECK` is included, using node's own `fetch` — the
+  image has no curl or wget.
+
+  None of this changes what the service does. It bounds what a compromise of it
+  could reach, and it is the part of a Generator Product Security Architecture
+  document that describes the deployment rather than the code.
+
+### Upgrading
+
+- **`/v1/*` without a valid token now fails on the token, not on the body.** A
+  request that previously got 400 (malformed JSON) or 413 (oversized) with a bad
+  or missing token now gets **401**. If your monitoring probes `/v1/sign` without
+  credentials and asserts a specific status, it needs updating. Anything sending
+  a valid token is unaffected.
+- **Repeated authentication failures are now rate limited** (`AUTH_FAIL_LIMIT`,
+  default 30 per minute, `0` disables). A deployment that legitimately produces
+  many failed authentications — a misconfigured client during a key rotation, for
+  instance — will meet 429 where it met 401. `GET /health` reports the budget and
+  the running failure count.
+- **`docker cp` into the service container no longer works**, because its root
+  filesystem is read-only; Docker refuses with "container rootfs is marked
+  read-only" whatever the destination. Pipe instead:
+  `docker exec -i <container> sh -c 'cat > /tmp/file' < local-file`. This
+  affects tooling and debugging scripts, not the service itself.
 
 ### Added
 

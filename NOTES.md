@@ -2995,3 +2995,658 @@ it runs the same tools individually with Pint in `--test` mode. So this is a
 local-developer instrument, which is the right scope — CI already preserves
 every run's output in the job log, and it is the keyboard, not the runner, where
 four of the five sightings were lost.
+
+---
+
+## Step 40 — Reviewing the package as an outsider, and the guard that stops at the envelope (2026-08-08)
+
+Read `src/`, `service/`, the Laravel layer and the deployment files as a senior
+reviewer rather than as their author, one session after Step 39. Twelve findings.
+Three are defects; two of those became **SPEC-029** and **SPEC-030** (both
+`draft`, no implementation code). The rest are recorded below, because a finding
+nobody wrote down is a finding that gets found again.
+
+### Running the service on the host, which is faster than it looks
+
+Every probe below was taken against `node server.js` started directly on the host
+on a spare port, not against a Docker rebuild:
+
+```bash
+cd service && CONTENTAUTH_API_KEY=probe \
+  SIGNING_CERT_PATH=../certs/es256_certs.pem \
+  SIGNING_KEY_PATH=../certs/es256_private.key \
+  PORT=3999 node server.js
+```
+
+It works because `certs/es256_private.key` is gitignored but present locally, and
+it turns a two-minute rebuild loop into a two-second one. **The caveat is real
+and must be stated with any result taken this way**: this host runs node 26.7.0
+while the image is `node:20-slim`, and `service/node_modules` is 0.7.0 while the
+container carries 0.8.1 (NOTES Step 35). So this is right for *reachability* —
+does this payload reach that handler — and wrong for anything about c2pa-node's
+behaviour or about memory. Those still go through the container.
+
+### ⚠️ Defect 1 — SPEC-011 validates the envelope and never the actions array
+
+Five helpers in `server.js` walk the actions array; four do it as
+`for (const action of assertion.data?.actions ?? [])`, which assumes iterability.
+Nothing checks it. Both requests below carry a valid token and pass every
+SPEC-011 limit:
+
+| `data.actions` | Response | Audit |
+|---|---|---|
+| `123` | **500** `{"error":"request failed"}` | `outcome:"rejected"`, `reason:"unhandled: number 123 is not iterable"` |
+| `"xx"` | **500** `{"error":"signing failed"}` | `outcome:"failed"`, `reason:"could not decode assertion c2pa.actions.v2 …: invalid type: string \"xx\", expected a sequence"` |
+| well-formed | 200 | `outcome:"signed"` |
+
+The second row is the one that matters. A malformed payload passed every guard,
+reached `Builder.withJson()` and was refused by c2pa-rs — so it spent a
+concurrency slot and a real signing attempt. SPEC-011 exists so that "the service
+will sign **any** assertion structure an authenticated caller supplies" stops
+being true, and for the actions array it is still true; it just stops at the
+engine instead of at the boundary.
+
+Same shape as Step 29's depth guard: *a correct guard placed behind an unbounded
+one is not a guard.* Here it is a correct guard placed **beside** the thing it
+never measures.
+
+**The detail worth keeping.** `firstActionSourceTypes()` uses
+`assertion.data?.actions?.[0]` — indexing, which is total over any value — while
+its four siblings use `for…of`, which is not. So whether a hostile payload
+becomes a 500-with-no-reason or a 500-from-the-engine depends on which accessor
+happens to touch it first. That is not a design. It is what "validate the
+envelope, trust the contents" produces, and it is why SPEC-029 AC8 is written
+against the helpers rather than against the route.
+
+### ⚠️ Correcting Step 29: the catch-all handler HAS been reachable all along
+
+Step 29 wrote, of the catch-all it had just added: "With defect 1 fixed there is
+no longer a way to reach the catch-all over HTTP — which is the point of defence
+in depth, and also means it cannot be tested through the normal surface." It
+verified the handler with a patched `server.js` on a spare port for exactly that
+reason.
+
+The payload above reaches it with one field, over plain HTTP, with a valid token.
+So the handler could have had a committed test at any point since Step 29, and
+the reason recorded for not writing one was wrong.
+
+Note what it does **not** undermine: the handler worked. It audited the request,
+answered JSON, and carried a correlation id — precisely as built. The catch-all
+is not the defect; being reachable by a one-field payload is. And SPEC-029 puts
+it back out of reach, so the committed-test question is open again, on purpose
+and this time knowingly.
+
+### ⚠️ Defect 2 — every budget is spent after auth, and the body is parsed before it
+
+Middleware order in `server.js`: correlation id (`:541`), body parser (`:547`),
+parser error handler (`:560`), bearer auth (`:596`), then the routes where
+SPEC-015's and SPEC-024's limiters live. Both limiters key on
+`tokenId(req.token)`, which is the right identifier and does not exist yet where
+the expensive work already happened.
+
+| Request | Observed |
+|---|---|
+| 26 MB body, **invalid** token | **413** — with the SPEC-017 oversized-body message |
+| 5 MB well-formed JSON, **invalid** token | 401 |
+| 60 requests, **invalid** token | 60 × 401, **zero** 429 |
+
+The 413 is the finding: only the parser can produce one, so an invalid token got
+its body buffered and measured before anything asked who it was. And there is no
+budget on that path at all — not a rate limit, not a cap, not a counter.
+
+Neither SPEC-015 nor SPEC-024 got this wrong. Both scoped themselves to
+authenticated work and said so; SPEC-024's Problem section states outright that
+`/v1/*` requires the bearer token "so this is not an unauthenticated exposure",
+which is correct about the read path *being reached*. The gap is one layer above
+the sentence.
+
+**The bycatch is worth more than the security win.** SPEC-017 records at
+`server.js:557` that a body-parser refusal cannot be attributed, because auth
+runs after the parser. Confirmed in the probe log — the 413 record carries no
+`token_id`, exactly as designed. That reasoning is sound and its premise is the
+ordering; reverse the ordering and "which caller keeps sending 25 MB assets"
+becomes answerable, which is the question a 413 in a log raises today and cannot
+answer.
+
+**What reordering does not buy, and SPEC-030 AC7 must measure rather than assume:**
+refusing before the parser stops the allocation and the parse, not the bytes
+arriving. node still reads from the socket, and a body that is never consumed is
+either drained or the connection is reset — which a client may see as a reset
+rather than a clean 401.
+
+### Defect 3 — the hardening went into one of two identical methods
+
+`SigningServiceSigner::extractError()` caps the service's error text at 256
+characters, with SPEC-025 AC4's reasoning attached: whatever answers on that URL
+controls this string and it ends up in somebody's logs.
+`SigningServiceReader::extractError()` is the same method minus the cap, bounded
+only by `maxResponseBytes` — 32 MiB into one exception message. The two are
+otherwise byte-identical.
+
+That is the finding: not "a missing cap" but *two copies, hardened once*. It
+belongs in a shared helper, which is the move `ManifestStoreParser` already made
+for the decoder and for the same stated reason. Not spec'd yet — it is a
+one-symbol change against `src/` and needs a spec before it may be built.
+
+### The other findings, recorded rather than fixed
+
+1. **`node:20-slim` is end-of-life.** Node 20 left maintenance in April 2026. The
+   image holding the signing key is on an unpatched runtime, and `npm audit`
+   cannot see it — that audits packages, not the runtime. This is the one finding
+   that touches the O.3 claim in `SECURITY.md`. Bumping it means re-running the
+   full manual ritual, and the async TSA path is the regression risk.
+2. **No container hardening.** No `USER node` — the process holding the private
+   key runs as root. No `HEALTHCHECK`. `docker-compose.yml` sets no `mem_limit`,
+   `read_only`, `cap_drop` or `no-new-privileges`. The memory one stings: this
+   log is full of measured multipliers and a published "size a container against
+   ~650 MiB", and the compose file that would encode it sets no limit.
+3. **`SignAssetJob` retries what cannot succeed.** `$tries = 3`,
+   `backoff() = [10, 60, 300]`. `AssetTooLargeException`,
+   `MediaTypeMismatchException`, `MissingParentAssetException` and every 400 from
+   the service are deterministic, so the job sleeps up to six minutes to fail
+   identically. Only transport, 429 and 5xx are worth a retry — and the 429
+   carries `Retry-After`, which nothing reads.
+4. **Two Guzzle clients where one would do.** `ContentCredentialsServiceProvider`
+   calls `resolveClient()` in both the signer and the reader closure; with no
+   application-bound client that is two `new Client(...)`, two connection pools
+   to one host.
+5. **`ExtC2paReader` never confirms the anchors took.** It calls
+   `withTrustAnchors()` (declared `void`, so discarding the return is correct) and
+   never calls `hasTrustAnchors()`, which our own stub declares. Given Steps 11,
+   14 and 21 — three separate records of trust configuration silently verifying
+   nothing — this is the last trust surface where "configured" and "effective"
+   are not distinguished. One assert-and-throw is the SPEC-014 AC5 move.
+6. **⚠️ The fifth stale enumeration.** `SignCommand`'s signature says
+   `{input : Path to the source image (.png/.jpg/.jpeg)}` and its description
+   says "Sign an image", while `InfersMediaType` accepts fifteen extensions
+   including `.mp4` and `.wav`. Step 37 counted four of these and drew the
+   general lesson; this is the fifth, in the text `artisan list` prints, and
+   `EXTENSIONS` sits in the same trait to interpolate from. Separately: the CLI
+   can only produce `forAiGenerated`, so it now describes a smaller package than
+   the library.
+7. **`ManifestBuilder`'s `with*` methods re-list all five constructor arguments**,
+   three times over. A sixth field means three edits and a wrong positional order
+   fails silently; `clone` plus one assignment is immune.
+8. **Bytes versus characters, twice.** `MAX_ASSERTION_BYTES` is compared against
+   `JSON.stringify(...).length` — UTF-16 code units, so astral-plane text reaches
+   up to 2× the published limit in bytes (`Buffer.byteLength()` says what the
+   message claims). And `SigningServiceSigner::extractError()` truncates with
+   `substr()`, which can cut mid-codepoint and put a broken byte sequence into a
+   log line.
+9. **`AtomicWrite` uses `0644 & ~umask()`** where the conventional form is
+   `0666 & ~umask()`; group-write can never be produced regardless of umask,
+   while the comment says the umask is inherited. Cosmetic.
+
+### What the review found in good order
+
+Recorded so the list above is calibrated, as Step 29 did. Constant-time token
+comparison over digests. Trust defined positively rather than as the absence of a
+code. One decoder, shared. Fail-closed at startup on both an unparseable
+certificate and trust settings that would verify nothing. The correlation id
+ahead of the parser. Depth before size, in that order, with the reason attached.
+`ManifestStoreParser` degrading on every field instead of throwing. PHPStan level
+max with no un-annotated ignores, plus Deptrac. And `bin/check.sh` as a
+mechanical rather than behavioural answer to losing evidence — which is what made
+this session's probe output survive long enough to be written down here.
+
+`vendor/bin/pest --exclude-group=integration`: 293 passed, 6 skipped.
+`php bin/spec-check.php`: 0 errors, unchanged with both drafts added.
+
+---
+
+## Step 41 — Measuring SPEC-029's blocking question, which reversed its own sketch (2026-08-08)
+
+SPEC-029 shipped as `draft` with one blocking open question: is an actions
+assertion with no `data.actions` acceptable? Its API sketch had answered yes,
+reasoning that SPEC-011 settled "an actions assertion is not required", so an
+empty one is the degenerate case of the same permission. Measured against the
+container (`@contentauth/c2pa-node` 0.8.1, c2pa-rs 0.90.4, TSA on) rather than
+reasoned, and the reasoning was wrong twice over. The full table lives in the
+spec; what follows is what it cost and what it taught.
+
+Two shapes, nothing alike:
+
+- `data: {}` — c2pa-rs refuses at **build** time, `missing field 'actions'`. So
+  permitting it buys a 500 instead of a 400 and nothing else.
+- `data: {actions: []}` — **signs**. HTTP 200, a 55 KB signed PNG comes back.
+
+### ⚠️ The one shape that signs is the one nothing can read
+
+| Engine | Reading the signed asset |
+|---|---|
+| the signing service, c2pa-rs 0.90.4 | HTTP 500, `validation rule was violated: No Action array in Actions` |
+| `c2patool` 0.27.3 | `Error: validation rule was violated: No Action array in Actions` |
+| `ExtC2paReader`, c2pa-rs 0.89.0 | `ReadFailedException: … No Action array in Actions` |
+
+Three engines, two c2pa-rs minors, one answer — so it is not a version quirk and
+not our decoder. This is SPEC-028 AC13's situation reached from the other
+direction: a signature spent on a manifest no verifier accepts, with our
+certificate on it. Worse than AC13's case in one respect, which is worth stating
+precisely: a caller-supplied `c2pa.opened` produced an *Invalid* manifest that a
+verifier could still parse and explain. This one throws.
+
+**Absent is a worse claim; empty is a worse artefact.** Sending no actions
+assertion at all still signs and still reads back `Invalid` with
+`assertion.action.malformed` — a verifier correctly reporting a claim-v2
+violation, which is a caller's claim to make badly. SPEC-011's permission is
+untouched; the new constraint is conditional on there being an actions assertion
+at all, and SPEC-029 AC6 tests all three outcomes together so an implementation
+cannot quietly refuse the absent case too.
+
+### What is worth keeping beyond the answer
+
+**The draft argued from a permission and the permission did not transfer.**
+"Not required" is about a manifest lacking a claim. "Empty array" is about a
+manifest whose claim is structurally broken. They look adjacent in a scope
+sentence and behave nothing alike in an engine, and no amount of re-reading
+SPEC-011 would have surfaced that — only signing it did. This is the fourth time
+in this log that an open question marked *blocker, measure it* returned an answer
+opposite to the leaning written beside it (Steps 27, 30, 32, now this).
+
+**It is also the first time the two readers agreed about something that was not
+a test.** SPEC-019 AC2 exists to catch the engines drifting apart; here they were
+used as three independent witnesses to rule out "our decoder is wrong", which is
+a use the equivalence work paid for without being written for.
+
+### Method note
+
+The container, not the host — deliberately, per Step 40's own caveat. The two
+defect-1 rows from Step 40 were re-measured here too, and came back identical to
+the host run, which retires the caveat for those two specific results without
+retiring it in general.
+
+---
+
+## Step 42 — What the container sees as the peer, and why SPEC-030 keeps no addresses (2026-08-08)
+
+SPEC-030's blocking question was what identifies an unauthenticated caller, since
+there is no token to key a budget on. The draft leaned per-address on
+`req.socket.remoteAddress`, with the proxy caveat "documented rather than
+solved". Measured first, and the measurement removed the reason for the
+complexity entirely.
+
+A probe container on the compose network, reporting `req.socket.remoteAddress`:
+
+| Deployment | Peer as the container sees it |
+|---|---|
+| host → published port, `127.0.0.1:3000:3000` (docker-compose default) | **`172.19.0.1` for every request** — the bridge gateway |
+| container → container, `http://signer:3000` (README) | the calling container's own address, distinct |
+
+**In the deployment this project ships and recommends, per-address keying
+discriminates nothing.** Every host-side caller collapses into the gateway
+address, so the "per-address" bucket is a global bucket wearing a costume. Only
+the container-network deployment would ever see distinct peers — and that is the
+deployment with the smallest set of possible callers.
+
+### The reason that mattered more than the measurement
+
+An address-keyed map has **attacker-controlled cardinality**. SPEC-015's own
+comment records why its map is safe: "only authenticated requests reach here, so
+the map is bounded by the number of valid tokens". That sentence is exactly what
+an unauthenticated bucket cannot say. Adding an unbounded map inside the spec
+written to close a resource exhaustion is a poor trade, and it is the kind of
+thing that gets added because the alternative looked less thorough.
+
+### ⚠️ The argument that pushed toward per-address did not survive reading it back
+
+The draft worried that a global bucket lets one noisy source starve a legitimate
+caller — SPEC-024 AC3's failure in a new place. It cannot: the budget is spent
+only on authentication *failure*, and a valid token does not fail, so the two
+budgets never meet. AC5 is therefore true **by construction**.
+
+Which is why AC5 is kept rather than deleted as vacuous. A criterion true by
+construction is one an implementation can quietly stop satisfying — spending the
+budget on every *attempt* instead of every *failure* is a one-word change that
+looks like a simplification and hands any unauthenticated caller a lever to stop
+all signing. Same family as Step 26's rule: an assertion that nothing happened
+needs a demonstration that something could have.
+
+### And the honest consequence: the budget is not a load control
+
+Worth writing down because someone will size it wrong otherwise. Once
+authentication runs ahead of the parser, an unauthenticated request costs a
+header parse, one SHA-256 and a 401 — about what `GET /health` costs, and
+SPEC-024 AC6 already settled that `/health` is not worth bounding. **The
+reordering is the fix.** The budget survives for a different purpose: repeated
+authentication failure is a credential-guessing signal and nothing anywhere
+reports it today. Hence a global counter on `/health` plus a bounded record,
+rather than a per-source breakdown nobody can act on.
+
+Accepted cost, recorded in AC4 so it is a decision rather than a surprise: during
+a flood, a caller with a merely wrong token gets 429 where it would otherwise get
+401. It holds no valid credential either way.
+
+---
+
+## Step 43 — SPEC-029 and SPEC-030 implemented, and three tests that tested nothing (2026-08-08)
+
+Both specs from Step 40 are `implemented`. What is worth keeping is not the code
+— it is small — but what the tests did before they were made to work.
+
+### SPEC-029: one accessor, not five guards
+
+`actionsOf()` replaces five copies of `assertion.data?.actions ?? []`. That
+expression is total for `?.` and not for `for…of`, which is the whole defect.
+The choice worth recording is that it **replaces** the unsafe access rather than
+sitting behind it: the spec's API sketch worried that a defensive helper would be
+"a second guard hiding the boundary failing", and one accessor avoids that by
+leaving exactly one place that knows how to read an actions array.
+
+`server.js` now exports its helpers and guards `listen()` behind
+`require.main === module`, so AC8 exercises them without HTTP.
+
+### SPEC-030: implemented in two steps, on purpose
+
+Four criteria gated on an `auth-limited` profile that did not exist, so they were
+*skipped* rather than red — and four permanently skipped tests prove nothing.
+So `/health` reporting landed on its own first, the gate flipped, and AC4 was
+watched going red before the behaviour was written.
+
+That first step also caught something the tests could not: `AUTH_FAIL_LIMIT` was
+not in `docker-compose.yml`, so the override never reached the container and the
+tests kept skipping while looking configured.
+
+### ⚠️ The spec contradicted itself, and only implementing it showed that
+
+AC8 said "bounded by the budget, not by the number of requests" **and** "every
+429 is recorded". With a fixed window and unbounded attempts the 429s scale with
+the requests, so the log grows with the flood — the leak the criterion exists to
+close, one layer over. Amended to at most two records per window: the first
+failure, and the moment the budget runs out. 15 attempts and 15 000 both produce
+two.
+
+Worth noting the process: SPEC-030 was `approved`, so this went back through an
+amendment rather than being fixed quietly. CLAUDE.md's "spec contradiction found
+mid-implementation → STOP, amend, back to step 2" is not ceremony; the wrong
+reading was the one already written down.
+
+### ⚠️ Three of my own tests passed while testing nothing
+
+Ninth, tenth and eleventh in this log's collection, all in one sitting.
+
+1. **AC8 passed on zero records.** `written (0) < attempts (15)` holds when
+   nothing is written at all. Found only because amending the criterion forced a
+   lower bound onto it — `records >= 1` — which is what a bound on "not too many"
+   always needs.
+2. **`toContain(429, 'explanation')`.** Step 21 records this exact trap:
+   `toContain()` is variadic, so the second argument is a second NEEDLE. The test
+   asserted the array contained both the status and the explanatory sentence, and
+   reported a correct implementation as broken. It has now cost this project
+   twice.
+3. **A test with no assertions at all.** "writes no body-parser refusal for a
+   request it never parsed" looped over the records for that request, found none,
+   and performed zero assertions. **Pest caught it** — `RISKY`, not green — which
+   is the second time a tool has found one of these rather than a person. Fixed
+   with the control case Step 26 prescribes: the same oversized body *with* a
+   valid token must produce exactly such a record.
+
+### ⚠️ And a measurement that had to be taken twice
+
+AC7's first run reported the post-change burst costing +0.5 MiB, which is the
+Step 37 shape: too good. The baseline was a container that had been signing all
+day, so its heap was already warm and the burst reused memory instead of
+allocating. Re-measured on a fresh container:
+
+| Ordering | idle | peak | burst | answer |
+|---|---|---|---|---|
+| parser first | 17.3 MiB | 54.3 MiB | **+37.1 MiB** | 8 × 413 |
+| auth first | 17.3 MiB | 26.8 MiB | **+9.5 MiB** | 8 × 401 |
+
+The statuses are part of the measurement, not decoration: they prove the requests
+arrived. And the residual 9.5 MiB is the useful half of the result — it confirms
+with a number what the spec could only assert in prose, that refusing before the
+parser removes the allocation and the parse and **not the bytes arriving**.
+
+### Verified
+
+`composer check` green (296 passed). Integration 136 passed / 16 skipped
+(defaults) and 137 / 15 (auth-limited). SPEC-029 17 passed in both the defaults
+and hardened profiles; SPEC-030 10 passed / 4 skipped and 11 / 3 across its two.
+`bin/e2e.php` and `bin/verify.sh` all PASS. `php bin/spec-check.php` 0 errors.
+A sixth CI profile, `auth-limited`, covers the half `defaults` cannot.
+
+---
+
+## Step 44 — Node 24 and a contained container, and the two tests that depended on a writable one (2026-08-08)
+
+Two findings from Step 40's list, taken together because they touch the same
+file. No spec: `service/` only, no `src/` change, verified by hand — the same
+footing as Steps 8, 9 and 10.
+
+### The runtime, and the gap `npm audit` cannot see
+
+`node:20-slim` left maintenance in **April 2026**. The image holding the signing
+key had been running unpatched for four months, and nothing in the project could
+have told us: `npm audit` and Dependabot audit *packages*, and the interpreter
+underneath them is not one. SPEC-018 automated dependency scanning and this sat
+outside its field of view the whole time.
+
+Moved to `node:24-slim` — the current LTS line, so the decision has the longest
+runway before it repeats. `engines` raised to `>=22.0.0`. Verified: node 24.19.0,
+c2pa-node 0.8.1 and express 5.2.1 unchanged, and the **async TSA path still
+works** (`hasTimestamp: true`, signed PNG 55,478 bytes — byte-identical in size
+to every run since Step 6). That path is the standing regression risk on any bump
+touching the runtime.
+
+### Containment
+
+The container ran as **root**. Now: unprivileged `node` user, `cap_drop: ALL`,
+`no-new-privileges`, `read_only: true` with a `tmpfs` at `/tmp` — which the
+signing path genuinely needs, because `builder.sign()` writes the asset to a file
+and returns the manifest store (NOTES Step 2). Plus `mem_limit: 1g`, sized from
+the measured ~650 MiB saturation figure rather than from habit, and
+`pids_limit: 256`. A `HEALTHCHECK` using node's own `fetch`, since the image has
+no curl and no wget (Step 21).
+
+Confirmed as applied rather than as written, which is not the same thing:
+
+```
+ReadonlyRootfs: true   CapDrop: [ALL]   Memory: 1073741824
+PidsLimit: 256   SecurityOpt: [no-new-privileges:true]   User: node
+touch /app/nope -> Read-only file system
+```
+
+### ⚠️ `docker cp` refuses against a read-only rootfs, whatever the destination
+
+Two integration tests went red: SPEC-012 AC9 (the `/dev/full` audit probe) and
+SPEC-018 AC2 (a second service on a second certificate). Both `docker cp` a
+fixture into `/tmp`.
+
+The first guess was that the tmpfs was the problem. It was not:
+
+```
+docker cp file c2pa-spike-service-1:/tmp/file
+  -> Error response from daemon: container rootfs is marked read-only
+docker exec -i c2pa-spike-service-1 sh -c 'cat > /tmp/file' < file
+  -> works
+```
+
+Docker refuses the copy on the **container**, not on the path — so the tmpfs
+destination is irrelevant. Both probes now pipe through `docker exec -i`.
+
+Worth keeping for two reasons. It is the ordinary way to get a file into a
+hardened container, and it will be needed again the next time a probe wants one.
+And it is a small instance of a general shape: hardening did not break the
+service, it broke two **test harnesses** that had quietly depended on the
+container being writable. That dependency was invisible while it held.
+
+### Verified
+
+`composer check` green (296 passed). Integration 136 passed / 16 skipped.
+`bin/e2e.php` sign+read OK with the Art.50 mark and `hasTimestamp` true;
+`bin/verify.sh` signature valid / cert trusted / Art.50 mark all PASS.
+`php bin/spec-check.php` 0 errors.
+
+### Still open from Step 40
+
+Eight of the twelve findings. In rough order of weight: the `extractError`
+asymmetry (the cap went into one of two identical methods), `SignAssetJob`
+retrying deterministic failures with backoff, two Guzzle clients where one would
+do, `ExtC2paReader` never confirming its trust anchors took, and the fifth stale
+enumeration in `SignCommand`'s help text.
+
+---
+
+## Step 45 — SPEC-031: the gap a scope authorised and a criterion missed (2026-08-08)
+
+`extractError()` existed twice, character for character, in
+`SigningServiceSigner` and `SigningServiceReader`. Only the signer's copy was
+capped, so `ReadFailedException` could carry up to `maxResponseBytes` — 32 MiB —
+into one log line, on the path SPEC-019 and SPEC-020 encourage applications to
+use from request handlers.
+
+### The failure mode is new to this log, and worth naming
+
+SPEC-025's **Scope** says "Capping the service error text copied into an
+exception" — generic, no client named. Its **AC4** says "When the client raises
+`SigningFailedException`". The implementation followed the criterion, and the
+criterion was narrower than the scope that authorised it.
+
+That is the mirror of Step 38's SPEC-028 AC8, where a criterion said "accepted
+**or refused**" and only the accepted half was built. There the criterion was
+broad and the work was narrow; here the scope was broad and the *criterion* was
+narrow. Same outcome — a spec marked `implemented` over a real gap — and the
+second kind is invisible to tooling: `bin/spec-check.php` compares criteria to
+tests, and cannot compare a criterion to the scope bullet above it.
+
+No proposal to build that check. The scope-to-criteria step is a reading, not a
+lookup. But it is worth knowing that of the two ways a spec can be under-built,
+only one of them has a tool watching it.
+
+### Two copies of one decision
+
+The fix is one `Core\Support\ServiceError`, called by both. Recorded here because
+the reasoning generalises: this is the third time a shared decision living in two
+places has cost something. `ManifestStoreParser` was extracted for the same
+reason (SPEC-019: "two decoders would be two places for the definition of trusted
+to drift"), and SPEC-021 derived three allow-list error messages from one list
+after all three went stale. Here the duplication was not even a risk of drift —
+they had already drifted, and had been apart since SPEC-025 shipped.
+
+### No ext-mbstring, and the reason the truncation is safe anyway
+
+`substr()` cuts by bytes, so a UTF-8 message capped at byte 256 can end
+mid-codepoint. The obvious fix is `mb_substr()`, and it was rejected: this
+package requires `php-http/discovery` and three PSR packages and nothing else,
+and a truncation helper is a poor reason to put an extension in `require`.
+
+`preg_match('/^.{0,256}/us')` gives character semantics from PCRE, which ships
+with every build. What makes that sufficient rather than half a fix is where the
+input comes from: `json_decode()` **rejects** malformed UTF-8 outright
+(`JSON_ERROR_UTF8`), so by the time there is an `error` string to cap it is valid
+UTF-8 by construction. The guarantee is the decoder's, not the truncation's, and
+the code says so — otherwise the next person adds a repair pass that can never
+fire.
+
+The test asserts validity with `preg_match('//u', …)` rather than
+`mb_check_encoding()`, for the same reason: a suite may not assume an extension
+the package declines to require.
+
+### ⚠️ A three-byte character, deliberately
+
+AC4's fixture is `str_repeat('⚡', 300)` — three bytes per character. A two-byte
+character would divide evenly into 256 and the test would pass against
+`substr()`, which is the defect. Watched red before the fix: the signer failed,
+the reader passed **because it did not truncate at all**. That reader half only
+became meaningful once AC1 was fixed, which is worth remembering when reading
+the run — a green cell is not always the same green.
+
+### Verified
+
+`composer check` green (312 passed). Integration 136 passed / 16 skipped.
+SPEC-025's own group still 24 passed, and its AC4 traceability row now points at
+`ServiceError` — the Traceability section being the one part of an `implemented`
+spec that may change. `bin/e2e.php` and `bin/verify.sh` PASS.
+`php bin/spec-check.php` 0 errors.
+
+---
+
+## Step 46 — SPEC-032: the last four review findings, and a test double that fought back (2026-08-08)
+
+The remainder of Step 40's list, bundled on SPEC-025's reasoning. All four are
+the same shape: the client layer states something and then does something else.
+None is a crash, which is why all four survived — nothing contradicted them out
+loud.
+
+### What each one turned out to be
+
+**The CLI help** was the fifth stale enumeration (Step 37 counted four). Both
+commands now build their signature in a constructor from
+`InfersMediaType::EXTENSIONS`, so `artisan list` cannot drift from what the trait
+accepts. Also "asset", not "image": thirteen media types, three of them video.
+
+**Two HTTP clients** became one, memoised on the provider. Deliberately *not*
+bound as `ClientInterface` in the container — a library that binds a global
+interface hands its client, and its timeouts, to anything else that resolves it.
+Sharing a connection pool and owning a global binding are separable, and only the
+first was wanted.
+
+**The trust-anchor guard** is narrower than the finding first suggested, and the
+measurement is why. Against ext-c2pa v0.1.0:
+
+| Probe | Result |
+|---|---|
+| `hasTrustAnchors()` before / after | `false` → `true` |
+| `withTrustAnchors('not a pem')` | accepted, then reports `true` |
+| reading with garbage anchors | **throws** at read time |
+
+So the silent no-op that c2pa-node had (Step 11) does **not** exist here — bad
+material fails loudly. What is unguarded is the setter ceasing to take effect at
+all, after which every asset reads as untrusted while trust appears configured.
+The guard closes exactly that and the spec says so; claiming more would have been
+easy and wrong.
+
+**The job's retries.** `AssetTooLargeException` and friends now fail immediately
+instead of sleeping up to six minutes to fail identically three times.
+
+### ⚠️ Two design forks that the tests decided, not the code
+
+**The negative trust case cannot be produced with a real `Settings`.** Measured
+above: no input makes `hasTrustAnchors()` answer false after a successful call.
+So an inline `if` would have been untestable in the direction that matters — the
+shape this log keeps recording as "green while testing nothing". Hence
+`TrustAnchorsGuard::ensureApplied(bool)`: a seam that can be handed its answer.
+The spec's AC4 had already assumed one by phrasing its Given as "a Settings
+object that … still reports no anchors", which is only satisfiable with
+injection. Worth noticing that the criterion forced the design before the code
+was written, which is what tests-first is for.
+
+**`InteractsWithQueue::fail()` is a no-op when `$this->job` is null**, which is
+exactly how a unit test calls `handle()`. Written naively, AC5 would have
+swallowed the exception and asserted nothing. Two consequences: the test supplies
+a fake `Job`, and the implementation rethrows when there is no job rather than
+failing silently outside a queue. Both were named in the spec's open questions
+before implementation rather than found during it.
+
+### `illuminate/queue` joins require-dev
+
+`InteractsWithQueue` lives there, and only `config`, `console`, `container` and
+`support` were declared. Added to `require-dev` and to the four `--with=` lines
+in the CI matrix, which is the thing that would have gone stale silently — the
+matrix is what makes the supported Laravel range real (CLAUDE.md, Architecture).
+Not a runtime dependency; consumers are unaffected.
+
+### ⚠️ PHPStan level max versus a queue-job double
+
+Five rounds of `return.unusedType` and `property.unusedType` on a double whose
+only job is to satisfy an interface: `uuid()` never returns null, `maxTries()`
+never returns null, `backoff()` never returns int, and so on. Each observation
+was *true* and each edit was noise.
+
+Settled with one nullable property the nullable members return, which keeps the
+declared unions genuinely inhabited — and it has to be `public`, because PHPStan
+narrows a private one the same way. Recorded because the next person writing an
+interface double at level max will meet this within minutes, and the instinct
+(add an ignore) is the wrong one: CLAUDE.md forbids un-annotated ignores, and the
+property costs three lines.
+
+### Verified
+
+`composer check` green (**324 passed**). Integration 136 passed / 16 skipped.
+`php bin/spec-check.php` 0 errors. CLI help smoke-checked by hand: fifteen
+extensions, "asset" not "image".
+
+### Step 40's list is closed
+
+Twelve findings, twelve resolved: three defects became SPEC-029, SPEC-030 and
+SPEC-031; the runtime and containment went in as Step 44; these four as SPEC-032.

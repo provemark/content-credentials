@@ -32,6 +32,17 @@ use Psr\Log\LoggerInterface;
  */
 final class ContentCredentialsServiceProvider extends ServiceProvider
 {
+    /**
+     * The HTTP client the signer and the reader share (SPEC-032 AC2).
+     *
+     * Memoised on the provider rather than bound as `ClientInterface` in the
+     * container: binding a global interface from a library would hand our client
+     * — and our timeouts — to any other package that resolves it, silently.
+     * Sharing a connection pool is the goal; owning a global binding is not, and
+     * the two are separable.
+     */
+    private ?ClientInterface $httpClient = null;
+
     public function register(): void
     {
         $this->mergeConfigFrom($this->configPath(), 'content-credentials');
@@ -165,6 +176,11 @@ final class ContentCredentialsServiceProvider extends ServiceProvider
     }
 
     private function resolveClient(Container $app): ClientInterface
+    {
+        return $this->httpClient ??= $this->buildClient($app);
+    }
+
+    private function buildClient(Container $app): ClientInterface
     {
         // An application-bound client owns its own timeout (SPEC-008 AC3): use it
         // unchanged, never wrap or re-instantiate it.

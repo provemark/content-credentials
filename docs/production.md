@@ -78,10 +78,20 @@ engineer it:
 | Requirement | How this architecture answers it |
 |---|---|
 | The key is held by a discrete component "with an unrelated attack surface" | The signing service is a separate process, in its own container, published on loopback only. The key never enters your PHP application. |
-| Access follows least privilege | Certificate and key are read-only mounts; the service reads them once and exposes no endpoint that returns them. |
+| Access follows least privilege | Certificate and key are read-only mounts; the service reads them once and exposes no endpoint that returns them. The container runs as an unprivileged user with **all Linux capabilities dropped**, `no-new-privileges`, and a **read-only root filesystem** — only a `tmpfs` at `/tmp`, which the signing path needs, is writable. |
 | Capable of rotating the claim signing key | Restart-based rotation, above, with `/health` reporting the live certificate so a rotation is verifiable. |
 
-Dependency scanning (**O.3**) is covered in [SECURITY.md](../SECURITY.md).
+The container is also bounded rather than merely limited in software: `mem_limit`
+is set from the measured saturation figure (~650 MiB for four signs plus four
+reads) so a runaway meets a ceiling instead of the host's OOM killer, and
+`pids_limit` caps process creation. The compose file is the reference; copy those
+settings into whatever orchestrator you actually run.
+
+Dependency scanning (**O.3**) is covered in [SECURITY.md](../SECURITY.md). Note
+that it covers *packages*, not the interpreter beneath them: `npm audit` cannot
+tell you the base image has left maintenance. The image tracks a current Node LTS
+line for that reason, and that is a decision to revisit rather than a setting to
+forget.
 
 Two things this does **not** claim. Assurance **Level 2** requires
 hardware-backed key storage and attestation, which a PEM on a mounted volume is

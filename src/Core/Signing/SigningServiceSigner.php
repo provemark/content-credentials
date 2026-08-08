@@ -13,6 +13,7 @@ use Provemark\ContentCredentials\Core\Signing\Exception\SigningResponseException
 use Provemark\ContentCredentials\Core\Signing\Exception\SigningTransportException;
 use Provemark\ContentCredentials\Core\Signing\Exception\UnexpectedParentAssetException;
 use Provemark\ContentCredentials\Core\Support\ResponseBody;
+use Provemark\ContentCredentials\Core\Support\ServiceError;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
@@ -28,9 +29,6 @@ use Psr\Http\Message\StreamFactoryInterface;
  */
 final class SigningServiceSigner implements SignerInterface
 {
-    /** How much of a service error message is carried into an exception (SPEC-025 AC4). */
-    private const MAX_ERROR_CHARS = 256;
-
     public function __construct(
         private readonly ClientInterface $httpClient,
         private readonly RequestFactoryInterface $requestFactory,
@@ -121,7 +119,7 @@ final class SigningServiceSigner implements SignerInterface
             throw new SigningFailedException(sprintf(
                 'Signing service returned HTTP %d: %s',
                 $status,
-                $this->extractError($responseBody),
+                ServiceError::fromBody($responseBody),
             ));
         }
 
@@ -209,31 +207,5 @@ final class SigningServiceSigner implements SignerInterface
         }
 
         return $bytes;
-    }
-
-    /**
-     * The service's own error text, capped (SPEC-025 AC4).
-     *
-     * Whatever answers on that URL controls this string, and it ends up in an
-     * application's logs through the exception message. The service caps every
-     * caller-supplied string it records for the same reason; this reciprocates.
-     */
-    private function extractError(string $body): string
-    {
-        try {
-            $decoded = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
-            return 'unknown error';
-        }
-
-        if (is_array($decoded) && isset($decoded['error']) && is_string($decoded['error'])) {
-            $error = $decoded['error'];
-
-            return strlen($error) > self::MAX_ERROR_CHARS
-                ? substr($error, 0, self::MAX_ERROR_CHARS).'… (truncated)'
-                : $error;
-        }
-
-        return 'unknown error';
     }
 }

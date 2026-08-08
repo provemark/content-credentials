@@ -16,15 +16,33 @@ final class SignCommand extends Command
 {
     use InfersMediaType;
 
-    protected $signature = 'content-credentials:sign
-        {input : Path to the source image (.png/.jpg/.jpeg)}
-        {output : Path to write the signed image}
+    /** @var string */
+    protected $signature = '';
+
+    /** @var string */
+    protected $description = '';
+
+    public function __construct()
+    {
+        // Built here rather than declared, so the accepted formats come from
+        // InfersMediaType::EXTENSIONS instead of a second list that goes stale
+        // (SPEC-032 AC1). "Asset", not "image": thirteen media types, three of
+        // them video and three audio, since SPEC-021 and SPEC-023.
+        $this->signature = sprintf(
+            'content-credentials:sign
+        {input : Path to the source asset (%s)}
+        {output : Path to write the signed asset}
         {--agent= : Software agent name (required)}
         {--agent-version= : Software agent version}
         {--claim-generator= : Claim generator name}
-        {--claim-generator-version= : Claim generator version}';
+        {--claim-generator-version= : Claim generator version}',
+            $this->supportedExtensions(),
+        );
 
-    protected $description = 'Sign an image as AI-generated (EU AI Act Art. 50) via the signing service.';
+        $this->description = 'Sign an asset as AI-generated (EU AI Act Art. 50) via the signing service.';
+
+        parent::__construct();
+    }
 
     public function handle(SignerInterface $signer): int
     {

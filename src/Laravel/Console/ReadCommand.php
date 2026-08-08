@@ -14,9 +14,25 @@ final class ReadCommand extends Command
 {
     use InfersMediaType;
 
-    protected $signature = 'content-credentials:read {file : Path to the signed image (.png/.jpg/.jpeg)}';
+    /** @var string */
+    protected $signature = '';
 
-    protected $description = 'Read and report the C2PA credential of an image.';
+    /** @var string */
+    protected $description = '';
+
+    public function __construct()
+    {
+        // Derived from InfersMediaType::EXTENSIONS rather than restated
+        // (SPEC-032 AC1); "asset", not "image", since SPEC-021 and SPEC-023.
+        $this->signature = sprintf(
+            'content-credentials:read {file : Path to the signed asset (%s)}',
+            $this->supportedExtensions(),
+        );
+
+        $this->description = 'Read and report the C2PA credential of an asset.';
+
+        parent::__construct();
+    }
 
     public function handle(ReaderInterface $reader, ReaderFactory $factory): int
     {

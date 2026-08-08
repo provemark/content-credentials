@@ -382,10 +382,14 @@ it('keeps signing and reports degraded when the audit write fails', function () 
     // Copy the fixture in rather than assuming it is there: the container is
     // recreated on every `docker compose up`, so anything placed by hand is
     // gone by the next run.
+    // Piped in rather than docker cp'd: the container runs with a read-only root
+    // filesystem, against which docker cp refuses outright whatever the
+    // destination. /tmp is a tmpfs and is writable from inside.
     shell_exec(sprintf(
-        'docker cp %s %s:/tmp/spec012-fixture.png 2>/dev/null',
-        escapeshellarg(dirname(__DIR__).'/fixture.png'),
+        'docker exec -i %s sh -c %s < %s 2>/dev/null',
         escapeshellarg((string) $container),
+        escapeshellarg('cat > /tmp/spec012-fixture.png'),
+        escapeshellarg(dirname(__DIR__).'/fixture.png'),
     ));
 
     // Start a second instance whose stdout is /dev/full — every write fails

@@ -10,6 +10,7 @@ use Provemark\ContentCredentials\Core\Reading\Exception\ReadTransportException;
 use Provemark\ContentCredentials\Core\Signing\Asset;
 use Provemark\ContentCredentials\Core\Signing\SigningServiceConfig;
 use Provemark\ContentCredentials\Core\Support\ResponseBody;
+use Provemark\ContentCredentials\Core\Support\ServiceError;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
@@ -60,7 +61,7 @@ final class SigningServiceReader implements ReaderInterface
             throw new ReadFailedException(sprintf(
                 'Read service returned HTTP %d: %s',
                 $status,
-                $this->extractError($responseBody),
+                ServiceError::fromBody($responseBody),
             ));
         }
 
@@ -76,20 +77,5 @@ final class SigningServiceReader implements ReaderInterface
     private function parse(string $body): ManifestReport
     {
         return ManifestStoreParser::fromJson($body);
-    }
-
-    private function extractError(string $body): string
-    {
-        try {
-            $decoded = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
-            return 'unknown error';
-        }
-
-        if (is_array($decoded) && isset($decoded['error']) && is_string($decoded['error'])) {
-            return $decoded['error'];
-        }
-
-        return 'unknown error';
     }
 }

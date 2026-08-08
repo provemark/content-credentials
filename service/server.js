@@ -222,6 +222,47 @@ const AI_MARKINGS = [AI_MARKING, AI_MARKING_EDITED];
 // opt in.
 const REQUIRE_AI_MARKING = process.env.REQUIRE_AI_MARKING === 'true';
 
+/**
+ * Vet the shape of an actions assertion (SPEC-029).
+ *
+ * SPEC-011 validates the assertion ENVELOPE — count, size, depth, label — and
+ * never the one structure the service then walks. Measured 2026-08-08 against a
+ * valid token: `{actions: 123}` answered 500 through the catch-all with no named
+ * constraint, `{actions: "xx"}` and `{}` reached c2pa-rs and spent a real
+ * signing attempt, and `{actions: []}` was SIGNED and produced an asset that
+ * c2pa-rs 0.90.4, c2patool 0.27.3 and c2pa-rs 0.89.0 all refuse to read.
+ *
+ * The empty array is why "non-empty" and not merely "an array": it is the only
+ * shape that gets a signature, and spending the certificate on an artefact no
+ * verifier can parse is what SPEC-028 AC13 refuses from the other direction.
+ *
+ * Sending NO actions assertion stays permitted — SPEC-011 settled "at most one,
+ * not required", and that case reads back Invalid with
+ * assertion.action.malformed, which is a verifier telling the truth about a
+ * claim-v2 rule. Absent is a worse claim; empty is a worse artefact.
+ *
+ * @returns {string|null} the violated constraint, or null when acceptable.
+ */
+function rejectActionsShape(assertion) {
+  if (!assertion.label.startsWith('c2pa.actions')) return null;
+
+  const data = assertion.data;
+  if (data === null || typeof data !== 'object' || Array.isArray(data)) {
+    return 'an actions assertion must carry an object "data"';
+  }
+  if (!Array.isArray(data.actions)) {
+    return 'an actions assertion must carry an array "data.actions"';
+  }
+  if (data.actions.length === 0) {
+    return 'an actions assertion must carry at least one action';
+  }
+  if (data.actions.some((a) => a === null || typeof a !== 'object' || Array.isArray(a))) {
+    return 'each entry of "data.actions" must be an object';
+  }
+
+  return null;
+}
+
 /** Depth of a JSON value, stopping as soon as the limit is passed. */
 function exceedsDepth(value, limit, depth = 0) {
   if (depth > limit) return true;
@@ -268,6 +309,9 @@ function rejectAssertions(assertions) {
     if (JSON.stringify(assertion).length > MAX_ASSERTION_BYTES) {
       return `assertion too large (max ${MAX_ASSERTION_BYTES} bytes)`;
     }
+    const shapeProblem = rejectActionsShape(assertion);
+    if (shapeProblem !== null) return shapeProblem;
+
     if (assertion.label.startsWith('c2pa.actions')) {
       actionsCount += 1;
     }
@@ -302,6 +346,26 @@ function rejectAssertions(assertions) {
 }
 
 /**
+ * The actions of an assertion, or `[]` when it has none (SPEC-029).
+ *
+ * One accessor rather than five copies of `assertion.data?.actions ?? []`. That
+ * expression is total for `?.` and not for `for…of`: a non-array value reaches
+ * the loop and throws, which is how a one-field payload used to answer 500 with
+ * no named constraint. rejectActionsShape() refuses such a payload at the
+ * boundary; this makes the helpers total regardless, so the next helper added
+ * cannot re-introduce the assumption in a path no route exercises.
+ *
+ * Not a second guard hiding a failing first one — it REPLACES the unsafe access
+ * rather than sitting behind it, so there is exactly one place that knows how to
+ * read an actions array.
+ */
+function actionsOf(assertion) {
+  const actions = assertion?.data?.actions;
+
+  return Array.isArray(actions) ? actions : [];
+}
+
+/**
  * The source types a marking policy should consider: the first action's, plus
  * any carried by a c2pa.edited action (SPEC-028).
  *
@@ -315,7 +379,7 @@ function markingSourceTypes(assertions) {
     if (!assertion || typeof assertion !== 'object') continue;
     if (typeof assertion.label !== 'string' || !assertion.label.startsWith('c2pa.actions')) continue;
 
-    for (const action of assertion.data?.actions ?? []) {
+    for (const action of actionsOf(assertion)) {
       if (action?.action === 'c2pa.edited' && typeof action.digitalSourceType === 'string') {
         types.push(action.digitalSourceType);
       }
@@ -331,7 +395,7 @@ function suppliesOpenedAction(assertions) {
     if (!assertion || typeof assertion !== 'object') continue;
     if (typeof assertion.label !== 'string' || !assertion.label.startsWith('c2pa.actions')) continue;
 
-    for (const action of assertion.data?.actions ?? []) {
+    for (const action of actionsOf(assertion)) {
       if (action?.action === 'c2pa.opened') return true;
     }
   }
@@ -348,7 +412,7 @@ function needsParentAsset(assertions) {
     // c2pa.edited only: a caller-supplied c2pa.opened is refused outright by
     // rejectAssertions() above, so accepting it here would describe an input
     // that can no longer arrive.
-    for (const action of assertion.data?.actions ?? []) {
+    for (const action of actionsOf(assertion)) {
       if (action?.action === 'c2pa.edited') return true;
     }
   }
@@ -364,7 +428,7 @@ function firstActionSourceTypes(assertions) {
     if (!assertion || typeof assertion !== 'object') continue;
     if (typeof assertion.label !== 'string' || !assertion.label.startsWith('c2pa.actions')) continue;
 
-    const first = assertion.data?.actions?.[0];
+    const first = actionsOf(assertion)[0];
     if (first && typeof first.digitalSourceType === 'string') {
       types.push(first.digitalSourceType);
     }
@@ -378,7 +442,7 @@ function allSourceTypes(assertions) {
   const types = new Set();
 
   for (const assertion of Array.isArray(assertions) ? assertions : []) {
-    for (const action of assertion?.data?.actions ?? []) {
+    for (const action of actionsOf(assertion)) {
       if (action && typeof action.digitalSourceType === 'string') {
         types.add(action.digitalSourceType);
       }
@@ -456,6 +520,31 @@ const HEADERS_TIMEOUT_MS = Number(process.env.HEADERS_TIMEOUT_MS ?? 10_000);
 // needs to sign its own output, and that failure presents as "signing is
 // broken". It stays generous, because sustained rate is about fair use over
 // time while the concurrency cap is what bounds peak memory.
+// --- SPEC-030: the path before authentication -------------------------------
+// A SINGLE GLOBAL budget, never keyed on the client address. Measured
+// 2026-08-08: with the shipped docker-compose deployment every host-side request
+// arrives as the bridge gateway address, so per-address keying discriminates
+// nothing — and an address-keyed map would have attacker-controlled cardinality,
+// which is exactly what SPEC-015's map is safe from and this one would not be.
+//
+// It is NOT a load control. Once authentication runs ahead of the parser an
+// unauthenticated request costs a header parse, one SHA-256 and a 401 — about
+// what GET /health costs, which SPEC-024 AC6 already decided is not worth
+// bounding. This exists so that credential guessing is visible at all.
+const AUTH_FAIL_LIMIT = Number(process.env.AUTH_FAIL_LIMIT ?? 30);
+
+let authFailures = 0;
+
+// One entry, by design and not by coincidence: the key is a literal, so there is
+// no cardinality for a caller to grow. SPEC-015's map is bounded by the number
+// of valid tokens; an unauthenticated map could say no such thing.
+const authBuckets = new Map();
+
+// AC8: at most two records per window — the first failure, and the moment the
+// budget runs out. Each holds the resetAt of the window it already recorded.
+let auditedFailureWindow = null;
+let auditedRefusalWindow = null;
+
 const MAX_CONCURRENT_READS = Number(process.env.MAX_CONCURRENT_READS ?? 4);
 const READ_RATE_LIMIT_REQUESTS = Number(process.env.READ_RATE_LIMIT_REQUESTS ?? 240);
 
@@ -544,6 +633,72 @@ app.use((req, res, next) => {
   next();
 });
 
+/**
+ * Bearer-token auth on /v1/*, BEFORE the body parser (SPEC-030).
+ *
+ * It used to run after. Measured 2026-08-08: a 26 MB body with an invalid token
+ * answered 413 — which only the parser can produce — so an unauthenticated
+ * caller had its body buffered and measured before anything asked who it was,
+ * and no budget applied, because every budget keys on a token id that does not
+ * exist yet. Sixty invalid-token requests produced sixty 401s and zero 429s.
+ *
+ * This middleware reads headers only, so moving it ahead of express.json costs
+ * nothing and makes a refusal cost a header parse and one SHA-256.
+ *
+ * It also retires a limitation SPEC-017 recorded: a body-parser refusal now has
+ * a verified caller to attribute it to.
+ */
+app.use('/v1', (req, res, next) => {
+  const header = req.headers['authorization'] ?? '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+
+  if (tokenMatches(token, API_KEY)) {
+    // Kept only to derive the one-way token_id for audit records; never logged.
+    req.token = token;
+
+    return next();
+  }
+
+  authFailures += 1;
+
+  const wait = rateLimited(authBuckets, AUTH_FAIL_LIMIT, 'global', Date.now());
+  const window = authBuckets.get('global')?.resetAt ?? null;
+  const event = req.originalUrl.startsWith('/v1/read') ? 'read' : 'sign';
+
+  // Deliberately no token_id: there is no verified caller, and recording an
+  // unverified token would let anyone write arbitrary ids into an operator's log
+  // (SPEC-017's reasoning). The /health counter carries the total instead.
+  if (wait !== null) {
+    if (auditedRefusalWindow !== window) {
+      auditedRefusalWindow = window;
+      audit({
+        ts: new Date().toISOString(),
+        cid: req.cid,
+        event,
+        outcome: 'unauthenticated',
+        reason: 'failed authentication budget exhausted',
+      });
+    }
+
+    return res.status(429)
+      .set('Retry-After', String(wait))
+      .json({ error: 'too many failed authentications', cid: req.cid });
+  }
+
+  if (auditedFailureWindow !== window) {
+    auditedFailureWindow = window;
+    audit({
+      ts: new Date().toISOString(),
+      cid: req.cid,
+      event,
+      outcome: 'unauthenticated',
+      reason: 'failed authentication',
+    });
+  }
+
+  return res.status(401).json({ error: 'Unauthorized', cid: req.cid });
+});
+
 app.use(express.json({ limit: MAX_BODY }));
 
 /**
@@ -553,9 +708,9 @@ app.use(express.json({ limit: MAX_BODY }));
  * stack trace, and nothing is recorded. The refusal happens inside the parser,
  * before any route, so it can only be audited from here.
  *
- * Note what the record cannot say: auth runs after the parser, so there is no
- * verified caller to attribute this to. Recording an unverified token would let
- * anyone write arbitrary token_ids into the log, so the field is simply absent.
+ * Since SPEC-030 auth runs BEFORE the parser, so this record carries a token_id:
+ * the request got here only by presenting a valid one. That was not true when
+ * SPEC-017 wrote this handler, and it is the question a 413 in a log raises.
  */
 app.use((err, req, res, next) => {
   if (!err || !err.type) return next(err);
@@ -586,22 +741,13 @@ app.use((err, req, res, next) => {
     event: req.path === '/v1/read' ? 'read' : 'sign',
     outcome: 'rejected',
     reason,
-    // Deliberately no token_id and no body: see above.
+    // SPEC-030: auth now runs BEFORE the parser, so there IS a verified caller
+    // here — which is what makes "which client keeps sending 25 MB assets"
+    // answerable. Still no body.
+    ...(req.token ? { token_id: tokenId(req.token) } : {}),
   });
 
   return res.status(status).json({ error: reason, cid: req.cid });
-});
-
-// Bearer-token auth on /v1/* — mirrors the upstream service.
-app.use('/v1', (req, res, next) => {
-  const header = req.headers['authorization'] ?? '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-  if (!tokenMatches(token, API_KEY)) {
-    return res.status(401).json({ error: 'Unauthorized', cid: req.cid });
-  }
-  // Kept only to derive the one-way token_id for audit records; never logged.
-  req.token = token;
-  next();
 });
 
 app.get('/health', (_req, res) => {
@@ -627,6 +773,10 @@ app.get('/health', (_req, res) => {
     // SPEC-024 AC5: reported separately from signing, because the two paths cost
     // different amounts and an operator cannot size an instance from one number.
     reads_in_flight: readsInFlight,
+    // SPEC-030 AC6: with a global budget there is no per-source detail worth a
+    // record per attempt, so this counter is the only thing that turns "somebody
+    // is guessing our token" from invisible into observable.
+    auth_failures: authFailures,
     limits: {
       max_concurrent_signs: MAX_CONCURRENT_SIGNS,
       rate_limit_requests: RATE_LIMIT_REQUESTS,
@@ -636,6 +786,7 @@ app.get('/health', (_req, res) => {
       request_timeout_ms: REQUEST_TIMEOUT_MS,
       headers_timeout_ms: HEADERS_TIMEOUT_MS,
       max_body_bytes: maxBodyBytes(),
+      auth_fail_limit: AUTH_FAIL_LIMIT,
     },
   });
 });
@@ -1018,11 +1169,28 @@ server.requestTimeout = REQUEST_TIMEOUT_MS;
 server.headersTimeout = HEADERS_TIMEOUT_MS;
 server.setTimeout(REQUEST_TIMEOUT_MS);
 
-server.listen(PORT, () => {
-  console.log(
-    `c2pa-spike signer listening on :${PORT} (alg=${SIGN_ALG}, `
-    + `timestamping=${Boolean(TSA_URL)}, trust=${Boolean(trustSettings)}, `
-    + `max_concurrent=${MAX_CONCURRENT_SIGNS}, rate=${RATE_LIMIT_REQUESTS}/${RATE_LIMIT_WINDOW_MS}ms, `
-    + `max_concurrent_reads=${MAX_CONCURRENT_READS}, read_rate=${READ_RATE_LIMIT_REQUESTS}/${RATE_LIMIT_WINDOW_MS}ms)`,
-  );
-});
+// SPEC-029 AC8: the actions helpers are exercised directly, without HTTP, so
+// that the property "none of these throws" is pinned to the helpers themselves
+// rather than to whichever route happens to call them today. Requiring this file
+// must therefore not start a server.
+module.exports = {
+  actionsOf,
+  allSourceTypes,
+  firstActionSourceTypes,
+  markingSourceTypes,
+  needsParentAsset,
+  rejectActionsShape,
+  rejectAssertions,
+  suppliesOpenedAction,
+};
+
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(
+      `c2pa-spike signer listening on :${PORT} (alg=${SIGN_ALG}, `
+      + `timestamping=${Boolean(TSA_URL)}, trust=${Boolean(trustSettings)}, `
+      + `max_concurrent=${MAX_CONCURRENT_SIGNS}, rate=${RATE_LIMIT_REQUESTS}/${RATE_LIMIT_WINDOW_MS}ms, `
+      + `max_concurrent_reads=${MAX_CONCURRENT_READS}, read_rate=${READ_RATE_LIMIT_REQUESTS}/${RATE_LIMIT_WINDOW_MS}ms)`,
+    );
+  });
+}

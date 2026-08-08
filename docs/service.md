@@ -92,6 +92,41 @@ instance about to run out of memory.
 Limits are **on by default**; a protection that ships off is one nobody turns
 on. Setting one to `0` disables it explicitly, and `/health` says so.
 
+Note which side of authentication they are on. Every limit above is spent per
+token, so all of them apply *after* the bearer check. The bearer check itself
+runs **before authentication** reaches the body parser — that ordering is what
+keeps an unauthenticated request cheap.
+
+### Before authentication
+
+The bearer token is checked on headers alone, ahead of `express.json`, so a
+request without a valid one is never parsed. Measured 2026-08-08, eight
+concurrent 21 MB unauthenticated requests against a 17.3 MiB idle baseline:
+
+| Ordering | Peak | Cost of the burst | Answer |
+|---|---|---|---|
+| parser first (before this change) | 54.3 MiB | **+37.1 MiB** | 413 — the body had been read |
+| auth first (now) | 26.8 MiB | **+9.5 MiB** | 401 |
+
+The residual 9.5 MiB is worth understanding rather than rounding away: refusing
+before the parser stops the allocation and the JSON parse, **not the bytes
+arriving**. Node still reads from the socket. Lowering `MAX_BODY_SIZE` is what
+moves that number; auth ordering is what removes the parse.
+
+Repeated failures are bounded by `AUTH_FAIL_LIMIT` (default 30 per window),
+answered **429** with `Retry-After`. It is one **global** counter, not one per
+client: measured, with the published-port deployment every host-side request
+arrives at the container as the bridge gateway address, so per-client keying
+would discriminate nothing — and a map keyed on something a caller controls has
+no bound at all, which is the opposite of what a limit is for.
+
+Treat it as visibility rather than load control. `GET /health` reports
+`auth_failures`, a running count, because with one global budget there is no
+per-source detail worth a log line per attempt: the audit stream carries at most
+two records per window — the first failure, and the moment the budget runs out —
+so a flood cannot grow an operator's log. A rising `auth_failures` with a flat
+log is somebody guessing your token.
+
 **Reading is bounded separately from signing.** `/v1/read` has its own
 concurrency cap and its own rate budget, and `/health` reports both alongside
 `reads_in_flight`. The separation is deliberate: with one shared budget a
@@ -163,6 +198,19 @@ undefined), a bounded number of assertions, and bounds on each assertion's size
 and nesting depth. Violations return **400** naming the constraint, and nothing
 is signed. Tune with `MAX_ASSERTIONS`, `MAX_ASSERTION_BYTES`,
 `MAX_ASSERTION_DEPTH` and `MAX_CREATOR_NAME`.
+
+An actions assertion must also have the **shape** of one: an object `data`
+carrying a **non-empty** array `data.actions` whose entries are objects. This is
+not tunable, because there is no legitimate value to tune it to. Sending no
+actions assertion at all remains allowed — that manifest reads back as `Invalid`
+with `assertion.action.malformed`, which is a verifier correctly reporting a
+claim-v2 rule, and it is your claim to make.
+
+An *empty* array is different, and it is why this constraint exists. Measured:
+it was the one malformed shape that got signed, and the resulting asset could
+not be read by the signing service, `c2patool` or `ext-c2pa` — all three answer
+`No Action array in Actions`. A signature spent on an artefact no verifier can
+parse is worse than a refusal.
 
 The service takes **no position on `digitalSourceType`** by default. Requiring
 `trainedAlgorithmicMedia` would not make an attestation truer — the service can
