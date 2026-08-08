@@ -66,6 +66,7 @@
     "prefer-stable": true,
     "suggest": {
         "illuminate/support": "Required only to use the Laravel service provider and facade (provided by any Laravel app).",
+        "illuminate/queue": "Required only to use SignAssetJob, which uses InteractsWithQueue (provided by any Laravel app).",
         "guzzlehttp/guzzle": "A PSR-18 client + PSR-17 factories for the signing client outside Laravel (any PSR-18/PSR-17 implementation works).",
         "ext-c2pa": "Read C2PA credentials in-process with ExtC2paReader, without running the signing service (pie install ericmann/ext-c2pa; v0.1.0 at time of writing)"
     },

@@ -199,12 +199,25 @@ it('fails closed when the extension does not report the anchors as applied', fun
 })->group('SPEC-032')->throws(TrustAnchorsNotAppliedException::class);
 
 it('says what went wrong when anchors are not applied', function () {
+    // Captured rather than asserted inside the catch. The first version put the
+    // expectations in the catch block with no fallback, so if the guard ever
+    // stopped throwing the block never ran, no assertion executed, and the test
+    // reported success — the ninth instance in this repository of green while
+    // testing nothing.
+    $caught = null;
+
     try {
         TrustAnchorsGuard::ensureApplied(false);
     } catch (TrustAnchorsNotAppliedException $e) {
-        expect(strtolower($e->getMessage()))->toContain('trust anchors')
-            ->and(strtolower($e->getMessage()))->toContain('not applied');
+        $caught = $e;
     }
+
+    if ($caught === null) {
+        throw new RuntimeException('the guard did not throw at all');
+    }
+
+    expect(strtolower($caught->getMessage()))->toContain('trust anchors')
+        ->and(strtolower($caught->getMessage()))->toContain('not applied');
 })->group('SPEC-032');
 
 // --- AC5: a deterministic failure is not retried -----------------------------

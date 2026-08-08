@@ -177,18 +177,23 @@ final class ContentCredentialsServiceProvider extends ServiceProvider
 
     private function resolveClient(Container $app): ClientInterface
     {
+        // An application-bound client wins on every resolution, never once. Only
+        // the client we build ourselves is memoised: caching the *decision*
+        // would freeze it at whichever of the signer and the reader resolved
+        // first, so a client bound afterwards — from a later provider's boot(),
+        // or a test's beforeEach — would be silently ignored by both.
+        if ($app->bound(ClientInterface::class)) {
+            return $app->make(ClientInterface::class);
+        }
+
         return $this->httpClient ??= $this->buildClient($app);
     }
 
     private function buildClient(Container $app): ClientInterface
     {
-        // An application-bound client owns its own timeout (SPEC-008 AC3): use it
-        // unchanged, never wrap or re-instantiate it.
-        if ($app->bound(ClientInterface::class)) {
-            return $app->make(ClientInterface::class);
-        }
-
-        // No bound client: build one with a bounded timeout (SPEC-008 D1/D4). The
+        // Build one with a bounded timeout (SPEC-008 D1/D4). An application-bound
+        // client owns its own timeout and is returned by resolveClient() above,
+        // unwrapped and un-reinstantiated (SPEC-008 AC3). The
         // Guzzle reference lives only here in the Laravel layer — Core stays
         // client-agnostic.
         if (class_exists(Client::class)) {

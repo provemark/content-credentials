@@ -67,8 +67,26 @@ if (!CERT_PATH || !KEY_PATH) {
 }
 
 // Load key material once at startup (fail fast if missing/wrong).
-const certificate = fs.readFileSync(CERT_PATH);
-const privateKey = fs.readFileSync(KEY_PATH);
+//
+// Read through a guard rather than bare, because since the container dropped to
+// an unprivileged user the likeliest failure here is a PERMISSION one, not a
+// missing file: on Linux a bind mount preserves the host's uid and mode, so a
+// signing key at the usual 0600 owned by the deploying user is unreadable by
+// uid 1000 and the service crash-loops under `restart: unless-stopped`. An
+// unhandled ENOENT/EACCES stack does not say that; this does.
+let certificate;
+let privateKey;
+try {
+  certificate = fs.readFileSync(CERT_PATH);
+  privateKey = fs.readFileSync(KEY_PATH);
+} catch (err) {
+  const hint = err.code === 'EACCES'
+    ? ` — this container runs as uid ${process.getuid?.() ?? '?'}, and a bind-mounted key keeps its host ownership and mode. `
+      + 'Make the file readable by that uid.'
+    : '';
+  console.error(`cannot read signing key material (${err.code ?? err.message}): ${err.path ?? ''}${hint}`);
+  process.exit(1);
+}
 if (!certificate.toString().includes('CERTIFICATE')) {
   console.error(`SIGNING_CERT_PATH is not a PEM certificate: ${CERT_PATH}`);
   process.exit(1);
@@ -244,6 +262,11 @@ const REQUIRE_AI_MARKING = process.env.REQUIRE_AI_MARKING === 'true';
  * @returns {string|null} the violated constraint, or null when acceptable.
  */
 function rejectActionsShape(assertion) {
+  // Guarded rather than assumed. rejectAssertions() validates the label two
+  // lines before calling this, so in situ it is safe — but the function is
+  // exported, and a partial function behind a precondition its callers happen to
+  // satisfy is precisely what actionsOf() was added to stop existing.
+  if (typeof assertion?.label !== 'string') return null;
   if (!assertion.label.startsWith('c2pa.actions')) return null;
 
   const data = assertion.data;
@@ -258,6 +281,13 @@ function rejectActionsShape(assertion) {
   }
   if (data.actions.some((a) => a === null || typeof a !== 'object' || Array.isArray(a))) {
     return 'each entry of "data.actions" must be an object';
+  }
+  // An entry with no action verb reaches c2pa-rs and is refused there — measured
+  // 2026-08-08, `{actions:[{}]}` and `{actions:[{action:7}]}` both answered 500
+  // after a real signing attempt. Same shape as the non-array case AC3 closed:
+  // the boundary should refuse it, not the engine.
+  if (data.actions.some((a) => typeof a.action !== 'string' || a.action.trim() === '')) {
+    return 'each entry of "data.actions" must carry a non-empty string "action"';
   }
 
   return null;
@@ -465,6 +495,17 @@ const tokenId = (token) => crypto.createHash('sha256')
 
 const sha256 = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
 
+/**
+ * Which endpoint an audit record is about.
+ *
+ * One rule, because there were three: the auth middleware tested
+ * `req.originalUrl`, the body-parser handler and the catch-all tested
+ * `req.path`. A request to `/v1/readback` was therefore audited as `read` by one
+ * and `sign` by the others, so grepping the stream by event gave different
+ * answers for the same URL depending on which layer refused it.
+ */
+const auditEvent = (req) => (String(req.originalUrl ?? req.path ?? '').startsWith('/v1/read') ? 'read' : 'sign');
+
 /** Caller-supplied strings are capped, so nobody can write unbounded data into an operator's log. */
 const cap = (value, limit = 256) => (typeof value === 'string' ? value.slice(0, limit) : undefined);
 
@@ -661,9 +702,17 @@ app.use('/v1', (req, res, next) => {
 
   authFailures += 1;
 
-  const wait = rateLimited(authBuckets, AUTH_FAIL_LIMIT, 'global', Date.now());
-  const window = authBuckets.get('global')?.resetAt ?? null;
-  const event = req.originalUrl.startsWith('/v1/read') ? 'read' : 'sign';
+  const now = Date.now();
+  const wait = rateLimited(authBuckets, AUTH_FAIL_LIMIT, 'global', now);
+
+  // Computed here rather than read off the bucket. With AUTH_FAIL_LIMIT=0 the
+  // limiter returns before it creates one, so the bucket stayed undefined, every
+  // comparison was `null !== null`, and NO failed authentication was ever
+  // audited — measured 2026-08-08: three failures, zero records, while /health
+  // counted three. `.env.example` documents 0 as disabling the limit, and an
+  // operator reads that as the limit and not the logging.
+  const window = Math.floor(now / Math.max(1, RATE_LIMIT_WINDOW_MS));
+  const event = auditEvent(req);
 
   // Deliberately no token_id: there is no verified caller, and recording an
   // unverified token would let anyone write arbitrary ids into an operator's log
@@ -738,7 +787,7 @@ app.use((err, req, res, next) => {
   audit({
     ts: new Date().toISOString(),
     cid: req.cid,
-    event: req.path === '/v1/read' ? 'read' : 'sign',
+    event: auditEvent(req),
     outcome: 'rejected',
     reason,
     // SPEC-030: auth now runs BEFORE the parser, so there IS a verified caller
@@ -1135,7 +1184,7 @@ app.use((err, req, res, _next) => {
   audit({
     ts: new Date().toISOString(),
     cid: req.cid,
-    event: req.path === '/v1/read' ? 'read' : 'sign',
+    event: auditEvent(req),
     outcome: 'rejected',
     reason: cap(`unhandled: ${err && err.message ? err.message : err}`, 512),
     // token_id only when auth already ran; before it there is no verified

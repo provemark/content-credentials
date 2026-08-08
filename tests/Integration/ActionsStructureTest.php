@@ -315,7 +315,7 @@ it('exposes the actions helpers, and none of them throws on an accepted payload'
     $script = <<<'JS'
     const m = require('/app/server.js');
     const names = ['suppliesOpenedAction', 'needsParentAsset', 'markingSourceTypes',
-                   'firstActionSourceTypes', 'allSourceTypes'];
+                   'firstActionSourceTypes', 'allSourceTypes', 'rejectActionsShape'];
     const missing = names.filter((n) => typeof m[n] !== 'function');
     if (missing.length) { console.log(JSON.stringify({ missing, threw: [] })); return; }
 

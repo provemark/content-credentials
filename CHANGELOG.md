@@ -19,6 +19,59 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+Twelve findings from a review of the 0.10.0 release range. Most are corrections
+to that release's own work.
+
+- **`AUTH_FAIL_LIMIT=0` silently disabled the audit trail for failed
+  authentication**, not just the rate limit. Measured: three failed
+  authentications produced zero records while `/health` counted three. The
+  window used for de-duplicating records was read off a rate-limit bucket that
+  the limiter never creates when it is switched off, so every comparison was
+  `null !== null`. The window is now computed from the clock, independent of
+  whether a budget is in force. `0` disables the limit, as documented, and
+  nothing else.
+- **An actions entry with no action verb reached the engine.**
+  `{actions:[{}]}` and `{actions:[{action: 7}]}` both answered **500** after a
+  real signing attempt; they are now refused with a named **400**, the same
+  treatment SPEC-029 gave the other malformed shapes.
+- **A client bound after the first resolution was ignored.** Memoising the HTTP
+  client froze the "did the application bind its own?" decision at whichever of
+  the signer and reader resolved first. An application-bound client now wins on
+  every resolution; only the client this package builds itself is memoised.
+- **`SignAssetJob` matched non-retryable failures by exact class**, so a
+  subclass — or a deterministic exception added later to one of those
+  hierarchies — was retried three times with the 10/60/300s backoff. Now
+  `instanceof`.
+- **Startup names a permission problem instead of throwing a stack.** Since the
+  container dropped to an unprivileged user, the likeliest failure reading key
+  material is that a bind-mounted key kept its host ownership and is unreadable
+  by uid 1000. The error now says so.
+- **The `/tmp` tmpfs is 128m rather than 256m.** tmpfs pages are charged to the
+  same memory cgroup as `mem_limit`, and the ~650 MiB figure that limit is sized
+  from was measured before `/tmp` was in RAM.
+- **One rule decides the audited `event` field.** Three handlers used two
+  different tests, so `/v1/readback` was recorded as `read` by one and `sign` by
+  the others.
+- Smaller: `rejectActionsShape()` no longer assumes its caller validated the
+  label; `illuminate/queue` is listed in `suggest` alongside `illuminate/support`;
+  `mediaTypeFromPath()` derives its refusal message from the helper added for it
+  rather than restating the list; `ExtC2paReader` builds its settings once at
+  construction, which also moves the fail-closed trust check to wiring time.
+
+### Changed
+
+- **Documentation and test corrections.** A sentence in the service page read
+  "the bearer check itself runs before authentication", which is nonsense — the
+  bearer check *is* the authentication — and it had been written that way to
+  satisfy a substring assertion, which then froze it. Both are fixed. A guard
+  test that asserted only inside a `catch` block, and so passed if the guard ever
+  stopped throwing, now fails explicitly. `bin/check.sh` names its log with the
+  pid: `date +%N` is a GNU extension that emits a literal `N` on a stock macOS
+  rather than failing, so the fallback never fired and two failures in the same
+  second overwrote each other.
+
 ## [0.10.0] - 2026-08-08
 
 Everything a review found, closed. Reading the package as an outsider produced

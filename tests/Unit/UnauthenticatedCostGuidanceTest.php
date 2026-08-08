@@ -33,7 +33,13 @@ it('says which side of authentication the limits are on', function () {
 
     // The sentence "Limits are on by default" read as though the whole service
     // were bounded. Every limit it lists is a post-authentication limit.
-    expect($text)->toContain('before authentication');
+    //
+    // The phrase is 'before the body is parsed' and not 'before authentication'.
+    // The first version asserted the latter, and the prose written to satisfy it
+    // said "the bearer check itself runs before authentication" — which is
+    // nonsense, because the bearer check IS the authentication. A substring a
+    // sentence can satisfy while meaning nothing is not a check on the sentence.
+    expect($text)->toContain('before the body is parsed');
 })->group('SPEC-030');
 
 it('publishes what an unauthenticated request costs', function () {
