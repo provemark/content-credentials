@@ -19,6 +19,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-08
+
+Everything a review found, closed. Reading the package as an outsider produced
+twelve findings: three were defects in what the signing service would attest to
+or how much it would do before asking who was asking, four were places the client
+layer described itself inaccurately, and the rest were runtime and deployment.
+All twelve are here, each with a spec and a measurement behind it.
+
+**The two largest fixes are service-side, and `service/` is not in this package.**
+They reach you through `git pull` and a rebuild, not through this update. What
+does arrive by Composer is the client work: bounded read errors, one shared HTTP
+client, a trust-anchor post-condition, a queue job that stops retrying what cannot
+succeed, and a stability policy that says what all of it promises.
+
 ### Fixed
 
 - **The signing service now validates the actions structure it reads**
@@ -1117,7 +1131,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.9.1...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.10.0...main
+[0.10.0]: https://github.com/provemark/content-credentials/releases/tag/v0.10.0
 [0.9.1]: https://github.com/provemark/content-credentials/releases/tag/v0.9.1
 [0.9.0]: https://github.com/provemark/content-credentials/releases/tag/v0.9.0
 [0.8.0]: https://github.com/provemark/content-credentials/releases/tag/v0.8.0
