@@ -6,6 +6,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The signing service now validates the actions structure it reads**
+  (SPEC-029). SPEC-011 bounded the assertion *envelope* — count, size, nesting
+  depth, label — and never the one structure the service then walks, so four
+  malformed shapes got past it with a valid token:
+
+  | `data.actions` | Was | Now |
+  |---|---|---|
+  | a non-iterable value | 500, no named constraint | **400** |
+  | a non-array value | 500, after a real signing attempt | **400**, nothing signed |
+  | absent | 500, after a real signing attempt | **400**, nothing signed |
+  | an empty array | **200 — signed** | **400**, nothing signed |
+
+  The last row is why this is filed as a fix rather than a limit. An empty
+  actions array was the one malformed shape that produced a *signature*, and the
+  signed asset cannot be read by the signing service (c2pa-rs 0.90.4),
+  `c2patool` 0.27.3 or `ext-c2pa` (c2pa-rs 0.89.0) — all three answer
+  `No Action array in Actions`. The certificate was being spent on an artefact
+  no verifier can parse.
+
+  **Sending no actions assertion at all is unchanged and still permitted**
+  (SPEC-011 settled "at most one, not required"): that manifest signs and reads
+  back `Invalid` with `assertion.action.malformed`, which is a verifier
+  correctly reporting a claim-v2 rule.
+
+  Service only — no change to `src/` or `config/`, and no change for a caller
+  using `ManifestBuilder`, which has always emitted the correct shape.
+
 ### Added
 
 - **The README records the listing on the Content Authenticity Initiative's

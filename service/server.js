@@ -222,6 +222,47 @@ const AI_MARKINGS = [AI_MARKING, AI_MARKING_EDITED];
 // opt in.
 const REQUIRE_AI_MARKING = process.env.REQUIRE_AI_MARKING === 'true';
 
+/**
+ * Vet the shape of an actions assertion (SPEC-029).
+ *
+ * SPEC-011 validates the assertion ENVELOPE — count, size, depth, label — and
+ * never the one structure the service then walks. Measured 2026-08-08 against a
+ * valid token: `{actions: 123}` answered 500 through the catch-all with no named
+ * constraint, `{actions: "xx"}` and `{}` reached c2pa-rs and spent a real
+ * signing attempt, and `{actions: []}` was SIGNED and produced an asset that
+ * c2pa-rs 0.90.4, c2patool 0.27.3 and c2pa-rs 0.89.0 all refuse to read.
+ *
+ * The empty array is why "non-empty" and not merely "an array": it is the only
+ * shape that gets a signature, and spending the certificate on an artefact no
+ * verifier can parse is what SPEC-028 AC13 refuses from the other direction.
+ *
+ * Sending NO actions assertion stays permitted — SPEC-011 settled "at most one,
+ * not required", and that case reads back Invalid with
+ * assertion.action.malformed, which is a verifier telling the truth about a
+ * claim-v2 rule. Absent is a worse claim; empty is a worse artefact.
+ *
+ * @returns {string|null} the violated constraint, or null when acceptable.
+ */
+function rejectActionsShape(assertion) {
+  if (!assertion.label.startsWith('c2pa.actions')) return null;
+
+  const data = assertion.data;
+  if (data === null || typeof data !== 'object' || Array.isArray(data)) {
+    return 'an actions assertion must carry an object "data"';
+  }
+  if (!Array.isArray(data.actions)) {
+    return 'an actions assertion must carry an array "data.actions"';
+  }
+  if (data.actions.length === 0) {
+    return 'an actions assertion must carry at least one action';
+  }
+  if (data.actions.some((a) => a === null || typeof a !== 'object' || Array.isArray(a))) {
+    return 'each entry of "data.actions" must be an object';
+  }
+
+  return null;
+}
+
 /** Depth of a JSON value, stopping as soon as the limit is passed. */
 function exceedsDepth(value, limit, depth = 0) {
   if (depth > limit) return true;
@@ -268,6 +309,9 @@ function rejectAssertions(assertions) {
     if (JSON.stringify(assertion).length > MAX_ASSERTION_BYTES) {
       return `assertion too large (max ${MAX_ASSERTION_BYTES} bytes)`;
     }
+    const shapeProblem = rejectActionsShape(assertion);
+    if (shapeProblem !== null) return shapeProblem;
+
     if (assertion.label.startsWith('c2pa.actions')) {
       actionsCount += 1;
     }
@@ -302,6 +346,26 @@ function rejectAssertions(assertions) {
 }
 
 /**
+ * The actions of an assertion, or `[]` when it has none (SPEC-029).
+ *
+ * One accessor rather than five copies of `assertion.data?.actions ?? []`. That
+ * expression is total for `?.` and not for `for…of`: a non-array value reaches
+ * the loop and throws, which is how a one-field payload used to answer 500 with
+ * no named constraint. rejectActionsShape() refuses such a payload at the
+ * boundary; this makes the helpers total regardless, so the next helper added
+ * cannot re-introduce the assumption in a path no route exercises.
+ *
+ * Not a second guard hiding a failing first one — it REPLACES the unsafe access
+ * rather than sitting behind it, so there is exactly one place that knows how to
+ * read an actions array.
+ */
+function actionsOf(assertion) {
+  const actions = assertion?.data?.actions;
+
+  return Array.isArray(actions) ? actions : [];
+}
+
+/**
  * The source types a marking policy should consider: the first action's, plus
  * any carried by a c2pa.edited action (SPEC-028).
  *
@@ -315,7 +379,7 @@ function markingSourceTypes(assertions) {
     if (!assertion || typeof assertion !== 'object') continue;
     if (typeof assertion.label !== 'string' || !assertion.label.startsWith('c2pa.actions')) continue;
 
-    for (const action of assertion.data?.actions ?? []) {
+    for (const action of actionsOf(assertion)) {
       if (action?.action === 'c2pa.edited' && typeof action.digitalSourceType === 'string') {
         types.push(action.digitalSourceType);
       }
@@ -331,7 +395,7 @@ function suppliesOpenedAction(assertions) {
     if (!assertion || typeof assertion !== 'object') continue;
     if (typeof assertion.label !== 'string' || !assertion.label.startsWith('c2pa.actions')) continue;
 
-    for (const action of assertion.data?.actions ?? []) {
+    for (const action of actionsOf(assertion)) {
       if (action?.action === 'c2pa.opened') return true;
     }
   }
@@ -348,7 +412,7 @@ function needsParentAsset(assertions) {
     // c2pa.edited only: a caller-supplied c2pa.opened is refused outright by
     // rejectAssertions() above, so accepting it here would describe an input
     // that can no longer arrive.
-    for (const action of assertion.data?.actions ?? []) {
+    for (const action of actionsOf(assertion)) {
       if (action?.action === 'c2pa.edited') return true;
     }
   }
@@ -364,7 +428,7 @@ function firstActionSourceTypes(assertions) {
     if (!assertion || typeof assertion !== 'object') continue;
     if (typeof assertion.label !== 'string' || !assertion.label.startsWith('c2pa.actions')) continue;
 
-    const first = assertion.data?.actions?.[0];
+    const first = actionsOf(assertion)[0];
     if (first && typeof first.digitalSourceType === 'string') {
       types.push(first.digitalSourceType);
     }
@@ -378,7 +442,7 @@ function allSourceTypes(assertions) {
   const types = new Set();
 
   for (const assertion of Array.isArray(assertions) ? assertions : []) {
-    for (const action of assertion?.data?.actions ?? []) {
+    for (const action of actionsOf(assertion)) {
       if (action && typeof action.digitalSourceType === 'string') {
         types.add(action.digitalSourceType);
       }
@@ -1018,11 +1082,28 @@ server.requestTimeout = REQUEST_TIMEOUT_MS;
 server.headersTimeout = HEADERS_TIMEOUT_MS;
 server.setTimeout(REQUEST_TIMEOUT_MS);
 
-server.listen(PORT, () => {
-  console.log(
-    `c2pa-spike signer listening on :${PORT} (alg=${SIGN_ALG}, `
-    + `timestamping=${Boolean(TSA_URL)}, trust=${Boolean(trustSettings)}, `
-    + `max_concurrent=${MAX_CONCURRENT_SIGNS}, rate=${RATE_LIMIT_REQUESTS}/${RATE_LIMIT_WINDOW_MS}ms, `
-    + `max_concurrent_reads=${MAX_CONCURRENT_READS}, read_rate=${READ_RATE_LIMIT_REQUESTS}/${RATE_LIMIT_WINDOW_MS}ms)`,
-  );
-});
+// SPEC-029 AC8: the actions helpers are exercised directly, without HTTP, so
+// that the property "none of these throws" is pinned to the helpers themselves
+// rather than to whichever route happens to call them today. Requiring this file
+// must therefore not start a server.
+module.exports = {
+  actionsOf,
+  allSourceTypes,
+  firstActionSourceTypes,
+  markingSourceTypes,
+  needsParentAsset,
+  rejectActionsShape,
+  rejectAssertions,
+  suppliesOpenedAction,
+};
+
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(
+      `c2pa-spike signer listening on :${PORT} (alg=${SIGN_ALG}, `
+      + `timestamping=${Boolean(TSA_URL)}, trust=${Boolean(trustSettings)}, `
+      + `max_concurrent=${MAX_CONCURRENT_SIGNS}, rate=${RATE_LIMIT_REQUESTS}/${RATE_LIMIT_WINDOW_MS}ms, `
+      + `max_concurrent_reads=${MAX_CONCURRENT_READS}, read_rate=${READ_RATE_LIMIT_REQUESTS}/${RATE_LIMIT_WINDOW_MS}ms)`,
+    );
+  });
+}

@@ -164,6 +164,19 @@ and nesting depth. Violations return **400** naming the constraint, and nothing
 is signed. Tune with `MAX_ASSERTIONS`, `MAX_ASSERTION_BYTES`,
 `MAX_ASSERTION_DEPTH` and `MAX_CREATOR_NAME`.
 
+An actions assertion must also have the **shape** of one: an object `data`
+carrying a **non-empty** array `data.actions` whose entries are objects. This is
+not tunable, because there is no legitimate value to tune it to. Sending no
+actions assertion at all remains allowed — that manifest reads back as `Invalid`
+with `assertion.action.malformed`, which is a verifier correctly reporting a
+claim-v2 rule, and it is your claim to make.
+
+An *empty* array is different, and it is why this constraint exists. Measured:
+it was the one malformed shape that got signed, and the resulting asset could
+not be read by the signing service, `c2patool` or `ext-c2pa` — all three answer
+`No Action array in Actions`. A signature spent on an artefact no verifier can
+parse is worse than a refusal.
+
 The service takes **no position on `digitalSourceType`** by default. Requiring
 `trainedAlgorithmicMedia` would not make an attestation truer — the service can
 verify it no better than a camera-capture claim — while excluding the

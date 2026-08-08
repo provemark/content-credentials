@@ -2,7 +2,7 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | approved                                          |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
 | Approved   | Maurice van Loon — 2026-08-08                     |
 | Supersedes | —                                                 |
@@ -347,12 +347,12 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1 | — | — |
-| AC2 | — | — |
-| AC3 | — | — |
-| AC4 | — | — |
-| AC5 | — | — |
-| AC6 | — | — |
-| AC7 | — | — |
-| AC8 | — | — |
-| AC9 | — | — |
+| AC1 | `tests/Integration/ActionsStructureTest.php` :: "still signs a manifest built by the library, unchanged"; "still signs a manipulated manifest with its parent, unchanged" | `service/server.js` `rejectActionsShape()` (no-op on the builder's output) |
+| AC2 | `tests/Integration/ActionsStructureTest.php` :: "refuses a non-iterable actions value with a named constraint"; "records the constraint rather than an unhandled engine error" | `service/server.js` `rejectActionsShape()`, `actionsOf()` |
+| AC3 | `tests/Integration/ActionsStructureTest.php` :: "refuses a non-array actions value before the engine is reached" | `service/server.js` `rejectActionsShape()` array check |
+| AC4 | `tests/Integration/ActionsStructureTest.php` :: "refuses a malformed action entry" (4 datasets) | `service/server.js` `rejectActionsShape()` entry check |
+| AC5 | `tests/Integration/ActionsStructureTest.php` :: "refuses an actions assertion whose data is not an object" (3 datasets) | `service/server.js` `rejectActionsShape()` data check |
+| AC6 | `tests/Integration/ActionsStructureTest.php` :: "refuses an actions assertion with no actions key"; "refuses an empty actions array without signing anything"; "still signs a request carrying no actions assertion at all" | `service/server.js` `rejectActionsShape()` non-empty check |
+| AC7 | `tests/Integration/ActionsStructureTest.php` :: "names the constraint without leaking internals or echoing the payload" | `service/server.js` `reject()` in `POST /v1/sign` |
+| AC8 | `tests/Integration/ActionsStructureTest.php` :: "exposes the actions helpers, and none of them throws on an accepted payload" | `service/server.js` `actionsOf()`, `module.exports`, `require.main` guard |
+| AC9 | `tests/Integration/ActionsStructureTest.php` :: "still accepts a manipulated manifest when the AI-marking policy is on" | `service/server.js` `markingSourceTypes()` via `actionsOf()` |
