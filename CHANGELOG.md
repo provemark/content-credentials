@@ -35,6 +35,44 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Service only — no change to `src/` or `config/`, and no change for a caller
   using `ManifestBuilder`, which has always emitted the correct shape.
 
+- **The signing service now authenticates before it parses a body** (SPEC-030).
+  Every budget the service has — SPEC-015's signing limits, SPEC-024's read
+  limits — is spent per token, and the body parser ran *before* the token was
+  checked. So an oversized body with an invalid token was answered **413**,
+  which only the parser can produce, and sixty invalid-token requests produced
+  sixty 401s and zero 429s: the unauthenticated path had no budget at all.
+
+  Measured, eight concurrent 21 MB unauthenticated requests against a 17.3 MiB
+  idle baseline: the burst cost **+37.1 MiB** before and **+9.5 MiB** after. The
+  residual is the bytes still arriving on the socket — refusing before the parser
+  removes the allocation and the parse, not the transfer.
+
+  Repeated failures are now bounded by `AUTH_FAIL_LIMIT` (default 30 per
+  window), answered 429 with `Retry-After`. It is one **global** counter rather
+  than one per client, because measurement showed per-client keying would
+  discriminate nothing in the shipped deployment — every host-side request
+  reaches the container as the bridge gateway address — while a caller-controlled
+  key would be an unbounded map. `GET /health` reports `auth_failures` as a
+  running count, and the audit stream carries at most two records per window, so
+  a flood cannot grow an operator's log.
+
+  A body-parser refusal now carries a `token_id`, which it could not before:
+  there was no verified caller at that point. "Which client keeps sending 25 MB
+  assets" is answerable from the log for the first time.
+
+### Upgrading
+
+- **`/v1/*` without a valid token now fails on the token, not on the body.** A
+  request that previously got 400 (malformed JSON) or 413 (oversized) with a bad
+  or missing token now gets **401**. If your monitoring probes `/v1/sign` without
+  credentials and asserts a specific status, it needs updating. Anything sending
+  a valid token is unaffected.
+- **Repeated authentication failures are now rate limited** (`AUTH_FAIL_LIMIT`,
+  default 30 per minute, `0` disables). A deployment that legitimately produces
+  many failed authentications — a misconfigured client during a key rotation, for
+  instance — will meet 429 where it met 401. `GET /health` reports the budget and
+  the running failure count.
+
 ### Added
 
 - **The README records the listing on the Content Authenticity Initiative's

@@ -2,7 +2,7 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | approved                                          |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
 | Approved   | Maurice van Loon — 2026-08-08                     |
 | Supersedes | —                                                 |
@@ -223,11 +223,18 @@ where a live service is required.
 - **AC8 — an unauthenticated flood cannot flood the audit log** *(error path)*
   - Given more unauthenticated requests than the budget allows
   - When the audit stream is inspected
-  - Then the number of records written is bounded by the budget, not by the
-    number of requests: the **first** failure of a window is recorded, every 429
-    is recorded, and the failures in between are not
+  - Then the number of records written is bounded by the **window**, not by the
+    number of requests: at most two per window — the first failure, and the
+    moment the budget runs out — and nothing in between
+  - And that holds for 15 attempts and for 15 000 alike
   - And the total remains visible through the `/health` counter of AC6, so
     bounding the records does not bound what an operator can see
+  - *(Amended 2026-08-08, during implementation. The criterion first said "every
+    429 is recorded", which contradicts its own headline: with a fixed window and
+    unbounded attempts the 429s scale with the requests, so the log grows with
+    the flood — the leak this criterion exists to close, one layer over. A test
+    must assert records ≥ 1 as well as ≤ 2: with nothing written at all the
+    upper bound holds vacuously, which is how this was found.)*
   - *(The mirror of SPEC-017's reasoning about `token_id`. If every 401 writes a
     line, an unauthenticated caller controls how much an operator's log grows,
     which is the same denial of service one layer over.)*
@@ -317,8 +324,9 @@ socket that stops talking; nothing here replaces it.
 
 - ~~**Should a failed authentication be audited at all?**~~
   **RESOLVED (2026-08-08), as a consequence of the above:** the first failure per
-  window is audited, every 429 is audited, and `/health` carries a running count
-  of failed authentications. With a global bucket there is no per-source detail
+  window is audited, the first 429 of a window is audited, and `/health` carries
+  a running count of failed authentications. (Amended 2026-08-08: "every 429"
+  was the original wording and contradicted AC8's own bound — see AC8.) With a global bucket there is no per-source detail
   worth a record per attempt, and AC8's bound comes free — the number of records
   is bounded by the budget rather than by the number of requests.
 
@@ -358,11 +366,11 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1 | — | — |
-| AC2 | — | — |
-| AC3 | — | — |
-| AC4 | — | — |
-| AC5 | — | — |
-| AC6 | — | — |
-| AC7 | — | — |
-| AC8 | — | — |
+| AC1 | `tests/Integration/UnauthenticatedBoundsTest.php` :: "still signs and reads back with a valid token, carrying a correlation id" | `service/server.js` middleware order (correlation id stays first) |
+| AC2 | `tests/Integration/UnauthenticatedBoundsTest.php` :: "answers 401 rather than 413 when the token is invalid"; "writes no body-parser refusal for a request it never parsed" | `service/server.js` `app.use('/v1', …)` ahead of `express.json` |
+| AC3 | `tests/Integration/UnauthenticatedBoundsTest.php` :: "still refuses an oversized body from a valid token, and attributes it" | `service/server.js` body-parser error handler `token_id` |
+| AC4 | `tests/Integration/UnauthenticatedBoundsTest.php` :: "refuses failed authentication past the budget, with Retry-After"; "spends one budget for the whole service rather than one per source" | `service/server.js` `AUTH_FAIL_LIMIT`, `authBuckets` keyed `'global'` |
+| AC5 | `tests/Integration/UnauthenticatedBoundsTest.php` :: "still signs with a valid token while the failed-authentication budget is exhausted" | `service/server.js` budget spent only on failure |
+| AC6 | `tests/Integration/UnauthenticatedBoundsTest.php` :: "reports the failed-authentication budget and a running count on /health"; "counts a failed authentication without needing a token to see it"; "never rate limits /health itself" | `service/server.js` `/health` `auth_failures`, `limits.auth_fail_limit` |
+| AC7 | `tests/Unit/UnauthenticatedCostGuidanceTest.php` :: "says which side of authentication the limits are on"; "publishes what an unauthenticated request costs"; "documents the failed-authentication budget and its counter" | `docs/service.md` "Before authentication"; `.env.example` |
+| AC8 | `tests/Integration/UnauthenticatedBoundsTest.php` :: "bounds audit records by the budget rather than by the number of requests" | `service/server.js` `auditedFailureWindow`, `auditedRefusalWindow` |

@@ -535,6 +535,16 @@ const AUTH_FAIL_LIMIT = Number(process.env.AUTH_FAIL_LIMIT ?? 30);
 
 let authFailures = 0;
 
+// One entry, by design and not by coincidence: the key is a literal, so there is
+// no cardinality for a caller to grow. SPEC-015's map is bounded by the number
+// of valid tokens; an unauthenticated map could say no such thing.
+const authBuckets = new Map();
+
+// AC8: at most two records per window — the first failure, and the moment the
+// budget runs out. Each holds the resetAt of the window it already recorded.
+let auditedFailureWindow = null;
+let auditedRefusalWindow = null;
+
 const MAX_CONCURRENT_READS = Number(process.env.MAX_CONCURRENT_READS ?? 4);
 const READ_RATE_LIMIT_REQUESTS = Number(process.env.READ_RATE_LIMIT_REQUESTS ?? 240);
 
@@ -623,6 +633,72 @@ app.use((req, res, next) => {
   next();
 });
 
+/**
+ * Bearer-token auth on /v1/*, BEFORE the body parser (SPEC-030).
+ *
+ * It used to run after. Measured 2026-08-08: a 26 MB body with an invalid token
+ * answered 413 — which only the parser can produce — so an unauthenticated
+ * caller had its body buffered and measured before anything asked who it was,
+ * and no budget applied, because every budget keys on a token id that does not
+ * exist yet. Sixty invalid-token requests produced sixty 401s and zero 429s.
+ *
+ * This middleware reads headers only, so moving it ahead of express.json costs
+ * nothing and makes a refusal cost a header parse and one SHA-256.
+ *
+ * It also retires a limitation SPEC-017 recorded: a body-parser refusal now has
+ * a verified caller to attribute it to.
+ */
+app.use('/v1', (req, res, next) => {
+  const header = req.headers['authorization'] ?? '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+
+  if (tokenMatches(token, API_KEY)) {
+    // Kept only to derive the one-way token_id for audit records; never logged.
+    req.token = token;
+
+    return next();
+  }
+
+  authFailures += 1;
+
+  const wait = rateLimited(authBuckets, AUTH_FAIL_LIMIT, 'global', Date.now());
+  const window = authBuckets.get('global')?.resetAt ?? null;
+  const event = req.originalUrl.startsWith('/v1/read') ? 'read' : 'sign';
+
+  // Deliberately no token_id: there is no verified caller, and recording an
+  // unverified token would let anyone write arbitrary ids into an operator's log
+  // (SPEC-017's reasoning). The /health counter carries the total instead.
+  if (wait !== null) {
+    if (auditedRefusalWindow !== window) {
+      auditedRefusalWindow = window;
+      audit({
+        ts: new Date().toISOString(),
+        cid: req.cid,
+        event,
+        outcome: 'unauthenticated',
+        reason: 'failed authentication budget exhausted',
+      });
+    }
+
+    return res.status(429)
+      .set('Retry-After', String(wait))
+      .json({ error: 'too many failed authentications', cid: req.cid });
+  }
+
+  if (auditedFailureWindow !== window) {
+    auditedFailureWindow = window;
+    audit({
+      ts: new Date().toISOString(),
+      cid: req.cid,
+      event,
+      outcome: 'unauthenticated',
+      reason: 'failed authentication',
+    });
+  }
+
+  return res.status(401).json({ error: 'Unauthorized', cid: req.cid });
+});
+
 app.use(express.json({ limit: MAX_BODY }));
 
 /**
@@ -632,9 +708,9 @@ app.use(express.json({ limit: MAX_BODY }));
  * stack trace, and nothing is recorded. The refusal happens inside the parser,
  * before any route, so it can only be audited from here.
  *
- * Note what the record cannot say: auth runs after the parser, so there is no
- * verified caller to attribute this to. Recording an unverified token would let
- * anyone write arbitrary token_ids into the log, so the field is simply absent.
+ * Since SPEC-030 auth runs BEFORE the parser, so this record carries a token_id:
+ * the request got here only by presenting a valid one. That was not true when
+ * SPEC-017 wrote this handler, and it is the question a 413 in a log raises.
  */
 app.use((err, req, res, next) => {
   if (!err || !err.type) return next(err);
@@ -665,22 +741,13 @@ app.use((err, req, res, next) => {
     event: req.path === '/v1/read' ? 'read' : 'sign',
     outcome: 'rejected',
     reason,
-    // Deliberately no token_id and no body: see above.
+    // SPEC-030: auth now runs BEFORE the parser, so there IS a verified caller
+    // here — which is what makes "which client keeps sending 25 MB assets"
+    // answerable. Still no body.
+    ...(req.token ? { token_id: tokenId(req.token) } : {}),
   });
 
   return res.status(status).json({ error: reason, cid: req.cid });
-});
-
-// Bearer-token auth on /v1/* — mirrors the upstream service.
-app.use('/v1', (req, res, next) => {
-  const header = req.headers['authorization'] ?? '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-  if (!tokenMatches(token, API_KEY)) {
-    return res.status(401).json({ error: 'Unauthorized', cid: req.cid });
-  }
-  // Kept only to derive the one-way token_id for audit records; never logged.
-  req.token = token;
-  next();
 });
 
 app.get('/health', (_req, res) => {

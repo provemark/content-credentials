@@ -178,6 +178,15 @@ function spec030CountRecords(string $needle): int
     return $count;
 }
 
+/** The rate-limit window the running service reports, in milliseconds. */
+function spec030WindowMs(): int
+{
+    $limits = ServiceHarness::health()['limits'] ?? null;
+    $window = is_array($limits) ? ($limits['rate_limit_window_ms'] ?? null) : null;
+
+    return is_int($window) ? $window : 60_000;
+}
+
 /** A body comfortably past MAX_BODY_SIZE, in bytes of padding. */
 function spec030OversizedPadding(): int
 {
@@ -221,14 +230,29 @@ it('answers 401 rather than 413 when the token is invalid', function () {
 })->group('SPEC-030', 'integration')->skip($skipUnlessReachable)->skip($skipWhenAuthLimited);
 
 it('writes no body-parser refusal for a request it never parsed', function () {
-    $result = spec030Post('not-the-api-key', spec030OversizedPadding());
+    $needle = 'request body too large';
 
-    foreach (spec030AuditRecords($result['cid']) as $record) {
-        $reason = is_string($record['reason'] ?? null) ? $record['reason'] : '';
-        expect(str_contains($reason, 'request body too large'))->toBeFalse(
-            'the body was parsed and refused before authentication ran',
-        );
-    }
+    $before = spec030CountRecords($needle);
+
+    spec030Post('not-the-api-key', spec030OversizedPadding());
+    usleep(400_000);
+    $afterInvalid = spec030CountRecords($needle);
+
+    expect($afterInvalid)->toBe($before, 'the body was parsed and refused before authentication ran');
+
+    // The control case, and it is what makes the assertion above mean anything.
+    // The first version of this test looped over the records for that request,
+    // found none, performed zero assertions and was reported RISKY by Pest —
+    // an assertion that nothing happened is only meaningful next to a
+    // demonstration that something could have (NOTES Step 26).
+    spec030Post(ServiceHarness::apiKey(), spec030OversizedPadding());
+    usleep(400_000);
+
+    expect(spec030CountRecords($needle))->toBeGreaterThan(
+        $afterInvalid,
+        'the same oversized body WITH a valid token wrote no record either, so the '
+        .'assertion above proves nothing',
+    );
 })->group('SPEC-030', 'integration')->skip($skipUnlessContainer)->skip($skipWhenAuthLimited);
 
 // --- AC3: an oversized body with a valid token, now attributable -------------
@@ -273,11 +297,17 @@ it('spends one budget for the whole service rather than one per source', functio
     // TOTAL. A per-token or per-address implementation would give each its own
     // budget and never refuse within this loop.
     $statuses = [];
-    for ($i = 0; $i < $limit; $i++) {
+    for ($i = 0; $i <= $limit; $i++) {
         $statuses[] = spec030Post($i % 2 === 0 ? 'wrong-token-a' : 'wrong-token-b')['status'];
     }
 
-    expect($statuses)->toContain(429, 'the budget is not a single global counter');
+    // NOT toContain(429, '...'): that method is variadic, so a second argument is
+    // a second NEEDLE, not a message — it would assert the array contains the
+    // explanation too. NOTES Step 21 records this exact trap; this test walked
+    // into it and reported a correct implementation as broken.
+    expect(in_array(429, $statuses, true))->toBeTrue(
+        'the budget is not a single global counter: two bad tokens each got their own',
+    );
 })->group('SPEC-030', 'integration')->skip($skipUnlessReachable)->skip($skipUnlessAuthLimited);
 
 // --- AC5: the failed-authentication budget never touches the authenticated ones
@@ -338,6 +368,12 @@ it('bounds audit records by the budget rather than by the number of requests', f
     $limit = spec030AuthLimit() ?? 0;
     $attempts = $limit * 3;
 
+    // Wait the current window out first. Earlier tests in this file have already
+    // spent it, and both of its records are already written — so measuring a
+    // delta inside it counts zero and the upper bound would hold vacuously.
+    // That is the bound working, not the test working.
+    usleep(spec030WindowMs() * 1000 + 400_000);
+
     $before = spec030CountRecords('"outcome":"unauthenticated"');
 
     for ($i = 0; $i < $attempts; $i++) {
@@ -346,10 +382,23 @@ it('bounds audit records by the budget rather than by the number of requests', f
 
     $written = spec030CountRecords('"outcome":"unauthenticated"') - $before;
 
-    // The first failure of a window, plus every 429 — not one line per attempt.
-    expect($written)->toBeLessThan(
-        $attempts,
-        "every failed authentication wrote a record ({$written} for {$attempts} attempts); "
-        .'an unauthenticated caller controls how much an operator log grows',
+    // Both bounds, and the lower one is not decoration: with nothing written at
+    // all the upper bound holds vacuously, which is exactly how the contradiction
+    // in this criterion was found (spec amended 2026-08-08).
+    expect($written)->toBeGreaterThan(0, 'failed authentication was not audited at all');
+
+    // At most two per window: the first failure, and the moment the budget runs
+    // out. Independent of how many attempts arrive.
+    expect($written)->toBeLessThanOrEqual(
+        2,
+        "{$written} records for {$attempts} attempts; an unauthenticated caller "
+        .'controls how much an operator log grows',
     );
-})->group('SPEC-030', 'integration')->skip($skipUnlessContainer)->skip($skipUnlessAuthLimited);
+})->group('SPEC-030', 'integration')
+    ->skip($skipUnlessContainer)
+    ->skip($skipUnlessAuthLimited)
+    ->skip(
+        fn () => spec030WindowMs() > 10_000
+            ? 'needs a short RATE_LIMIT_WINDOW_MS so a window turns over inside the test'
+            : false,
+    );

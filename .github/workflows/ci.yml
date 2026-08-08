@@ -116,6 +116,18 @@ jobs:
               READ_RATE_LIMIT_REQUESTS=5
               RATE_LIMIT_WINDOW_MS=2000
             groups: SPEC-024
+          # SPEC-030's failed-authentication budget, small enough to exhaust
+          # inside a test, with a short window so one turns over while AC8 counts
+          # audit records. The `defaults` profile covers the opposite half: AC2
+          # and AC3 need a budget generous enough that a few bad-token requests
+          # are answered 401/413 rather than 429. Same split as read-limited.
+          - name: auth-limited
+            env: |
+              RATE_LIMIT_REQUESTS=1000
+              READ_RATE_LIMIT_REQUESTS=1000
+              AUTH_FAIL_LIMIT=5
+              RATE_LIMIT_WINDOW_MS=2000
+            groups: SPEC-030
           # SPEC-019's equivalence check needs BOTH readers, so this is the only
           # profile that installs ext-c2pa. Deliberately not added to the others:
           # AC5 is about the extension being ABSENT, and installing it everywhere
