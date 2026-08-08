@@ -89,9 +89,13 @@ raises today and cannot answer.
 
 - Authenticating `/v1/*` **before** the body parser, so an unauthenticated
   request is refused on headers alone and no request body is parsed for it.
-- A bounded budget for failed-authentication attempts, refusing the excess in the
-  shape SPEC-015 established (**429** + `Retry-After`), so an unauthenticated
-  flood is limited rather than merely cheap.
+- A **single global** budget for failed-authentication attempts — not keyed on
+  the client address, and never on a header — refusing the excess in the shape
+  SPEC-015 established (**429** + `Retry-After`). Its purpose is visibility of
+  credential guessing rather than load: the reordering above is what removes the
+  load. See Open questions for the measurement that settled this.
+- A running count of failed authentications, so repeated guessing is visible
+  without a log record per attempt.
 - Attributing a body-parser refusal to its verified caller now that one exists,
   retiring the SPEC-017 note at `server.js:557`.
 - `GET /health` reporting the new budget alongside the existing limits, and
@@ -158,32 +162,52 @@ where a live service is required.
   - Then HTTP **413** with the SPEC-017/021/023 message, unchanged
   - And the audit record carries a `token_id`, which it does not today
 
-- **AC4 — failed authentication is bounded** *(error path)*
-  - Given a service with an unauthenticated budget of N per window
+- **AC4 — failed authentication is bounded, globally** *(error path)*
+  - Given a service with a failed-authentication budget of N per window
   - When more than N requests with an invalid or absent token arrive inside the
     window
   - Then the excess is refused with **429** and a `Retry-After` header
   - And the refusal carries a correlation id
+  - And the budget is **one counter for the whole service**: two different
+    sources exhausting it together reach the refusal at N in total, not at N
+    each
+  - *(That last clause is the decision from Open question 1 made testable, and it
+    carries an accepted cost: during a flood, a caller with a merely wrong token
+    gets 429 where it would otherwise get 401. It holds no valid credential
+    either way. A test asserting only "eventually 429" would pass against a
+    per-address implementation too, which is why the criterion names the
+    aggregate.)*
   - *(Measured today: 60 invalid-token requests produce 60 × 401 and zero 429.
     The test must assert the 429 is reached, not merely that some requests were
     refused — a criterion about a budget that never observes the budget being
     exceeded is the trap NOTES Steps 17 and 19 record twice.)*
 
-- **AC5 — the unauthenticated budget does not touch the authenticated ones** *(error path)*
-  - Given a client that has exhausted the unauthenticated budget
-  - When a **valid** token signs from the same source
-  - Then the signing request is accepted
-  - *(SPEC-024 AC3 in a new place, and for the same reason: a limiter that lets
-    an unauthenticated flood starve a legitimate caller has moved the denial of
-    service rather than removed it. This is what decides Open question 1.)*
+- **AC5 — the failed-authentication budget never touches the authenticated ones** *(error path)*
+  - Given a service whose failed-authentication budget is fully exhausted
+  - When a **valid** token signs
+  - Then the signing request is accepted, and its own SPEC-015 budget is
+    unaffected
+  - *(This holds by construction — the budget is spent only on failure, and a
+    valid token does not fail — which is exactly why it needs a test. A
+    criterion that is true by construction is one an implementation can quietly
+    stop satisfying: spending the budget on every *attempt* rather than on every
+    *failure* would look like a one-word simplification and would hand any
+    unauthenticated caller a lever to stop all signing. That is the failure this
+    criterion exists to catch, not a starvation the design allows.)*
 
-- **AC6 — `/health` reports what is in force**
+- **AC6 — `/health` reports what is in force, and what has been tried**
   - Given a running service
   - When `GET /health` is called
-  - Then the unauthenticated budget appears beside the signing and read limits
-  - And a budget of `0` is reported as disabled
+  - Then the failed-authentication budget appears beside the signing and read
+    limits, and a budget of `0` is reported as disabled
+  - And a running count of failed authentications is reported
   - And `/health` itself remains reachable without a token and without spending
     that budget, per SPEC-024 AC6
+  - *(The counter is what makes a global budget acceptable. Without per-source
+    detail there is no record worth writing per attempt, so the count is the
+    only thing that turns "somebody is guessing our token" from invisible into
+    observable — the same argument SPEC-018 made for publishing the certificate
+    identity rather than assuming a rotation took.)*
 
 - **AC7 — the cost of an unauthenticated request is measured, not assumed**
   - Given a burst of unauthenticated requests carrying a near-maximum body
@@ -200,10 +224,13 @@ where a live service is required.
   - Given more unauthenticated requests than the budget allows
   - When the audit stream is inspected
   - Then the number of records written is bounded by the budget, not by the
-    number of requests
+    number of requests: the **first** failure of a window is recorded, every 429
+    is recorded, and the failures in between are not
+  - And the total remains visible through the `/health` counter of AC6, so
+    bounding the records does not bound what an operator can see
   - *(The mirror of SPEC-017's reasoning about `token_id`. If every 401 writes a
     line, an unauthenticated caller controls how much an operator's log grows,
-    which is the same denial of service one layer over. See Open question 2.)*
+    which is the same denial of service one layer over.)*
 
 ## API sketch
 
@@ -219,15 +246,25 @@ app.use('/v1', authenticate);        // moved ABOVE the parser: headers only.
 app.use(express.json({ limit: MAX_BODY }));
 app.use(bodyParserErrors);           // can now record req.token (SPEC-017 note retires)
 
-// Inside authenticate(), before the constant-time comparison:
-//   const wait = rateLimited(authBuckets, AUTH_FAIL_LIMIT, clientId(req), Date.now());
-// spent only on FAILURE, so a valid caller never touches this budget (AC5).
+// Inside authenticate(), AFTER the constant-time comparison has failed — never
+// before it, so a valid token cannot spend this budget (AC5):
+//
+//   if (!tokenMatches(token, API_KEY)) {
+//     authFailures += 1;
+//     const wait = rateLimited(authBuckets, AUTH_FAIL_LIMIT, 'global', Date.now());
+//     return wait !== null ? refuse429(wait) : res.status(401).json({ … });
+//   }
 
 const AUTH_FAIL_LIMIT = Number(process.env.AUTH_FAIL_LIMIT ?? 30);
+let authFailures = 0;               // reported on /health (AC6)
 ```
 
 `rateLimited()` already takes its store and limit as parameters (SPEC-024), so a
-third budget is a third `Map` and no new mechanism.
+third budget is a third `Map` and no new mechanism. The literal `'global'` key is
+the decision from Open question 1 in one token: the map holds exactly one entry,
+by design and not by coincidence, so there is no cardinality for a caller to
+grow. A helper that took no key at all would be tidier and would hide that the
+same mechanism is being used three times with three policies.
 
 **What this does not buy, stated precisely.** Refusing before the parser stops the
 *allocation and the parse*. It does not stop the bytes arriving: node still reads
@@ -239,24 +276,62 @@ socket that stops talking; nothing here replaces it.
 
 ## Open questions
 
-- **What identifies an unauthenticated caller?** There is no token, so the only
-  candidate is the client address. Three problems, and they interact:
-  `X-Forwarded-For` is caller-controlled and must never be trusted here; behind a
-  reverse proxy every request has the proxy's address, so one bucket becomes a
-  global one and AC5 is at risk; and a raw address in memory is a mild
-  personal-data question even unlogged. A **single global budget** for failed
-  auth avoids all three and is simpler — at the cost of one noisy source being
-  able to spend everyone's budget, which is the exact failure AC5 forbids for the
-  authenticated path. **Blocker**: AC4 and AC5 cannot both be written until this
-  is settled. Leaning per-address on `req.socket.remoteAddress`, never a header,
-  with the proxy caveat documented rather than solved.
-- **Should a failed authentication be audited at all?** SPEC-012 records every
-  `/v1/sign`, accepted and refused alike, and repeated failed auth is exactly the
-  event an operator wants. But an unauthenticated caller then controls log
-  volume — AC8. Options: record only the *first* failure per bucket per window,
-  record only the 429s, or record nothing and let `/health` carry a counter.
-  *Non-blocker*, leaning first-failure-plus-refusals, with a counter on `/health`
-  so the total is visible without a record per attempt.
+- ~~**What identifies an unauthenticated caller?**~~
+  **RESOLVED (2026-08-08): nothing — a single global budget, never keyed on
+  address, never reading `X-Forwarded-For`.** The draft leaned the other way; the
+  measurement removed the reason for the complexity.
+
+  **What `req.socket.remoteAddress` actually reports**, measured against the two
+  deployments this project documents (a probe on the compose network, 2026-08-08):
+
+  | Deployment | Peer as the container sees it |
+  |---|---|
+  | host → published port, `127.0.0.1:3000:3000` (docker-compose default) | `172.19.0.1` for **every** request — the bridge gateway |
+  | container → container, `http://signer:3000` (README) | the calling container's own address, distinct |
+
+  So in the deployment this project ships and recommends, per-address keying
+  discriminates **nothing**: every host-side caller, legitimate or not,
+  collapses into the gateway address. It is a global bucket wearing a costume,
+  and only the container-network deployment would see distinct peers.
+
+  Three further reasons, in order of weight:
+
+  1. **An address-keyed map has attacker-controlled cardinality.** SPEC-015's
+     comment records why its own map is safe — "only authenticated requests
+     reach here, so the map is bounded by the number of valid tokens". That
+     sentence is exactly what an unauthenticated bucket cannot say. Adding an
+     unbounded map inside the spec written to close a resource exhaustion would
+     be a poor trade.
+  2. **AC5 is satisfied by construction, so the argument for per-address does not
+     apply.** The budget is spent only on *failure*, and a valid token never
+     fails, so it never touches this budget however exhausted it is. The draft
+     worried that a global bucket would let one noisy source starve a legitimate
+     caller; it cannot, because the two budgets never meet.
+  3. `X-Forwarded-For` is caller-controlled, and a raw address held in memory is
+     a small personal-data question that a global counter does not raise at all.
+
+  **The accepted cost, stated plainly**: during a flood, a caller presenting a
+  *wrong* token gets 429 rather than 401. They hold no valid credential either
+  way, so this degrades their diagnostics and nothing else. It is recorded in AC4
+  so it is a decision rather than a surprise.
+
+- ~~**Should a failed authentication be audited at all?**~~
+  **RESOLVED (2026-08-08), as a consequence of the above:** the first failure per
+  window is audited, every 429 is audited, and `/health` carries a running count
+  of failed authentications. With a global bucket there is no per-source detail
+  worth a record per attempt, and AC8's bound comes free — the number of records
+  is bounded by the budget rather than by the number of requests.
+
+- **Is the budget still needed once the reordering is in?** Worth asking, because
+  after authentication moves ahead of the parser an unauthenticated request costs
+  a header parse, one SHA-256 and a 401 — about what `GET /health` costs, and
+  SPEC-024 AC6 already decided `/health` is not worth bounding. The honest answer
+  is that **the reordering is the fix and the budget is not a load control**. It
+  is kept for a different purpose: repeated authentication failure is a
+  credential-guessing signal, and today nothing anywhere reports it. That purpose
+  is served by a counter and a bounded record, which is precisely what the
+  resolution above specifies. *Non-blocker*, and recorded so nobody later reads
+  AC4 as a performance measure and sizes it like one.
 - **Does `/health` publish too much to an unauthenticated caller?** It reports the
   signing certificate's fingerprint and expiry (SPEC-018, deliberately — a
   fingerprint is public by construction), the media types, the limits and live
