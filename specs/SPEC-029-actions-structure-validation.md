@@ -29,36 +29,70 @@ for (const action of assertion.data?.actions ?? []) { … }
 
 which assumes `data.actions` is iterable. Nothing has checked that.
 
-### Measured against a running service, 2026-08-08
+### Measured against the container, 2026-08-08
 
-Both requests carry a valid bearer token and otherwise well-formed fields; both
-pass every SPEC-011 limit.
+`docker-compose up -d --build`, `@contentauth/c2pa-node` 0.8.1 (c2pa-rs 0.90.4),
+TSA configured. Every request carries a valid bearer token and otherwise
+well-formed fields, and every one passes every SPEC-011 limit.
 
-| `extra_assertions[0].data.actions` | Response | Audit record |
-|---|---|---|
-| `123` | **500** `{"error":"request failed"}` | `outcome:"rejected"`, `reason:"unhandled: number 123 is not iterable (cannot read property Symbol(Symbol.iterator))"` |
-| `"xx"` | **500** `{"error":"signing failed"}` | `outcome:"failed"`, `reason:"could not decode assertion c2pa.actions.v2 …: invalid type"` |
-| a well-formed actions array | 200 | `outcome:"signed"` |
+| `extra_assertions` | Sign | Read back | Engine said |
+|---|---|---|---|
+| one well-formed actions assertion | 200 | `Valid` | — |
+| `data: {actions: 123}` | **500** `request failed` | — | `unhandled: number 123 is not iterable` *(our catch-all, not the engine)* |
+| `data: {actions: "xx"}` | **500** `signing failed` | — | `could not decode assertion c2pa.actions.v2 …: invalid type: string "xx", expected a sequence` |
+| `data: {}` — no `actions` key | **500** `signing failed` | — | `could not decode assertion c2pa.actions.v2 …: missing field 'actions'` |
+| `data: {actions: []}` — empty | **200** | **500** | `validation rule was violated: No Action array in Actions` |
+| `[]` — no actions assertion | 200 | `Invalid` | `assertion.action.malformed` |
+| one non-actions assertion only | 200 | `Invalid` | `assertion.action.malformed` |
 
-Two distinct failures from one omission.
+Four distinct failures from one omission, and the fifth row is the one that
+changes what this spec has to require.
 
-**The first is a contract failure.** SPEC-011 AC7 requires that a rejection
-"names the violated constraint and its limit"; SPEC-009 establishes 400 as the
-client-error convention. A caller gets neither. What they get instead is the
-catch-all handler, which is a safety net for the unanticipated — and note what it
-proves: it audited the request, answered JSON, and carried a correlation id,
-exactly as it was built to. The catch-all is not the defect. Being reachable by a
-one-field payload is.
+**The non-iterable value is a contract failure.** SPEC-011 AC7 requires that a
+rejection "names the violated constraint and its limit"; SPEC-009 establishes 400
+as the client-error convention. A caller gets neither. What they get instead is
+the catch-all handler, which is a safety net for the unanticipated — and note
+what it proves: it audited the request, answered JSON, and carried a correlation
+id, exactly as it was built to. The catch-all is not the defect. Being reachable
+by a one-field payload is.
 
-**The second is worse and quieter.** A string in place of the array passes every
-guard, reaches `Builder.withJson()`, and is refused by c2pa-rs. So a malformed
-payload consumed a concurrency slot and an actual signing attempt before anything
-noticed. SPEC-011 exists precisely so that "the service will sign **any**
-assertion structure an authenticated caller supplies" stops being true, and for
-the actions array it is still true — it stops at the engine rather than at the
-boundary.
+**The non-array value is worse and quieter.** A string in place of the array
+passes every guard, reaches `Builder.withJson()`, and is refused by c2pa-rs. So a
+malformed payload consumed a concurrency slot and an actual signing attempt
+before anything noticed. SPEC-011 exists precisely so that "the service will sign
+**any** assertion structure an authenticated caller supplies" stops being true,
+and for the actions array it is still true — it stops at the engine rather than
+at the boundary.
 
-### Why the two failure modes differ, which is the part worth keeping
+### The empty actions array is signed, and then nothing can read it
+
+`{actions: []}` is the only shape that gets a signature. The service answers 200
+and returns a 55 KB signed PNG — and that asset cannot be read back by anything:
+
+| Engine | Result |
+|---|---|
+| the signing service, c2pa-rs **0.90.4** | HTTP 500, `validation rule was violated: No Action array in Actions` |
+| `c2patool` **0.27.3** | `Error: validation rule was violated: No Action array in Actions` |
+| `ExtC2paReader`, c2pa-rs **0.89.0** | `ReadFailedException: … No Action array in Actions` |
+
+Three engines across two c2pa-rs minors, one answer. So this is not a version
+quirk and not our decoder: the manifest is unreadable, full stop.
+
+That is the SPEC-028 AC13 situation again, arrived at from the other direction —
+"a signature spent on a manifest no verifier accepts, with our certificate on
+it". AC13 refuses a caller-supplied `c2pa.opened` for exactly this reason. An
+empty actions array is worse in one respect: `c2pa.opened` produced an *Invalid*
+manifest that a verifier could still parse and explain, while this one throws.
+
+Note the contrast with the last two rows. Sending **no** actions assertion is
+permitted (SPEC-011 settled "at most one, not required") and degrades honestly:
+the manifest reads back as `Invalid` with `assertion.action.malformed`, which is
+a verifier telling the truth about a claim-v2 rule (CLAUDE.md, Domain rules: the
+first action MUST be `c2pa.created` or `c2pa.opened`). An empty actions array
+does not degrade — it breaks the reader. **Absent is a worse claim; empty is a
+worse artefact.**
+
+### Why the failure modes differ, which is the part worth keeping
 
 `firstActionSourceTypes()` reads `assertion.data?.actions?.[0]` — indexing, which
 is total over any value. The other four use `for…of`, which is not. So whether a
@@ -85,7 +119,10 @@ one `c2pa.actions.v2` assertion, an `actions` array, first action
 **In scope**
 
 - Requiring, for every assertion whose label starts `c2pa.actions`, that `data`
-  is an object and `data.actions` is an array whose entries are objects.
+  is an object and `data.actions` is a **non-empty** array whose entries are
+  objects. Sending no actions assertion at all stays permitted, unchanged —
+  the constraint is conditional on there being one (see Open questions, and the
+  last two rows of the measurement).
 - Refusing a violation with **400** and a named constraint, through the existing
   `reject()` path, so the refusal is audited in the SPEC-012 shape (correlation
   id, token id, reason, `mime_type`, the SPEC-028 parent fields) rather than as
@@ -104,8 +141,10 @@ one `c2pa.actions.v2` assertion, an `actions` array, first action
   SPEC-011 excluded this and its reasoning is unchanged.
 - Requiring an actions assertion at all. SPEC-011 settled "at most one, not
   required" (Open questions, resolved 2026-08-05) and this spec does not reopen
-  it. An assertion with a label starting `c2pa.actions` and **no** `data.actions`
-  key is a separate question — see Open questions.
+  it. Measured: no actions assertion signs and reads back `Invalid` with
+  `assertion.action.malformed`, which is a verifier correctly reporting a
+  claim-v2 violation. That is a caller's choice to make badly, not a manifest
+  this service must refuse to produce.
 - Bounding what an unauthenticated caller can make the service do. That is the
   companion finding and is **SPEC-030**; the two are independent and neither
   blocks the other.
@@ -163,16 +202,36 @@ where a live service is required.
   - When `/v1/sign` is called
   - Then HTTP **400**, no signing
 
-- **AC6 — the refusal leaks nothing**
-  - Given any of AC2–AC5
+- **AC6 — an actions assertion must carry at least one action** *(error path)*
+  - Given `{label: "c2pa.actions.v2", data: {}}` — no `actions` key — and
+    separately `{label: "c2pa.actions.v2", data: {actions: []}}`
+  - When `/v1/sign` is called
+  - Then HTTP **400** in both cases, and no signing takes place
+  - And given `extra_assertions: []` — no actions assertion at all
+  - Then the request is **signed**, and reads back `Invalid` with
+    `assertion.action.malformed`, exactly as it does today
+  - *(The three outcomes together are the criterion. Testing only the two
+    refusals would pass against an implementation that also refuses the absent
+    case, which would silently overturn SPEC-011's settled "not required".)*
+  - *(The empty array is the reason this criterion exists rather than the absent
+    key. Measured: it is the one shape that gets a signature, and the resulting
+    asset is unreadable by c2pa-rs 0.90.4, c2patool 0.27.3 and c2pa-rs 0.89.0
+    alike. A test must therefore assert that **nothing was signed**, not merely
+    that a 400 came back.)*
+
+- **AC7 — the refusal leaks nothing**
+  - Given any of AC2–AC6
   - When the 400 response is returned
   - Then the message names the constraint and contains no file path, no library
     internals, no JavaScript error text and no echo of the submitted payload
   - *(SPEC-011 AC7 in this new place. Today's `unhandled: number 123 is not
     iterable (cannot read property Symbol(Symbol.iterator))` in the audit record
-    is engine wording that never should have become our reason string.)*
+    is engine wording that never should have become our reason string, and
+    `could not decode assertion c2pa.actions.v2 (version (no version), content
+    type application/cbor): missing field 'actions'` is engine wording a caller
+    should never have to interpret.)*
 
-- **AC7 — the helpers are total**
+- **AC8 — the helpers are total**
   - Given any `extra_assertions` value that passes validation
   - When each of the five actions helpers is applied to it
   - Then none throws
@@ -180,7 +239,7 @@ where a live service is required.
     criterion that stops the fix being one `if` in one call site while the next
     helper added re-introduces the assumption.)*
 
-- **AC8 — the policy path still reads the marking**
+- **AC9 — the policy path still reads the marking**
   - Given a service started with `REQUIRE_AI_MARKING=true`
   - When a well-formed manipulated manifest is signed (first action
     `c2pa.edited`, the SPEC-028 shape)
@@ -206,10 +265,13 @@ function rejectActionsShape(assertion) {
   if (data === null || typeof data !== 'object' || Array.isArray(data)) {
     return 'an actions assertion must carry an object "data"';
   }
-  if (data.actions !== undefined && !Array.isArray(data.actions)) {
+  if (!Array.isArray(data.actions)) {
     return 'an actions assertion must carry an array "data.actions"';
   }
-  if ((data.actions ?? []).some((a) => a === null || typeof a !== 'object' || Array.isArray(a))) {
+  if (data.actions.length === 0) {
+    return 'an actions assertion must carry at least one action';
+  }
+  if (data.actions.some((a) => a === null || typeof a !== 'object' || Array.isArray(a))) {
     return 'each entry of "data.actions" must be an object';
   }
 
@@ -217,13 +279,21 @@ function rejectActionsShape(assertion) {
 }
 ```
 
+The `!Array.isArray(data.actions)` line covers the absent key as well as the
+wrong type, which is why there is no `!== undefined` guard: measured, `data: {}`
+is refused by c2pa-rs at build time with `missing field 'actions'`, so allowing
+it here would only move a 500 later rather than remove it. The
+`length === 0` line is separate because it is the only shape that would
+otherwise be **signed**, and it deserves a message that says so rather than
+being folded into "must be an array".
+
 With that in place the four `for…of` helpers are total for every accepted input,
 and `firstActionSourceTypes()` stops being accidentally safer than its siblings.
 
 Whether the helpers should *also* be written defensively — `Array.isArray(...) ? ... : []`
 — is a judgement call. Defence in depth argues yes; the counter-argument is that
 a second guard behind a validated boundary is the thing that hides the boundary
-failing, which is the shape NOTES keeps recording. AC7 is satisfied either way,
+failing, which is the shape NOTES keeps recording. AC8 is satisfied either way,
 which is deliberate: it constrains the behaviour, not the technique.
 
 The PHP client needs no change. `SigningServiceSigner` surfaces a non-2xx body
@@ -231,15 +301,27 @@ through `SigningFailedException` with the service message (SPEC-002 / SPEC-009).
 
 ## Open questions
 
-- **Is an actions assertion with no `data.actions` at all acceptable?** The sketch
-  above allows it (`data.actions !== undefined`), because SPEC-011 settled that an
-  actions assertion is not required, and an *empty* one is the degenerate case of
-  the same permission. The counter-argument is that claim v2 requires a first
-  action of `c2pa.created`/`c2pa.opened`, so an actions assertion with no actions
-  is well-formed to us and malformed to c2pa-rs — the exact split this spec exists
-  to close. Measuring what c2pa-rs actually does with it settles this. **Blocker**:
-  the answer changes AC5's boundary. Do not decide it from memory (CLAUDE.md:
-  ask rather than guess).
+- ~~**Is an actions assertion with no `data.actions` at all acceptable?**~~
+  **RESOLVED (2026-08-08): no — an actions assertion must carry a non-empty
+  array.** Measured rather than reasoned, and the measurement reversed the
+  draft's own sketch, which had allowed the absent key on the argument that an
+  empty actions assertion is the degenerate case of SPEC-011's "not required".
+
+  The two shapes turned out to behave nothing alike. `data: {}` is refused by
+  c2pa-rs at build time (`missing field 'actions'`), so permitting it buys only a
+  500 instead of a 400. `data: {actions: []}` is the dangerous one: it **signs**,
+  and the signed asset is unreadable by all three engines available to this
+  project. Permitting it would mean the service can be made to spend its
+  certificate on an artefact nothing can verify — SPEC-028 AC13's situation,
+  reached by a different route.
+
+  The permission SPEC-011 settled is untouched, because it is about a different
+  thing: sending **no** actions assertion still signs and still reads back
+  `Invalid` with `assertion.action.malformed`. That is a verifier telling the
+  truth about a claim-v2 rule, which is a caller's claim to make badly. An empty
+  array is not a worse claim, it is a broken artefact. Recorded as AC6, which
+  tests all three outcomes together so an implementation cannot quietly refuse
+  the absent case too.
 - **Should the constraint be a hard invariant or an env-tunable limit?** Every
   SPEC-011 limit is env-tunable, which is consistent. But this is a shape
   requirement rather than a size, there is no legitimate value to tune it to, and
@@ -255,7 +337,7 @@ through `SigningFailedException` with the service message (SPEC-002 / SPEC-009).
   called on the *success* audit path, after signing. If validation is ever
   bypassed for a code path that does not run `rejectAssertions()`, that call
   throws after a signature has been produced. There is no such path today.
-  *Non-blocker*, but AC7 is written against the helpers rather than against the
+  *Non-blocker*, but AC8 is written against the helpers rather than against the
   route for exactly this reason.
 
 ## Traceability
@@ -273,3 +355,4 @@ least one test; every source file maps back to this spec.
 | AC6 | — | — |
 | AC7 | — | — |
 | AC8 | — | — |
+| AC9 | — | — |
