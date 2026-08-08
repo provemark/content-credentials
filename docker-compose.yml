@@ -64,3 +64,26 @@ services:
       # above decides whether it is used. Replace for production.
       - ./certs/c2pa-trust.settings.json:/run/secrets/c2pa-trust.settings.json:ro
     restart: unless-stopped
+
+    # --- Containment -------------------------------------------------------
+    # This is the one process in the system that holds the signing key. None of
+    # the settings below change what it does; they bound what a compromise of it
+    # could reach.
+    read_only: true
+    # The signing path writes the signed asset to a temp file before reading it
+    # back (c2pa-node's builder.sign() returns the JUMBF manifest store, not the
+    # asset), so /tmp must stay writable. In memory, not on the host: it holds
+    # caller content for the length of one request and should not outlive it.
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # Sized from measurement, not from habit. A fully saturated instance -- four
+    # signs at ~7x plus four reads at ~3-5x of maximum-size assets -- is roughly
+    # 650 MiB (SPEC-024), so 1g leaves headroom without letting a runaway take
+    # the host down with it. Lower it and the OOM killer becomes your rate
+    # limiter, which is a worse one than the limits above.
+    mem_limit: 1g
+    pids_limit: 256

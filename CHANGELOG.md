@@ -60,6 +60,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   there was no verified caller at that point. "Which client keeps sending 25 MB
   assets" is answerable from the log for the first time.
 
+### Security
+
+- **The service image moves to Node 24 and the container is contained.** Node 20
+  left maintenance in April 2026, so the image holding the signing key was on a
+  runtime receiving no security fixes — and `npm audit` cannot see that, because
+  it audits packages and not the interpreter beneath them.
+
+  The container also no longer runs as root. It runs as the unprivileged `node`
+  user, with **all Linux capabilities dropped**, `no-new-privileges`, and a
+  **read-only root filesystem**; only a `tmpfs` at `/tmp` is writable, which the
+  signing path needs because `builder.sign()` writes the signed asset to a file.
+  `mem_limit` is set from the measured saturation figure (~650 MiB) so a runaway
+  meets a ceiling rather than the host's OOM killer, and `pids_limit` caps
+  process creation. A `HEALTHCHECK` is included, using node's own `fetch` — the
+  image has no curl or wget.
+
+  None of this changes what the service does. It bounds what a compromise of it
+  could reach, and it is the part of a Generator Product Security Architecture
+  document that describes the deployment rather than the code.
+
 ### Upgrading
 
 - **`/v1/*` without a valid token now fails on the token, not on the body.** A
@@ -72,6 +92,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   many failed authentications — a misconfigured client during a key rotation, for
   instance — will meet 429 where it met 401. `GET /health` reports the budget and
   the running failure count.
+- **`docker cp` into the service container no longer works**, because its root
+  filesystem is read-only; Docker refuses with "container rootfs is marked
+  read-only" whatever the destination. Pipe instead:
+  `docker exec -i <container> sh -c 'cat > /tmp/file' < local-file`. This
+  affects tooling and debugging scripts, not the service itself.
 
 ### Added
 

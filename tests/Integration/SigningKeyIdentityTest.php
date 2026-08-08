@@ -225,12 +225,16 @@ it('reports a different fingerprint for a different signing certificate', functi
         $this->markTestSkipped('openssl not available to generate a second certificate');
     }
 
+    // Piped through `docker exec -i`, not `docker cp`. The service container now
+    // runs with a read-only root filesystem, and docker cp refuses outright
+    // against one — "container rootfs is marked read-only" — whatever the
+    // destination is. Writing from inside, into the tmpfs mounted at /tmp, works.
     foreach (['probe.crt', 'probe.key'] as $file) {
         shell_exec(sprintf(
-            'docker cp %s %s:/tmp/%s 2>&1',
-            escapeshellarg($dir.'/'.$file),
+            'docker exec -i %s sh -c %s < %s 2>&1',
             escapeshellarg($container),
-            $file,
+            escapeshellarg("cat > /tmp/{$file}"),
+            escapeshellarg($dir.'/'.$file),
         ));
     }
 
