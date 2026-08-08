@@ -35,6 +35,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Service only — no change to `src/` or `config/`, and no change for a caller
   using `ManifestBuilder`, which has always emitted the correct shape.
 
+- **A failing read could put 32 MiB into one log line** (SPEC-031). The client
+  caps the service's own error text before copying it into an exception —
+  whatever answers on that URL controls that string — but the cap existed in
+  `SigningServiceSigner` only. `SigningServiceReader` carried the identical
+  method without it, so `ReadFailedException` was bounded only by
+  `max_response_bytes` (32 MiB since 0.9.0).
+
+  SPEC-025's scope covered "capping the service error text copied into an
+  exception"; its acceptance criterion named `SigningFailedException`, and the
+  implementation followed the criterion. Both clients now route through one
+  `ServiceError` helper, so there is no second copy to fix next time.
+
+  The same change makes truncation **character-wise**. It used `substr()`, which
+  cuts by bytes, so a UTF-8 message capped at byte 256 could end mid-codepoint
+  and hand an invalid byte sequence to a log pipeline. No new dependency:
+  `preg_match` with `/u` gives character semantics, and the input is valid UTF-8
+  by construction because `json_decode()` rejects anything else.
+
 - **The signing service now authenticates before it parses a body** (SPEC-030).
   Every budget the service has — SPEC-015's signing limits, SPEC-024's read
   limits — is spent per token, and the body parser ran *before* the token was
