@@ -179,13 +179,31 @@ jobs:
       # success on paths that do not end with a loaded extension, and a profile
       # whose extension quietly failed to load would SKIP every criterion it
       # exists to run and report green.
+      # Pinned, and the pin is verified. This profile runs SPEC-019's equivalence
+      # check, which is the alarm for the two engines drifting apart — c2pa-rs
+      # 0.89.0 in the extension against 0.90.4 in the service. An alarm whose
+      # input version can change without anyone deciding is not an alarm: an
+      # upstream release would either turn it red for a reason we did not cause,
+      # or green against an engine we did not think we were testing.
+      #
+      # Bump deliberately. Dependabot does not see this — it is a CI step, not a
+      # Composer dependency — so the version below is the only record of what the
+      # equivalence claim was ever measured against.
       - name: Install ext-c2pa (PIE)
         if: matrix.profile.ext
+        env:
+          EXT_C2PA_VERSION: '0.1.0'
         run: |
           curl -sfSL https://github.com/php/pie/releases/latest/download/pie.phar -o /tmp/pie.phar
-          sudo php /tmp/pie.phar install ericmann/ext-c2pa --auto-install-build-tools
+          sudo php /tmp/pie.phar install "ericmann/ext-c2pa:${EXT_C2PA_VERSION}" --auto-install-build-tools
           php -r 'exit(extension_loaded("c2pa") ? 0 : 1);' \
             || { echo "::error::ext-c2pa installed but not loaded"; php -m; exit 1; }
+          # The pin is not evidence until it is checked. PIE reports success on
+          # paths that do not end in the version asked for, which is the same
+          # shape as the install that reports success without loading anything.
+          LOADED=$(php -r 'echo phpversion("c2pa");')
+          [ "$LOADED" = "$EXT_C2PA_VERSION" ] \
+            || { echo "::error::expected ext-c2pa $EXT_C2PA_VERSION, loaded $LOADED"; exit 1; }
           php --ri c2pa
 
       - name: Integration tests (${{ matrix.profile.groups }})

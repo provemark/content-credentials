@@ -62,12 +62,23 @@ release: `ManifestStoreParser`, `ServiceError`, `TrustAnchorsGuard`,
 
 ### Two honest caveats
 
-**`ExtC2paReader` is not covered by the stability promise.** It wraps
-[`ericmann/ext-c2pa`](https://packagist.org/packages/ericmann/ext-c2pa), which is
-at **v0.1.0** and whose own planning documents lag its code. If that extension
-changes its API, this adapter changes with it, and we do not control the timing.
-`ReaderInterface` and `SigningServiceReader` *are* covered — write against the
-interface and you are insulated. See [Reading](readers.md).
+**`ExtC2paReader`'s contract is covered; its continued operation is not.** Its
+public surface is `__construct(?string $trustAnchorsPem)`, `isAvailable()` and
+`read(Asset): ManifestReport` — every type in it is ours. Nothing from
+[`ericmann/ext-c2pa`](https://packagist.org/packages/ericmann/ext-c2pa) appears in
+a signature, so an upstream API change breaks our *implementation* and not your
+code: you would need a release from us, not an edit.
+
+What we cannot promise is that it keeps working across an upstream break, because
+that timing is not ours. The extension is at **v0.1.0** and its own planning
+documents lag its code. Two things bound the risk: the extension is opt-in and
+off by default (`reader` defaults to `service`), and CI pins the version it
+tests, so a new upstream release is a deliberate bump rather than a surprise.
+
+The one case where the *contract* would have to move is narrow and worth naming:
+if the extension dropped trust-anchor support, the constructor's parameter would
+become meaningless. Unlikely, and not something to claim perfect insulation
+against. See [Reading](readers.md).
 
 **The signing service is not part of this package.** `service/` is
 `export-ignore`d, so it is not in the Composer dist at all. Its HTTP contract is
@@ -117,17 +128,12 @@ API will not break without a 2.0.** Feature completeness is not a criterion —
 PDF support, streaming, a pure-PHP reader and a WordPress plugin can all arrive
 after 1.0, or never, without affecting it.
 
-Three things have to be true first.
+Two things have to be true first.
 
 **Someone other than the maintainer has used it in anger.** This is the one that
 cannot be manufactured, and it is the most important. An API designed and tested
 only by its author is an API that has never met a use its author did not think
 of. The usual cause of a painful 2.0 is a 1.0 declared before that contact.
-
-**`ExtC2paReader`'s position is settled** — either the extension it wraps has
-reached a stable release, or this adapter stays explicitly outside the promise.
-Promising stability over a `v0.1.0` dependency is promising something we do not
-control.
 
 **Whether `ReaderInterface` grows a capability method is decided.** If a media
 type ever becomes readable but not signable — the likeliest candidate is PDF,
@@ -136,6 +142,13 @@ distinguish the two directions and `ReaderInterface` probably needs
 `supports()`. Adding a method to an interface is breaking for anyone
 implementing it, so the room for it costs nothing now and costs a major later.
 That decision belongs before 1.0, not after.
+
+**`ExtC2paReader` is deliberately not on this list.** An earlier draft made 1.0
+wait for the extension to reach a stable release. That was the wrong call: it
+hangs our own versioning on the roadmap of a project that exists to serve a
+different product, in exchange for nothing. The adapter's contract is insulated
+(see above), the feature is opt-in and off by default, and the version CI tests
+against is pinned. None of that improves by waiting.
 
 Until then, `0.x` is the honest label.
 
