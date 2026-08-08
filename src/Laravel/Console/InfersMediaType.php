@@ -63,10 +63,7 @@ trait InfersMediaType
         return self::EXTENSIONS[$extension] ?? throw new UnsupportedMediaTypeException(sprintf(
             'Unsupported file extension ".%s"; supported: %s.',
             $extension,
-            implode(', ', array_map(
-                static fn (string $known): string => ".{$known}",
-                array_keys(self::EXTENSIONS),
-            )),
+            $this->supportedExtensions(),
         ));
     }
 }

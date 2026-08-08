@@ -56,6 +56,8 @@ final class ExtC2paReader implements ReaderInterface
      *
      * @throws ExtensionMissingException when ext-c2pa is not loaded
      */
+    private readonly ?ExtSettings $settings;
+
     public function __construct(private readonly ?string $trustAnchorsPem = null)
     {
         if (! self::isAvailable()) {
@@ -65,6 +67,14 @@ final class ExtC2paReader implements ReaderInterface
                 .'to read through the signing service instead.'
             );
         }
+
+        // Built once. It was rebuilt on every read() — a fresh Settings object,
+        // the PEM re-parsed, the post-condition re-checked — for an answer that
+        // cannot change, since $trustAnchorsPem is readonly. Building it here
+        // also moves the fail-closed check to wiring time, so a misconfigured
+        // trust setup surfaces when the reader is constructed rather than on
+        // whichever request happens to read first.
+        $this->settings = $this->buildSettings();
     }
 
     public static function isAvailable(): bool
@@ -78,7 +88,7 @@ final class ExtC2paReader implements ReaderInterface
             $reader = ExtReader::fromBytes(
                 $asset->bytes,
                 $asset->mediaType->value,
-                $this->settings(),
+                $this->settings,
             );
         } catch (\Throwable $e) {
             // The extension raises C2paException for anything it cannot parse.
@@ -99,7 +109,7 @@ final class ExtC2paReader implements ReaderInterface
         return ManifestStoreParser::fromJson($reader->json());
     }
 
-    private function settings(): ?ExtSettings
+    private function buildSettings(): ?ExtSettings
     {
         if ($this->trustAnchorsPem === null || trim($this->trustAnchorsPem) === '') {
             return null;

@@ -74,8 +74,14 @@ services:
     # back (c2pa-node's builder.sign() returns the JUMBF manifest store, not the
     # asset), so /tmp must stay writable. In memory, not on the host: it holds
     # caller content for the length of one request and should not outlive it.
+    # 128m, not 256m, and the number matters: tmpfs pages are charged to the
+    # same memory cgroup as mem_limit below. The ~650 MiB saturation figure that
+    # limit is sized from was measured before /tmp was in RAM, so an oversized
+    # tmpfs eats the headroom it was meant to leave. Four concurrent signs hold
+    # at most ~20 MB each here (removed in the handler's finally), so 128m is
+    # already generous.
     tmpfs:
-      - /tmp:size=256m,mode=1777
+      - /tmp:size=128m,mode=1777
     cap_drop:
       - ALL
     security_opt:

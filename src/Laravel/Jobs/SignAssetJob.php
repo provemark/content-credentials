@@ -86,7 +86,19 @@ final class SignAssetJob implements ShouldQueue
         try {
             $signed = $signer->sign(new Asset($bytes, $this->mediaType), $builder->build());
         } catch (\Throwable $e) {
-            if (! in_array($e::class, self::NOT_RETRYABLE, true)) {
+            // instanceof, not class identity: a subclass, or a future
+            // deterministic exception added to one of these hierarchies, is just
+            // as hopeless on a second attempt. Exact matching would sleep six
+            // minutes to prove it.
+            $deterministic = false;
+            foreach (self::NOT_RETRYABLE as $type) {
+                if ($e instanceof $type) {
+                    $deterministic = true;
+                    break;
+                }
+            }
+
+            if (! $deterministic) {
                 throw $e;
             }
 

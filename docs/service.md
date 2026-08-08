@@ -94,8 +94,8 @@ on. Setting one to `0` disables it explicitly, and `/health` says so.
 
 Note which side of authentication they are on. Every limit above is spent per
 token, so all of them apply *after* the bearer check. The bearer check itself
-runs **before authentication** reaches the body parser — that ordering is what
-keeps an unauthenticated request cheap.
+happens **before the body is parsed** — that ordering is what keeps an
+unauthenticated request cheap.
 
 ### Before authentication
 

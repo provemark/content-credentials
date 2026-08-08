@@ -328,6 +328,33 @@ it('still signs with a valid token while the failed-authentication budget is exh
     expect($result['status'])->toBe(200, 'an unauthenticated flood blocked a legitimate signature');
 })->group('SPEC-030', 'integration')->skip($skipUnlessReachable)->skip($skipUnlessAuthLimited);
 
+it('audits failed authentication even when the budget is disabled', function () {
+    // `.env.example` documents AUTH_FAIL_LIMIT=0 as disabling the limit. It used
+    // to disable the AUDITING too: rateLimited() returns before creating a
+    // bucket when the limit is off, so the window read off that bucket stayed
+    // null, every `auditedFailureWindow !== window` was `null !== null`, and no
+    // failed authentication was ever recorded. Measured 2026-08-08 — three
+    // failures, zero records, while /health counted three.
+    $needle = '"outcome":"unauthenticated"';
+
+    usleep(spec030WindowMs() * 1000 + 400_000);
+    $before = spec030CountRecords($needle);
+
+    spec030Post('wrong-token-unbudgeted');
+    usleep(400_000);
+
+    expect(spec030CountRecords($needle))->toBeGreaterThan(
+        $before,
+        'disabling the budget silently disabled the audit trail with it',
+    );
+})->group('SPEC-030', 'integration')
+    ->skip($skipUnlessContainer)
+    ->skip(
+        fn () => spec030AuthLimit() !== 0
+            ? 'needs a service with AUTH_FAIL_LIMIT=0'
+            : false,
+    );
+
 // --- AC6: /health reports what is in force, and what has been tried ----------
 
 it('reports the failed-authentication budget and a running count on /health', function () {

@@ -17,7 +17,12 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_DIR="$ROOT/out"
 mkdir -p "$LOG_DIR"
 
-LOG="$LOG_DIR/check-$(date +%Y%m%d-%H%M%S-%N 2>/dev/null || date +%Y%m%d-%H%M%S).log"
+# $$ rather than a sub-second timestamp: `date +%N` is a GNU extension, and on a
+# stock macOS it emits a literal "N" instead of failing, so the `||` fallback
+# never fires and two failures in the same second overwrite each other — losing
+# exactly the evidence this script exists to keep. A pid is unique per run
+# everywhere.
+LOG="$LOG_DIR/check-$(date +%Y%m%d-%H%M%S)-$$.log"
 
 # `check:run` is the real sequence. Calling `composer check` here would recurse.
 composer check:run 2>&1 | tee "$LOG"
