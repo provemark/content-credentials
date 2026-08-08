@@ -230,6 +230,7 @@ atomic, and cannot half-apply. Rotation is three steps.
 curl -s localhost:3000/health | jq .signing_cert
 
 # 2. Put the new certificate and key where the mounts point, then restart.
+#    On Linux, make sure the container can READ them — see the note below.
 docker compose up -d --force-recreate service
 
 # 3. Confirm the new certificate is the one now in use.
@@ -242,6 +243,21 @@ curl -s localhost:3000/health | jq .signing_cert
   "not_after": "Aug 26 18:46:40 2030 GMT"
 }
 ```
+
+⚠️ **The container runs as an unprivileged user (uid 1000), and on Linux a bind
+mount keeps the host's ownership and mode.** A freshly issued key at the usual
+`0600`, owned by whoever deployed it, is therefore unreadable inside the
+container: the service exits at startup and `restart: unless-stopped` turns that
+into a crash loop. The startup error names the cause, but the cheaper moment to
+know is now.
+
+```bash
+sudo chown 1000:1000 certs/signing.key && sudo chmod 0400 certs/signing.key
+```
+
+`0400` for uid 1000 is enough — the service only reads it, once. This does not
+bite on macOS, where Docker Desktop maps bind-mount ownership to the container
+user, which is exactly why it is easy to miss on the way to a Linux host.
 
 **Step 3 is not optional.** A mount that did not take, a stale image layer, a
 path typo — each leaves the service happily signing with the *old* key while
