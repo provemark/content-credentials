@@ -171,17 +171,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   is additive for Composer and still breaks an exhaustive `match` with no
   `default` arm.
 
-  Two caveats are stated rather than left implicit. **`ExtC2paReader` is outside
-  the stability promise** while the extension it wraps is at v0.1.0; write
-  against `ReaderInterface` and you are insulated. And the signing service is not
-  in the Composer package at all, so its changes arrive through `git pull` rather
-  than through a release.
+  Two caveats are stated rather than left implicit. **`ExtC2paReader`'s contract
+  is covered; its continued operation is not** — no type from the extension
+  appears in any of its signatures, so an upstream API change breaks our
+  implementation rather than your code, but we cannot promise the timing of a
+  catch-up. And the signing service is not in the Composer package at all, so its
+  changes arrive through `git pull` rather than through a release.
 
   It also records what 1.0 would require, which is deliberately not feature
-  completeness: real use by someone other than the maintainer, a settled position
-  for the extension reader, and a decision on whether `ReaderInterface` grows a
-  capability method — the last being breaking for implementers, so cheaper before
-  1.0 than after.
+  completeness: real use by someone other than the maintainer, and a decision on
+  whether `ReaderInterface` grows a capability method — breaking for implementers,
+  so cheaper before 1.0 than after. `ExtC2paReader` is explicitly *not* a
+  condition: hanging our own versioning on another project's roadmap buys
+  nothing, given that its contract is insulated, the feature is opt-in and off by
+  default, and CI now pins the version it tests against.
 
 - **The README records the listing on the Content Authenticity Initiative's
   [community resources](https://opensource.contentauthenticity.org/docs/community-resources/)
@@ -193,6 +196,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   byte-identical because `README.md` ships in it.
 
 ### Changed
+
+- **CI pins the `ext-c2pa` version it tests against, and verifies the pin.** The
+  `ext-c2pa` profile ran `pie install ericmann/ext-c2pa` unpinned. That profile
+  exists to run SPEC-019's equivalence check, which is the alarm for the two
+  reader engines drifting apart — and an alarm whose input version can change
+  without anyone deciding is not an alarm: an upstream release would either turn
+  it red for a reason nobody caused, or green against an engine nobody meant to
+  test. Now pinned to 0.1.0, with the loaded version asserted afterwards, because
+  a pin is not evidence until it is checked.
 
 - **A failing `composer check` now keeps its own output.** The script calls
   `bin/check.sh`, which runs the sequence, tees it to `out/check-<stamp>.log`
