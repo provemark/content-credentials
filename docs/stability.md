@@ -56,6 +56,25 @@ Anything you can reach that is not marked `@internal`:
   facade, `ContentCredentialsManager`, `SignAssetJob`, the `AssetSigned` event,
   the two artisan commands, and `config/content-credentials.php`
 
+### The interfaces are for depending on, not for implementing
+
+`ReaderInterface` and `SignerInterface` are contracts you **program against**.
+They are not extension points, and **adding a method to either is not a breaking
+change** under this policy.
+
+That is a real distinction and not a loophole. Depending on an interface — type
+hinting it, binding it in a container, swapping which implementation is bound —
+is fully supported and is what the rest of this page protects. Implementing one
+yourself is expected only for test doubles, which break loudly and are fixed in a
+line.
+
+The reason it is stated rather than assumed: if a media type ever becomes
+readable but not signable, `ReaderInterface` will need a way to say so, and that
+method should not have to wait for a major. Nothing in the package invites
+third-party implementations today — only the two readers and one signer here
+implement them — so reserving that room costs nothing and buys the room to answer
+a question we cannot yet answer well. See the road to 1.0 below.
+
 Classes marked **`@internal`** are not API and may change or disappear in any
 release: `ManifestStoreParser`, `ServiceError`, `TrustAnchorsGuard`,
 `AtomicWrite`. Do not depend on them.
@@ -106,7 +125,8 @@ break working code for a cosmetic gain.
 
 **Breaking:** removing or renaming a public class, method or parameter;
 narrowing an accepted type; widening a return type; adding a method to an
-interface you might implement; changing what an existing method *means* — for
+interface **other than `ReaderInterface` and `SignerInterface`**, whose position
+is above; changing what an existing method *means* — for
 example, if `isAiGenerated()` started answering true for a second source type.
 Dropping a supported PHP or Laravel version.
 
@@ -128,20 +148,29 @@ API will not break without a 2.0.** Feature completeness is not a criterion —
 PDF support, streaming, a pure-PHP reader and a WordPress plugin can all arrive
 after 1.0, or never, without affecting it.
 
-Two things have to be true first.
+One thing has to be true first.
 
 **Someone other than the maintainer has used it in anger.** This is the one that
 cannot be manufactured, and it is the most important. An API designed and tested
 only by its author is an API that has never met a use its author did not think
 of. The usual cause of a painful 2.0 is a 1.0 declared before that contact.
 
-**Whether `ReaderInterface` grows a capability method is decided.** If a media
-type ever becomes readable but not signable — the likeliest candidate is PDF,
-which c2pa-rs can read and cannot yet write — then `MediaType` needs to
-distinguish the two directions and `ReaderInterface` probably needs
-`supports()`. Adding a method to an interface is breaking for anyone
-implementing it, so the room for it costs nothing now and costs a major later.
-That decision belongs before 1.0, not after.
+**A capability method on `ReaderInterface` is deliberately not on this list
+either**, though an earlier draft had it there. If a media type ever becomes
+readable but not signable — the likeliest candidate is PDF, which c2pa-rs can
+read and cannot yet write — then `MediaType` would need to distinguish the two
+directions and `ReaderInterface` would need something like `supports()`.
+
+It is not built, and building it now would be speculative. All thirteen media
+types are signable and readable by both engines, so the case does not exist; the
+method signature is the cheap part and its *meaning* is the expensive one, and
+that meaning cannot be settled without the real case in front of us. A
+`supports()` that answered true for everything would ship with a branch that had
+never run.
+
+What put it on the list was semver, not design: adding a method to an interface
+breaks implementers. The policy above removes that, which is why the condition is
+gone rather than met.
 
 **`ExtC2paReader` is deliberately not on this list.** An earlier draft made 1.0
 wait for the extension to reach a stable release. That was the wrong call: it
