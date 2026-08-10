@@ -4,6 +4,7 @@
 /.github            export-ignore
 /bin                export-ignore
 /certs              export-ignore
+/notes              export-ignore
 /out                export-ignore
 /service            export-ignore
 /specs              export-ignore

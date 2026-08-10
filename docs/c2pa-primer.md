@@ -1,11 +1,11 @@
 # C2PA Primer — verified project reference
 
-Topic-ordered reference distilled from the spike log (@NOTES.md). Everything
-here was verified against running code (c2patool 0.27.3, @contentauth/c2pa-node
-0.8.1, c2pa-rs test certs), first on 2026-07-27 and last reconciled with
-NOTES.md on 2026-08-05 — none of it is from model memory. When this page and
-NOTES.md disagree, NOTES.md (the raw log) wins; fix this page. When neither
-answers a question, ask — do not guess.
+Topic-ordered reference distilled from the spike log (`NOTES.md`, indexing the
+per-step files in `notes/`). Everything here was verified against running code
+(c2patool 0.27.3, @contentauth/c2pa-node 0.8.1, c2pa-rs test certs), first on
+2026-07-27 and last reconciled with the log on 2026-08-05 — none of it is from
+model memory. When this page and the log disagree, the log (the raw record)
+wins; fix this page. When neither answers a question, ask — do not guess.
 
 ## 1. Manifest structure (claim v2)
 
