@@ -2,7 +2,8 @@
 
 Running log of friction points, gotchas and decisions. This file is a
 first-class deliverable: it feeds the later specs and a public article.
-Newest findings appended per step.
+Newest findings appended as a new step — a new file in `notes/`, plus its row
+in the table at the bottom of this page.
 
 Environment (verified 2026-07-27):
 - macOS (darwin 25.5.0), zsh
