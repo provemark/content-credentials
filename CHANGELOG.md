@@ -19,6 +19,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-08-10
+
+A patch release: behavioural fixes only, no new public API and no breaking
+change. The installed package is not byte-identical to 0.10.0 — `src/` and
+`composer.json` changed — but nothing a caller must adapt to. The service bump
+below reaches users through `git pull` + rebuild, never a Composer update.
+
 ### Fixed
 
 Twelve findings from a review of the 0.10.0 release range. Most are corrections
@@ -1205,7 +1212,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.10.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.10.1...main
+[0.10.1]: https://github.com/provemark/content-credentials/releases/tag/v0.10.1
 [0.10.0]: https://github.com/provemark/content-credentials/releases/tag/v0.10.0
 [0.9.1]: https://github.com/provemark/content-credentials/releases/tag/v0.9.1
 [0.9.0]: https://github.com/provemark/content-credentials/releases/tag/v0.9.0
