@@ -72,6 +72,27 @@ to that release's own work.
   rather than failing, so the fallback never fired and two failures in the same
   second overwrote each other.
 
+### Service (requires `git pull` + `docker compose up -d --build`)
+
+- **`@contentauth/c2pa-node` 0.8.1 → 0.8.3**, which carries **c2pa-rs 0.90.4 →
+  0.90.5** (confirmed from the running container, not the changelog:
+  `org.contentauth.c2pa_rs` reads `0.90.5`). 0.90.5 fixes an integer-underflow in
+  JUMBF description-box parsing (`read_desc_box`, c2pa-rs #2334) that a crafted
+  manifest could reach on any read path. Measured on both engines before and
+  after the bump: on the shipped **release** builds — which do not enable
+  `overflow-checks` — the underflow wraps and is caught downstream, so the
+  crafted asset produces a handled `HTTP 500` with an audit record (service) or a
+  catchable `C2paException` (extension), never a process crash. The upstream
+  "panic" is a debug-build behaviour; this is not an exploitable denial of
+  service in our configuration, and the bump is defence in depth. The single
+  `c2pa.actions.v2` assertion, the async TSA timestamp, and every error path
+  (400/401/413/429) were verified unchanged; the timestamped PNG is byte-for-byte
+  the same size (55,478). c2pa-node 0.8.2 brought the engine bump; 0.8.3 adds
+  `updateActions` builder methods that our path does not use.
+- The vendored **c2patool** used by `bin/verify.sh` moved 0.27.3 → 0.27.7 (not in
+  the repository; it is gitignored). It verifies existing signed assets with
+  trust on unchanged.
+
 ## [0.10.0] - 2026-08-08
 
 Everything a review found, closed. Reading the package as an outsider produced

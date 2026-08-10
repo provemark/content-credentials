@@ -54,4 +54,4 @@ shipped.
 
 ---
 
-[← Step 46](step-46-spec-032-client-layer-corrections.md) · [index](../NOTES.md)
+[← Step 46](step-46-spec-032-client-layer-corrections.md) · [index](../NOTES.md) · [Step 48 →](step-48-c2pa-node-0-8-3-underflow-measured.md)
