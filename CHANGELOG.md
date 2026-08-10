@@ -19,6 +19,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-08-10
+
+A patch release: behavioural fixes only, no new public API and no breaking
+change. The installed package is not byte-identical to 0.10.0 — `src/` and
+`composer.json` changed — but nothing a caller must adapt to. The service bump
+below reaches users through `git pull` + rebuild, never a Composer update.
+
 ### Fixed
 
 Twelve findings from a review of the 0.10.0 release range. Most are corrections
@@ -71,6 +78,27 @@ to that release's own work.
   pid: `date +%N` is a GNU extension that emits a literal `N` on a stock macOS
   rather than failing, so the fallback never fired and two failures in the same
   second overwrote each other.
+
+### Service (requires `git pull` + `docker compose up -d --build`)
+
+- **`@contentauth/c2pa-node` 0.8.1 → 0.8.3**, which carries **c2pa-rs 0.90.4 →
+  0.90.5** (confirmed from the running container, not the changelog:
+  `org.contentauth.c2pa_rs` reads `0.90.5`). 0.90.5 fixes an integer-underflow in
+  JUMBF description-box parsing (`read_desc_box`, c2pa-rs #2334) that a crafted
+  manifest could reach on any read path. Measured on both engines before and
+  after the bump: on the shipped **release** builds — which do not enable
+  `overflow-checks` — the underflow wraps and is caught downstream, so the
+  crafted asset produces a handled `HTTP 500` with an audit record (service) or a
+  catchable `C2paException` (extension), never a process crash. The upstream
+  "panic" is a debug-build behaviour; this is not an exploitable denial of
+  service in our configuration, and the bump is defence in depth. The single
+  `c2pa.actions.v2` assertion, the async TSA timestamp, and every error path
+  (400/401/413/429) were verified unchanged; the timestamped PNG is byte-for-byte
+  the same size (55,478). c2pa-node 0.8.2 brought the engine bump; 0.8.3 adds
+  `updateActions` builder methods that our path does not use.
+- The vendored **c2patool** used by `bin/verify.sh` moved 0.27.3 → 0.27.7 (not in
+  the repository; it is gitignored). It verifies existing signed assets with
+  trust on unchanged.
 
 ## [0.10.0] - 2026-08-08
 
@@ -1184,7 +1212,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.10.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.10.1...main
+[0.10.1]: https://github.com/provemark/content-credentials/releases/tag/v0.10.1
 [0.10.0]: https://github.com/provemark/content-credentials/releases/tag/v0.10.0
 [0.9.1]: https://github.com/provemark/content-credentials/releases/tag/v0.9.1
 [0.9.0]: https://github.com/provemark/content-credentials/releases/tag/v0.9.0
