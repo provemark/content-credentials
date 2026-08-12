@@ -403,9 +403,13 @@ it('bounds audit records by the budget rather than by the number of requests', f
 
     $before = spec030CountRecords('"outcome":"unauthenticated"');
 
+    $startedAt = microtime(true);
+
     for ($i = 0; $i < $attempts; $i++) {
         spec030Post('wrong-token-flood-'.$i);
     }
+
+    $elapsedMs = (microtime(true) - $startedAt) * 1000;
 
     $written = spec030CountRecords('"outcome":"unauthenticated"') - $before;
 
@@ -414,12 +418,29 @@ it('bounds audit records by the budget rather than by the number of requests', f
     // in this criterion was found (spec amended 2026-08-08).
     expect($written)->toBeGreaterThan(0, 'failed authentication was not audited at all');
 
-    // At most two per window: the first failure, and the moment the budget runs
+    // At most two PER WINDOW: the first failure, and the moment the budget runs
     // out. Independent of how many attempts arrive.
+    //
+    // The bound has to be per window because that is what AC8 says, and
+    // asserting a flat 2 quietly assumed the whole burst fits inside one. It
+    // does not: 15 round trips, each on a fresh connection, against a window
+    // this profile deliberately keeps at 2000 ms. Measured 2026-08-12 in CI —
+    // 3 records for 15 attempts, because the burst crossed a boundary and the
+    // next window correctly recorded its own first failure. The service was
+    // right and the assertion was wrong, which is the mirror image of a test
+    // that passes while testing nothing.
+    //
+    // This stays strict where it matters. A burst that fits in one window gives
+    // $windows = 1 and the bound is 2, exactly as before; three records inside a
+    // single window still fails. It only relaxes by as many windows as the burst
+    // actually spanned, which is precisely what the criterion permits.
+    $windows = (int) floor($elapsedMs / spec030WindowMs()) + 1;
+
     expect($written)->toBeLessThanOrEqual(
-        2,
-        "{$written} records for {$attempts} attempts; an unauthenticated caller "
-        .'controls how much an operator log grows',
+        2 * $windows,
+        "{$written} records for {$attempts} attempts across {$windows} window(s) "
+        .'('.(int) $elapsedMs.'ms elapsed); an unauthenticated caller controls '
+        .'how much an operator log grows',
     );
 })->group('SPEC-030', 'integration')
     ->skip($skipUnlessContainer)
