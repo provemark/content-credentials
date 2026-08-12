@@ -275,8 +275,32 @@ jobs:
         env:
           EXT_C2PA_VERSION: '0.1.0'
         run: |
-          curl -sfSL https://github.com/php/pie/releases/latest/download/pie.phar -o /tmp/pie.phar
-          sudo php /tmp/pie.phar install "ericmann/ext-c2pa:${EXT_C2PA_VERSION}" --auto-install-build-tools
+          # Two downloads live here, and both failed on 2026-08-12: the pie.phar
+          # itself (`curl: (22) ... 503`) and the prebuilt extension archive PIE
+          # fetches from ericmann/ext-c2pa (`curl error 56 ... tried 5 times`,
+          # twice). Same host and same failure mode as the container build, so
+          # the same three attempts with a widening pause.
+          #
+          # The retry covers ONLY the fetching. The guards below stay outside it
+          # deliberately: an extension that installs but does not load, or loads
+          # the wrong version, is a real answer and must fail on the first
+          # attempt rather than be tried twice more and reported as a network
+          # problem.
+          installed=
+          for attempt in 1 2 3; do
+            if curl -sfSL --retry 3 --retry-connrefused \
+                 https://github.com/php/pie/releases/latest/download/pie.phar -o /tmp/pie.phar \
+               && sudo php /tmp/pie.phar install "ericmann/ext-c2pa:${EXT_C2PA_VERSION}" --auto-install-build-tools; then
+              installed=yes
+              break
+            fi
+            echo "::warning::ext-c2pa fetch/install attempt ${attempt} failed — retrying"
+            sleep $((attempt * 10))
+          done
+          if [ -z "$installed" ]; then
+            echo "::error::ext-c2pa fetch/install failed after 3 attempts"
+            exit 1
+          fi
           php -r 'exit(extension_loaded("c2pa") ? 0 : 1);' \
             || { echo "::error::ext-c2pa installed but not loaded"; php -m; exit 1; }
           # The pin is not evidence until it is checked. PIE reports success on
