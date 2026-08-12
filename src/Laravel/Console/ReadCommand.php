@@ -68,7 +68,7 @@ final class ReadCommand extends Command
         $signer = $report->signer();
 
         // SPEC-020 AC6: two c2pa-rs versions are in play — 0.89.0 in the
-        // extension, 0.90.4 in the service — so which engine produced this report
+        // extension, 0.90.5 in the service — so which engine produced this report
         // has to be visible where someone is already standing when they wonder.
         $this->line('reader             : '.$factory->mode());
         $this->line('hasManifest        : '.($report->hasManifest() ? 'true' : 'false'));

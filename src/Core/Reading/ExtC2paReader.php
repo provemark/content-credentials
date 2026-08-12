@@ -30,7 +30,7 @@ use Provemark\ContentCredentials\Core\Signing\Asset;
  *
  * - The extension is **v0.1.0** and is an Automattic VIP product rather than
  *   neutral infrastructure. This adapter is the containment.
- * - It carries **c2pa-rs 0.89.0**; the signing service carries **0.90.4**. The
+ * - It carries **c2pa-rs 0.89.0**; the signing service carries **0.90.5**. The
  *   equivalence test (SPEC-019 AC2) is what would surface a divergence between
  *   the two engines before a user does.
  *
