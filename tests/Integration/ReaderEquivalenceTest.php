@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Provemark\ContentCredentials\Core\Manifest\ManifestBuilder;
 use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Manifest\SoftwareAgent;
 use Provemark\ContentCredentials\Core\Reading\Exception\ReadFailedException;
 use Provemark\ContentCredentials\Core\Reading\ExtC2paReader;
 use Provemark\ContentCredentials\Core\Reading\ManifestReport;
@@ -15,7 +16,7 @@ use Provemark\ContentCredentials\Tests\Integration\ServiceHarness;
  * that keeps it honest.
  *
  * AC2 is why this file exists. The extension carries **c2pa-rs 0.89.0** and the
- * service carries **0.90.4** (verified 2026-08-06), so the same asset is read by
+ * service carries **0.90.5** (verified 2026-08-12), so the same asset is read by
  * two different versions of the same engine. Without a test that compares them,
  * a divergence — in what counts as trusted, in how a validation state is named,
  * in whether our Article 50 marking is recognised — would reach a user before it
@@ -47,7 +48,7 @@ function spec019AnchorsPem(): string
 /**
  * The extension reader, configured to match the SERVICE's trust setup (AC2).
  *
- * AC2 compares two ENGINES — c2pa-rs 0.89.0 against 0.90.4. Comparing them
+ * AC2 compares two ENGINES — c2pa-rs 0.89.0 against 0.90.5. Comparing them
  * requires equivalent configuration, and the two are configured in different
  * places: the service's trust verification comes from `CONTENTAUTH_TRUST_SETTINGS`
  * on the container, the extension's from PEM contents passed in PHP. Reading with
@@ -103,6 +104,13 @@ function spec019Accessors(ManifestReport $report): array
         'isVerifiedAiGenerated' => $report->isVerifiedAiGenerated(),
         'hasTimestamp' => $report->hasTimestamp(),
         'digitalSourceTypes' => $report->digitalSourceTypes(),
+        // SPEC-033. Flattened through toArray() because the comparison is a
+        // strict one and two readers necessarily build distinct objects; what
+        // must agree is the name and version, not the instance.
+        'softwareAgents' => array_map(
+            fn (SoftwareAgent $agent) => $agent->toArray(),
+            $report->softwareAgents(),
+        ),
     ];
 }
 
@@ -121,7 +129,16 @@ it('reads a signed asset in-process, with no service involved', function () {
         ->and($report->isAiGenerated())->toBeTrue()
         ->and($report->digitalSourceTypes())->toContain(
             'http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia',
-        );
+        )
+        // SPEC-033, and the reason it is pinned to a value here rather than
+        // only compared in AC2: two readers that both returned an empty list
+        // would agree, and a comparison that passes because both sides found
+        // nothing tests nothing. The fixture sets this name, so the extension
+        // must find it.
+        ->and(array_map(
+            fn (SoftwareAgent $agent) => $agent->name,
+            $report->softwareAgents(),
+        ))->toBe(['SPEC-019 equivalence']);
 })->group('SPEC-019', 'integration')
     ->skip($skipUnlessExtension)
     ->skip(fn () => ! ServiceHarness::reachable() ? 'need the service once, to produce a signed asset' : false);
@@ -217,12 +234,12 @@ it('agrees with the signing-service reader on every public accessor', function (
 
     // Named per accessor rather than as one array comparison, so a divergence
     // says WHICH answer differs and what both engines said. c2pa-rs 0.89.0 in
-    // the extension against 0.90.4 in the service is the reason to expect one.
+    // the extension against 0.90.5 in the service is the reason to expect one.
     foreach ($viaExtension as $accessor => $value) {
         expect($value)->toBe(
             $viaService[$accessor],
             sprintf(
-                'readers disagree on %s(): extension (c2pa-rs 0.89) says %s, service (0.90.4) says %s',
+                'readers disagree on %s(): extension (c2pa-rs 0.89) says %s, service (0.90.5) says %s',
                 $accessor,
                 json_encode($value),
                 json_encode($viaService[$accessor]),
@@ -235,7 +252,7 @@ it('agrees that a declared media type is advisory, not enforced', function () {
     // Measured 2026-08-06: a signed PNG offered as image/jpeg is read by both,
     // because c2pa-rs recognises the format from the bytes. Pinned so that if
     // one engine ever starts enforcing it — the extension carries c2pa-rs 0.89.0
-    // against the service's 0.90.4 — we learn it here rather than from a user
+    // against the service's 0.90.5 — we learn it here rather than from a user
     // whose uploads suddenly stop verifying.
     $asset = new Asset(spec019SignedAsset(), MediaType::Jpeg);
 
