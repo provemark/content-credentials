@@ -19,6 +19,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The primer's `/v1/sign` table listed three fields the service does not
+  have, and omitted one it does.** `signature_type`, `org_name` and `org_url`
+  belong to the upstream CAI wp-plugin contract; `service/server.js` has never
+  read them, and CAWG organisational identity is unbuilt on both sides — out of
+  scope in SPEC-002 and still without a spec of its own. Missing was `parent`,
+  the SPEC-028 ingredient, part of the contract since 0.9.0. Anyone writing a
+  client from that table would have sent fields that are silently ignored and
+  left out the one the manifest can require. The table now matches the
+  handler's own destructuring, including the constraints on each field and the
+  rule that `parent` is mandatory-by-manifest in both directions.
+
+  The page also now says that its request contract is reconciled against
+  `service/server.js` rather than against the log. The previous pass was
+  log-only, which is why it could neither catch a table that had never matched
+  the code nor notice a field added two days after it ran. `docs/` ships in the
+  Composer package, so this reaches you as a normal update.
+
 ## [0.10.1] - 2026-08-10
 
 A patch release: behavioural fixes only, no new public API and no breaking

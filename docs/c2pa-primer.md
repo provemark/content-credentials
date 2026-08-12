@@ -3,9 +3,15 @@
 Topic-ordered reference distilled from the spike log (`NOTES.md`, indexing the
 per-step files in `notes/`). Everything here was verified against running code
 (c2patool 0.27.7, @contentauth/c2pa-node 0.8.3, c2pa-rs test certs), first on
-2026-07-27 and last reconciled with the log on 2026-08-05 — none of it is from
-model memory. When this page and the log disagree, the log (the raw record)
-wins; fix this page. When neither answers a question, ask — do not guess.
+2026-07-27 and last reconciled on 2026-08-12 — none of it is from model memory.
+When this page and the log disagree, the log (the raw record) wins; fix this
+page. When neither answers a question, ask — do not guess.
+
+**§3 is reconciled against `service/server.js` itself, not against the log.**
+The 2026-08-05 reconciliation was log-only, so it could not catch a table that
+had never matched the code and did not catch SPEC-028's `parent`, which landed
+on 08-07. For the request contract, the handler is the raw record: read the
+destructuring at the top of `app.post('/v1/sign')`.
 
 ## 1. Manifest structure (claim v2)
 
@@ -43,15 +49,29 @@ The canonical assertion for "this asset is AI-generated":
 | field              | required | meaning                                  |
 |--------------------|----------|------------------------------------------|
 | `content`          | yes      | base64 of the raw file bytes             |
-| `mime_type`        | yes      | e.g. `image/png`                         |
-| `signature_type`   | no       | `product` (default) / `cawg_org` / `both`|
-| `creator_name`     | no       | prepended to claim_generator             |
-| `org_name`/`org_url`| cawg only | CAWG organisational identity            |
-| `extra_assertions` | no       | raw C2PA assertion objects, appended     |
+| `mime_type`        | yes      | must be in `SUPPORTED_MIME`, else 400    |
+| `creator_name`     | no       | prepended to claim_generator; string, `MAX_CREATOR_NAME` (256) |
+| `extra_assertions` | no       | raw C2PA assertion objects, appended; vetted per SPEC-011 |
+| `parent`           | conditional | `{content, mime_type}` of the source asset — the SPEC-028 ingredient |
+
+That is the whole body: `server.js` destructures exactly these five and ignores
+anything else. `parent` is **mandatory-by-manifest, both ways** (SPEC-028 AC5):
+`needsParentAsset(extra_assertions)` decides, because c2pa-rs enforces neither
+direction — an edit intent with no ingredient signs and reports `Valid`, and so
+does a `c2pa.created` action sitting next to a `parentOf` ingredient. Those
+guards are the only ones there are.
+
+⚠️ **`signature_type`, `org_name` and `org_url` are NOT fields of this service.**
+They belong to the upstream CAI wp-plugin contract, and this table listed them
+until 2026-08-12 as though our service read them. It does not: `grep -in cawg
+service/server.js` returns nothing. CAWG organisational identity is unbuilt on
+both sides — out of scope in SPEC-002, named "the natural next step" by
+SPEC-016, and it needs its own spec (ADR-0004 left `createCawgTrustSettings`
+deliberately unused). Do not write a client that sends them.
 
 Response: `{ "signed_content": "<base64>", "manifest_url": null }`.
-Also: `POST /v1/read` (`{content, mime_type}` → decoded manifest) and public
-`GET /health`.
+Also: `POST /v1/read` (`{content, mime_type}`, same `SUPPORTED_MIME` check →
+decoded manifest) and public `GET /health`.
 
 **Deliberate divergence from the CAI wp-plugin contract:** our service does
 NOT inject a hardcoded `c2pa.published` actions assertion. The PHP client
