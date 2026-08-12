@@ -73,15 +73,27 @@ jobs:
     runs-on: ubuntu-latest
     # The `ext-c2pa` profile does not block `main`, and only that profile.
     #
-    # It is the one leg that reaches outside this repository: PIE downloads a
-    # prebuilt archive from `ericmann/ext-c2pa`'s GitHub release on every run.
-    # On 2026-08-12 that download died mid-transfer — `curl error 56 ...
-    # Connection died, tried 5 times before giving up` — and took `all checks
-    # passed` red with it, blocking every open PR, on a commit whose own branch
-    # run had been green four minutes earlier. Re-running it succeeded
-    # unchanged. A third party's release CDN is not a signal about this
-    # repository, and the same reasoning already keeps the `audit` workflow
-    # outside the aggregate.
+    # ⚠️ An earlier version of this comment claimed it is "the one leg that
+    # reaches outside this repository". That is wrong, and the same afternoon
+    # proved it. EVERY profile builds the service container, and that build runs
+    # `npm ci`, which downloads `@contentauth/c2pa-node`'s native binary from
+    # GitHub releases. All seven legs carry that dependency. What is true of
+    # `ext-c2pa` is only that it carries a SECOND one: PIE fetches a prebuilt
+    # archive from `ericmann/ext-c2pa`, a project with a single release.
+    #
+    # Three download failures on 2026-08-12, all from the same host:
+    #   1. `curl error 56 ... tried 5 times before giving up` — the PIE archive
+    #   2. `socket hang up` — the c2pa-node binary, during the container build,
+    #      on the `auth-limited` profile, which blocks
+    #   3. `curl: (22) ... error: 503` — the PIE download again
+    # Each re-ran green unchanged. A third party's release CDN is not a signal
+    # about this repository, and the same reasoning already keeps the `audit`
+    # workflow outside the aggregate.
+    #
+    # So the exemption is a difference of degree rather than of kind, and it
+    # fixes ONE of those three cases. Failures 1 and 3 no longer block; failure
+    # 2 still would. Whatever finally solves this belongs in the container build
+    # — a retry or a cache — not in more `continue-on-error`.
     #
     # ⚠️ The cost is real, deliberate, and larger than the flake it prevents: a
     # genuine engine divergence caught by SPEC-019 AC2 now reports red WITHOUT
