@@ -45,7 +45,7 @@ vendor/bin/pest --group=integration    # NOT --group=provenance, which is 3 test
 ### Before releasing a change to either reader
 
 There are two `ReaderInterface` implementations, running two different engines:
-`SigningServiceReader` (c2pa-rs **0.90.4**, via the service) and `ExtC2paReader`
+`SigningServiceReader` (c2pa-rs **0.90.5**, via the service) and `ExtC2paReader`
 (c2pa-rs **0.89.0**, via `ext-c2pa`). SPEC-019 AC2 compares them accessor by
 accessor on the same asset, and it is the only thing that would catch the two
 drifting apart. It needs both installed, so it **skips** where the extension is

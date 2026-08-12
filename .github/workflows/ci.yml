@@ -221,9 +221,35 @@ jobs:
             echo "${{ matrix.profile.env }}"
           } > .env
 
+      # The build downloads @contentauth/c2pa-node's prebuilt native binary from
+      # GitHub releases (see service/Dockerfile — npm ci runs its postinstall),
+      # so every profile depends on that host being up for the length of one
+      # `npm ci`. On 2026-08-12 it was not, six times in an afternoon:
+      # `socket hang up` mid-download, twice on legs that block, once holding up
+      # the 0.11.0 release PR. Every re-run succeeded unchanged.
+      #
+      # Three attempts with a widening pause, rather than exempting more
+      # profiles from the aggregate. `continue-on-error` on the ext-c2pa leg
+      # stops a flake from blocking; it does not stop the flake, and it cannot
+      # be extended to the other six without turning off the thing that gates
+      # `main`. A retry addresses the cause where it happens.
+      #
+      # A genuine failure still fails: a broken lockfile, a missing base image or
+      # a build error reproduces on all three attempts and the step exits 1 with
+      # the last log intact. This buys nothing but time across a blip.
       - name: Start the signing service
         run: |
-          docker compose up -d --build
+          started=
+          for attempt in 1 2 3; do
+            if docker compose up -d --build; then started=yes; break; fi
+            echo "::warning::service build/start attempt ${attempt} failed — retrying"
+            docker compose down --remove-orphans || true
+            sleep $((attempt * 10))
+          done
+          if [ -z "$started" ]; then
+            echo "::error::service build/start failed after 3 attempts"
+            exit 1
+          fi
           for i in $(seq 30); do
             curl -sf http://127.0.0.1:3000/health && break
             sleep 2
@@ -236,7 +262,7 @@ jobs:
       # exists to run and report green.
       # Pinned, and the pin is verified. This profile runs SPEC-019's equivalence
       # check, which is the alarm for the two engines drifting apart — c2pa-rs
-      # 0.89.0 in the extension against 0.90.4 in the service. An alarm whose
+      # 0.89.0 in the extension against 0.90.5 in the service. An alarm whose
       # input version can change without anyone deciding is not an alarm: an
       # upstream release would either turn it red for a reason we did not cause,
       # or green against an engine we did not think we were testing.
