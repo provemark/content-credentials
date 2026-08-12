@@ -19,6 +19,48 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-12
+
+A minor release: one addition to the public API, and no breaking change. Nothing
+a caller must adapt to — `softwareAgents()` is a new method on an existing final
+class, so code written against 0.10.x keeps compiling and behaving identically.
+
+It is tagged today rather than collected further because of the documentation
+fix below. `docs/` ships inside the Composer package, so a correction to it
+reaches you through `composer update` and **only** through a tag: until this
+release, every install still carried a `/v1/sign` table describing three fields
+the service does not have. That is the kind of document somebody builds a client
+from.
+
+Nothing changed in `service/`, so there is no container to rebuild for this one.
+
+### Added
+
+- **`ManifestReport::softwareAgents()` — reading back which system generated an
+  asset (SPEC-033).** The package wrote a field it could not read. The builder
+  puts `softwareAgent` into the `c2pa.created` action, and the Article 50
+  marking is defined as that action carrying a `digitalSourceType` **and** a
+  `softwareAgent { name }` — but only the first half had an accessor. Getting at
+  the second meant walking `assertions()` yourself and re-implementing which
+  labels count, that `data.actions` is a list, and that entries may be
+  malformed.
+
+  ```php
+  $report->digitalSourceTypes();   // list<string>        — what kind of source
+  $report->softwareAgents();       // list<SoftwareAgent> — produced by what
+  ```
+
+  Returns `Core\Manifest\SoftwareAgent` objects, distinct, in first-appearance
+  order; the same name at a different version counts as a different agent,
+  because a version change is what an auditor is looking for. Manifests are
+  untrusted input, so nothing throws: a `name` that is not a string drops the
+  agent, while a `version` that is not a string drops only the version — a name
+  read correctly is worth keeping. Both `c2pa.actions` and `c2pa.actions.v2` are
+  honoured.
+
+  Both readers are compared on it, so the service and the extension cannot
+  quietly diverge here.
+
 ### Fixed
 
 - **The primer's `/v1/sign` table listed three fields the service does not
@@ -1231,7 +1273,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.10.1...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.11.0...main
+[0.11.0]: https://github.com/provemark/content-credentials/releases/tag/v0.11.0
 [0.10.1]: https://github.com/provemark/content-credentials/releases/tag/v0.10.1
 [0.10.0]: https://github.com/provemark/content-credentials/releases/tag/v0.10.0
 [0.9.1]: https://github.com/provemark/content-credentials/releases/tag/v0.9.1
