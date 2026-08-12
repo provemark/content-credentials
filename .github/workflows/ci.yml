@@ -71,6 +71,30 @@ jobs:
   integration:
     name: integration (${{ matrix.profile.name }})
     runs-on: ubuntu-latest
+    # The `ext-c2pa` profile does not block `main`, and only that profile.
+    #
+    # It is the one leg that reaches outside this repository: PIE downloads a
+    # prebuilt archive from `ericmann/ext-c2pa`'s GitHub release on every run.
+    # On 2026-08-12 that download died mid-transfer — `curl error 56 ...
+    # Connection died, tried 5 times before giving up` — and took `all checks
+    # passed` red with it, blocking every open PR, on a commit whose own branch
+    # run had been green four minutes earlier. Re-running it succeeded
+    # unchanged. A third party's release CDN is not a signal about this
+    # repository, and the same reasoning already keeps the `audit` workflow
+    # outside the aggregate.
+    #
+    # ⚠️ The cost is real, deliberate, and larger than the flake it prevents: a
+    # genuine engine divergence caught by SPEC-019 AC2 now reports red WITHOUT
+    # stopping a merge. That comparison is the only drift alarm between
+    # c2pa-rs 0.89.0 in the extension and 0.90.5 in the service, so a red leg
+    # here must still be read rather than waved through. It is non-blocking, not
+    # unimportant.
+    #
+    # Note what this does NOT do: it does not skip the profile, and it does not
+    # let a missing extension pass quietly. The install step still fails loudly
+    # and the "installed but not loaded" guard below still fires — the failure
+    # is simply reported instead of gating.
+    continue-on-error: ${{ matrix.profile.ext == true }}
     strategy:
       fail-fast: false
       matrix:
@@ -275,5 +299,11 @@ jobs:
           echo "integration: ${{ needs.integration.result }}"
           # Anything other than success — failure, cancelled, or skipped —
           # means this must not report green.
+          #
+          # One exception, and it is declared on the job rather than here: the
+          # `ext-c2pa` profile carries `continue-on-error`, so a failure in that
+          # leg reaches this line as `success`. It is the only leg whose result
+          # depends on a third party's download staying up. See the comment on
+          # the `integration` job for what that costs.
           [ "${{ needs.check.result }}" = "success" ] || exit 1
           [ "${{ needs.integration.result }}" = "success" ] || exit 1
