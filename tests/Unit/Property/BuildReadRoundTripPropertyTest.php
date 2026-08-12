@@ -111,3 +111,33 @@ it('keeps assertions() in step with toArray() for all inputs', function () {
             ->and($manifest->mediaType())->toBe($type);
     });
 })->group('SPEC-001', 'pbt');
+
+/**
+ * SPEC-033 AC4 — the agent name is data, never something to interpret.
+ *
+ * The round-trip above proves the marking survives; this proves the other half
+ * of the same assertion does too. Quantified over the same adversarial name
+ * generator (JSON, markup, newlines, control characters), because a reader that
+ * unescapes or truncates a name is misreporting who generated an asset — and
+ * the name must not be able to disturb the digitalSourceType beside it.
+ */
+it('reads back any software-agent name verbatim, for all inputs', function () {
+    $this->forAll(
+        Gen::mediaType(),
+        Gen::softwareAgentName(),
+        Gen::optionalVersion(),
+    )->then(function (MediaType $type, string $name, ?string $version) {
+        $manifest = ManifestBuilder::forAiGenerated($type)
+            ->withSoftwareAgent($name, $version)
+            ->build();
+
+        $report = new ManifestReport('urn:test:manifest', null, $manifest->assertions(), []);
+        $agents = $report->softwareAgents();
+
+        expect($agents)->toHaveCount(1)
+            ->and($agents[0]->name)->toBe($name)
+            ->and($agents[0]->version)->toBe($version)
+            ->and($report->digitalSourceTypes())
+            ->toBe([DigitalSourceType::TrainedAlgorithmicMedia->value]);
+    });
+})->group('SPEC-033', 'pbt');

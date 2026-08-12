@@ -1,10 +1,11 @@
+
 # SPEC-033: Reading the software agents an actions assertion names
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — while draft                                     |
+| Approved   | Maurice van Loon, 2026-08-12                      |
 | Supersedes | —                                                 |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -144,17 +145,23 @@ $report->softwareAgents();       // list<SoftwareAgent> — produced by what
 
 ## Open questions
 
-- **What the list contains — blocker, and the only real decision here.**
-  Reusing `Core\Manifest\SoftwareAgent` gives callers the package's existing
-  vocabulary for the concept and makes read-then-rebuild trivial. Deptrac permits
-  it: `Core` is a single layer, so `Reading` → `Manifest` is intra-layer and
-  unconstrained. Against it: that class is a write-side object carrying
-  `toArray()`, which a read result has no use for, and returning it couples the
-  two halves of Core in a direction that has so far been avoided by accident
-  rather than by rule. The alternatives are a read-side value object, or
-  `list<array{name: string, version: ?string}>`. **Recommendation: reuse
-  `SoftwareAgent`**, and if that is wrong it is cheaper to learn now than after
-  it is public.
+- **What the list contains — RESOLVED at approval, 2026-08-12: reuse
+  `Core\Manifest\SoftwareAgent`.** It is the package's existing vocabulary for
+  the concept, it makes read-then-rebuild trivial, and deptrac permits it —
+  `Core` is a single layer, so `Reading` → `Manifest` is intra-layer and
+  unconstrained. The argument against is recorded rather than discarded: that
+  class is a write-side object carrying `toArray()`, which a read result has no
+  use for. If that proves wrong, the alternatives were a read-side value object
+  or `list<array{name: string, version: ?string}>`, and the change would be
+  breaking once published.
+
+  **Amended at implementation, 2026-08-12.** The draft argued this would be the
+  *first* deliberate coupling between the two halves of Core. That was wrong:
+  `ManifestReport` already imported `Core\Manifest\DigitalSourceType`, and
+  `isAiGenerated()` has always run on it. The coupling long predates this spec,
+  so `SoftwareAgent` follows an established pattern rather than setting a
+  precedent. The correction strengthens the decision instead of weakening it,
+  which is why it is recorded here rather than reopening the question.
 - **Naming — non-blocker.** `softwareAgents()` mirrors the C2PA field name and
   `digitalSourceTypes()`'s plural. `generators()` would read better in English
   and worse against the spec.
@@ -170,10 +177,39 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
+| AC1 | `tests/Unit/Reading/SoftwareAgentReadingTest.php` :: *it reads back the software agent the builder wrote* | `ManifestReport::softwareAgents()` |
+| AC2 | `tests/Unit/Reading/SoftwareAgentReadingTest.php` :: *it reports an absent version as null rather than an empty string* | `ManifestReport::softwareAgents()` |
+| AC3 | `tests/Unit/Reading/SoftwareAgentReadingTest.php` :: *it returns distinct agents in first-appearance order*; *it treats the same name at a different version as a distinct agent* | `ManifestReport::softwareAgents()` |
+| AC4 | `tests/Unit/Property/BuildReadRoundTripPropertyTest.php` :: *it reads back any software-agent name verbatim, for all inputs* | `ManifestReport::softwareAgents()` |
+| AC5 | `tests/Unit/Reading/SoftwareAgentReadingTest.php` :: *it skips a malformed softwareAgent instead of guessing* (9 datasets); *it still returns well-formed agents beside a malformed one*; *it keeps a valid name when the version is malformed* | `ManifestReport::softwareAgents()` |
+| AC6 | `tests/Unit/Reading/SoftwareAgentReadingTest.php` :: *it returns an empty list when there is nothing to report* (6 datasets) | `ManifestReport::softwareAgents()`, `ManifestReport::actions()` |
+| AC7 | `tests/Unit/Reading/SoftwareAgentReadingTest.php` :: *it honours both the v1 and v2 actions labels*; *it ignores an assertion whose label is not an actions assertion* | `ManifestReport::actions()` |
+
+Notes for a later reader:
+
+- **AC4 lives in the property suite, not beside the others.** It is quantified
+  over `Gen::softwareAgentName()`, and the Eris DSL is only permitted under
+  `tests/**/Property/`, which `phpstan.neon` excludes from level-max analysis for
+  the reasons stated there. Writing it in `tests/Unit/Reading/` produced six
+  PHPStan errors; moving it was the fix, not an ignore.
+- **`actions()` is a new private helper** extracting the shared traversal.
+  `digitalSourceTypes()` still carries its own copy of that walk — see the
+  follow-up note below.
+- **Every test was seen to fail first**, with
+  `Call to undefined method ...::softwareAgents()`, before any implementation
+  existed.
+
+## Follow-up, decided at implementation (2026-08-12)
+
+The first cut of this implementation left `digitalSourceTypes()` carrying its own
+copy of the traversal `actions()` now encapsulates — the same label rule, the
+same list check, the same skip of non-array entries. Two copies of one rule is
+exactly the drift this spec's Problem section complains about, and this work
+introduced the second copy.
+
+**Collapsed on the maintainer's decision rather than silently**, because the
+refactor touches a method governed by earlier specs. It changes no behaviour:
+`digitalSourceTypes()` now walks `actions()` and applies its own filter, the
+suite is unchanged at 348 passing, and `isAiGenerated()` and
+`involvesGenerativeAi()` were already delegating to `digitalSourceTypes()`, so
+one traversal now serves all four accessors.
