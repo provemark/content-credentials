@@ -90,4 +90,4 @@ is `export-ignore`d.
 
 ---
 
-[← Step 47](step-47-equivalence-test-configurations.md) · [index](../NOTES.md)
+[← Step 47](step-47-equivalence-test-configurations.md) · [index](../NOTES.md) · [Step 49 →](step-49-typo3-integration-measured.md)
