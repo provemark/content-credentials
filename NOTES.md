@@ -102,3 +102,4 @@ Follow these before searching; most questions are already answered in one step.
 | **46** | 2026-08-08 | [SPEC-032: the last four review findings, and a test double that fought back](notes/step-46-spec-032-client-layer-corrections.md) |
 | **47** | 2026-08-08 | [The equivalence test compared configurations, not engines](notes/step-47-equivalence-test-configurations.md) |
 | **48** | 2026-08-10 | [c2pa-node 0.8.3, and measuring a "panic" that does not panic](notes/step-48-c2pa-node-0-8-3-underflow-measured.md) |
+| **49** | 2026-08-12 | [What TYPO3 actually offers, and why it cannot live in this repo](notes/step-49-typo3-integration-measured.md) |
