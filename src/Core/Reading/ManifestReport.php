@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Provemark\ContentCredentials\Core\Reading;
 
 use Provemark\ContentCredentials\Core\Manifest\DigitalSourceType;
+use Provemark\ContentCredentials\Core\Manifest\SoftwareAgent;
 
 /**
  * Immutable view over the active manifest of a c2pa-rs manifest store, answering
@@ -166,6 +167,91 @@ final readonly class ManifestReport
     }
 
     /**
+     * Distinct software agents named across the active manifest's actions
+     * assertions (any label starting `c2pa.actions`, per D5).
+     *
+     * SPEC-033: the builder writes `softwareAgent` into the created action, so
+     * the reader owes callers the same field back. Without this they must walk
+     * `assertions()` and reproduce the label rule, which is the traversal
+     * `digitalSourceTypes()` already encapsulates for the other half of the
+     * same assertion.
+     *
+     * Malformed entries contribute nothing rather than throwing: manifests come
+     * from untrusted assets, and a reader that crashes on one cannot be pointed
+     * at an upload folder. A name that is not a string drops the agent; a
+     * version that is not a string drops only the version, because a name we
+     * did read correctly is worth keeping.
+     *
+     * @return list<SoftwareAgent>
+     */
+    public function softwareAgents(): array
+    {
+        $agents = [];
+        $seen = [];
+
+        foreach ($this->actions() as $action) {
+            $agent = $action['softwareAgent'] ?? null;
+            if (! is_array($agent)) {
+                continue;
+            }
+
+            $name = $agent['name'] ?? null;
+            if (! is_string($name)) {
+                continue;
+            }
+
+            $version = $agent['version'] ?? null;
+            if (! is_string($version)) {
+                $version = null;
+            }
+
+            $key = $name."\0".($version ?? "\0");
+            if (in_array($key, $seen, true)) {
+                continue;
+            }
+
+            $seen[] = $key;
+            $agents[] = new SoftwareAgent($name, $version);
+        }
+
+        return $agents;
+    }
+
+    /**
+     * Every action entry across the active manifest's actions assertions (any
+     * label starting `c2pa.actions`, per D5), skipping anything malformed.
+     *
+     * The entries come from an untrusted manifest, so their keys are as
+     * unconstrained as their values — `array<mixed, mixed>` is the honest type
+     * rather than a narrowing this method cannot guarantee.
+     *
+     * @return list<array<mixed, mixed>>
+     */
+    private function actions(): array
+    {
+        $actions = [];
+
+        foreach ($this->assertions as $assertion) {
+            if (! str_starts_with($assertion['label'], 'c2pa.actions')) {
+                continue;
+            }
+
+            $entries = $assertion['data']['actions'] ?? null;
+            if (! is_array($entries)) {
+                continue;
+            }
+
+            foreach ($entries as $entry) {
+                if (is_array($entry)) {
+                    $actions[] = $entry;
+                }
+            }
+        }
+
+        return $actions;
+    }
+
+    /**
      * Distinct digitalSourceType URIs across the active manifest's actions
      * assertions (any label starting `c2pa.actions`, per D5).
      *
@@ -175,25 +261,10 @@ final readonly class ManifestReport
     {
         $types = [];
 
-        foreach ($this->assertions as $assertion) {
-            if (! str_starts_with($assertion['label'], 'c2pa.actions')) {
-                continue;
-            }
-
-            $actions = $assertion['data']['actions'] ?? null;
-            if (! is_array($actions)) {
-                continue;
-            }
-
-            foreach ($actions as $action) {
-                if (! is_array($action)) {
-                    continue;
-                }
-
-                $digitalSourceType = $action['digitalSourceType'] ?? null;
-                if (is_string($digitalSourceType) && ! in_array($digitalSourceType, $types, true)) {
-                    $types[] = $digitalSourceType;
-                }
+        foreach ($this->actions() as $action) {
+            $digitalSourceType = $action['digitalSourceType'] ?? null;
+            if (is_string($digitalSourceType) && ! in_array($digitalSourceType, $types, true)) {
+                $types[] = $digitalSourceType;
             }
         }
 
