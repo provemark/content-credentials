@@ -104,4 +104,4 @@ narrows TYPO3's `^1.1 || ^2.0` to the 2.x line.
 
 ---
 
-[← Step 48](step-48-c2pa-node-0-8-3-underflow-measured.md) · [index](../NOTES.md)
+[← Step 48](step-48-c2pa-node-0-8-3-underflow-measured.md) · [index](../NOTES.md) · [Step 50 →](step-50-external-projects-and-a-stale-count.md)
