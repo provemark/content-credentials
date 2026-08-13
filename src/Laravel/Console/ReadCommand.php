@@ -81,13 +81,6 @@ final class ReadCommand extends Command
         $this->line('validationState    : '.($state !== null ? $state->value : '(none)'));
         $this->line('isSignatureValid   : '.($report->isSignatureValid() ? 'true' : 'false'));
         $this->line('isTrusted          : '.($report->isTrusted() ? 'true' : 'false'));
-        // The last of the four questions asked about somebody else's asset:
-        // who signed it, is the signature intact, is the signer trusted, and is
-        // the *time* provable. For our own output SPEC-007 already answers this
-        // by failing closed — a service with a TSA configured either timestamps
-        // or refuses to sign — but that guarantee does not travel with a file
-        // received from elsewhere, which is exactly what this command is for.
-        $this->line('hasTimestamp       : '.($report->hasTimestamp() ? 'true' : 'false'));
 
         return self::SUCCESS;
     }
