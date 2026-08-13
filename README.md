@@ -30,7 +30,7 @@ delegated to a small **Node signing service** (`service/`, based on
 isolated from the app process. (This is the deliberate trade-off versus an
 in-process native extension, which puts the key on the web server.)
 
-Listed as the PHP library under *Related projects* in the Content Authenticity
+Listed as the PHP library under *External projects* in the Content Authenticity
 Initiative's [community resources](https://opensource.contentauthenticity.org/docs/community-resources/).
 That is a listing, not a conformance claim — see
 [Going to production](docs/production.md) for what the C2PA Conformance Program
