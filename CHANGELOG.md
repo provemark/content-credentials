@@ -19,6 +19,68 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **`php artisan content-credentials:read` prints two things it did not before,
+  and one line changed shape.** If you parse that output, read this entry.
+
+  The `reader` line now names the configured mode alongside the engine:
+
+  ```diff
+  - reader             : extension
+  + reader             : extension (configured: auto)
+  ```
+
+  `mode()` resolves `auto` before returning, so the old line said `extension`
+  whether the extension was **chosen** or **detected**. That distinction is the
+  one this package is built around — `auto` is deliberately not the default
+  because an application that installs the extension for an unrelated reason
+  must not silently change which c2pa-rs version decides its trust verdicts —
+  and a bug report that cannot separate the two has lost the evidence for
+  exactly that failure. The annotation is always present, never only for `auto`,
+  so its absence cannot mean two different things.
+
+  And a new line reports whether the manifest carries an RFC 3161 timestamp:
+
+  ```
+  timestamp          : present (unverified)
+  timestamp          : absent
+  ```
+
+  Deliberately not a bare `true`. `hasTimestamp()` means the token is present
+  and structurally parseable; trust of the timestamp authority's own certificate
+  is a separate concern this package does not check. A `true` sitting under
+  `isTrusted: false` reads as "the time is proven", which it is not.
+
+  `ReaderFactory::configuredMode()` is the accessor behind the first change.
+
+### Fixed
+
+- **Text out of a manifest could restyle or truncate the report it appeared
+  in.** `content-credentials:read` and `:sign` write through Symfony's console
+  formatter, which reads `<…>` as markup, and the signer issuer, its common name
+  and the `digitalSourceType` URIs all come from an asset somebody else
+  produced. Exception messages carry service text for the same reason.
+
+  Two effects, and the second is the quieter one. In a terminal, an issuer of
+  `Acme <fg=black;bg=black>` rendered every following line black-on-black —
+  including `isTrusted`. Piped or logged, the formatter stripped the tag
+  instead, so the report printed `signer             : Acme` and the rest of the
+  name was silently gone. Every interpolated value is escaped now; ordinary
+  names are unaffected.
+
+- **`softwareAgents()` shipped in 0.11.0 with no documentation.** It is in
+  `docs/usage.md` now, with what the list contains, how duplicates and versions
+  are treated, and what happens to malformed input — alongside `hasManifest()`,
+  which was in the primer as an aside and missing from the usage guide entirely.
+  A test derives the accessor list from `ManifestReport` by reflection, so the
+  next one cannot ship undocumented without somebody deciding to exempt it.
+
+- **`dev-main` resolved lower than the release it followed.** The
+  `extra.branch-alias` still read `0.10-dev` after v0.11.0 was tagged, so
+  Composer treated the branch as the older line. Only affects installs tracking
+  `dev-main`.
+
 ## [0.11.0] - 2026-08-12
 
 A minor release: one addition to the public API, and no breaking change. Nothing
