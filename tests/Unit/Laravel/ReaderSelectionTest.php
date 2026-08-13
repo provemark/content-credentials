@@ -45,6 +45,15 @@ $skipIfExtension = fn () => extension_loaded('c2pa')
     ? 'ext-c2pa is loaded — this criterion is about its absence'
     : false;
 
+// Pest 4 binds `$this` in a test closure such that static analysis resolves it
+// to Pest\PendingCalls\TestCall, where markTestSkipped() does not exist. It
+// still works at runtime, but a skip expressed as a ->skip() closure is the
+// idiom this file already uses everywhere else, and it is evaluated before the
+// body rather than part-way through it.
+$skipUnlessSignedFixture = fn () => ! is_file(dirname(__DIR__, 3).'/out/signed.png')
+    ? 'out/signed.png not present — run php bin/e2e.php first'
+    : false;
+
 /**
  * A container configured with an optional `reader` mode and trust anchors.
  *
@@ -170,10 +179,6 @@ it('passes configured trust anchors to the in-process reader', function () {
     $anchors = (string) file_get_contents(dirname(__DIR__, 3).'/certs/trust_anchors.pem');
     $signed = dirname(__DIR__, 3).'/out/signed.png';
 
-    if (! is_file($signed)) {
-        $this->markTestSkipped('out/signed.png not present — run php bin/e2e.php first');
-    }
-
     $asset = new Asset(
         (string) file_get_contents($signed),
         MediaType::Png,
@@ -187,7 +192,7 @@ it('passes configured trust anchors to the in-process reader', function () {
 
     expect($withAnchors->isTrusted())->toBeTrue('configured anchors did not reach the reader')
         ->and($without->isTrusted())->toBeFalse('trusted without any anchors configured');
-})->group('SPEC-020')->skip($skipUnlessExtension);
+})->group('SPEC-020')->skip($skipUnlessExtension)->skip($skipUnlessSignedFixture);
 
 it('accepts trust anchors given as a path as well as as contents', function () {
     // A path is what people will reach for, and NOTES Step 11 records that every
@@ -195,10 +200,6 @@ it('accepts trust anchors given as a path as well as as contents', function () {
     // throwing, when given a path. This layer is where that gets absorbed.
     $path = dirname(__DIR__, 3).'/certs/trust_anchors.pem';
     $signed = dirname(__DIR__, 3).'/out/signed.png';
-
-    if (! is_file($signed)) {
-        $this->markTestSkipped('out/signed.png not present — run php bin/e2e.php first');
-    }
 
     $report = ccReaderApp('extension', ['trust_anchors' => $path])
         ->make(ReaderInterface::class)
@@ -208,7 +209,7 @@ it('accepts trust anchors given as a path as well as as contents', function () {
         ));
 
     expect($report->isTrusted())->toBeTrue('a path was not resolved to PEM contents');
-})->group('SPEC-020')->skip($skipUnlessExtension);
+})->group('SPEC-020')->skip($skipUnlessExtension)->skip($skipUnlessSignedFixture);
 
 // --- AC5: an unrecognised mode is refused ------------------------------------
 

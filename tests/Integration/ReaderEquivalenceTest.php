@@ -178,8 +178,12 @@ it('reports untrusted, with a reason, when the anchors do not cover it', functio
         .'-subj "/CN=SPEC-019 Foreign CA" -keyout /dev/null 2>/dev/null',
     );
 
+    // Pest 4 binds `$this` so that static analysis resolves it to TestCall,
+    // where markTestSkipped() does not exist. Skipping on a missing openssl is
+    // still right, but it has to be decided before the body runs; the throw
+    // states the invariant the guard already established.
     if (! is_string($foreign) || ! str_contains($foreign, 'CERTIFICATE')) {
-        $this->markTestSkipped('openssl not available to generate foreign anchors');
+        throw new RuntimeException('openssl produced no certificate after the skip guard');
     }
 
     $signed = spec019SignedAsset();
@@ -194,7 +198,10 @@ it('reports untrusted, with a reason, when the anchors do not cover it', functio
         ->and($report->validationStatusCodes())->toContain('signingCredential.untrusted');
 })->group('SPEC-019', 'integration')
     ->skip($skipUnlessExtension)
-    ->skip(fn () => ! ServiceHarness::reachable() ? 'need the service once, to produce a signed asset' : false);
+    ->skip(fn () => ! ServiceHarness::reachable() ? 'need the service once, to produce a signed asset' : false)
+    ->skip(fn () => ! is_string(shell_exec('command -v openssl 2>/dev/null')) || trim((string) shell_exec('command -v openssl 2>/dev/null')) === ''
+        ? 'openssl not available to generate foreign anchors'
+        : false);
 
 // --- AC6: malformed input is refused, not crashed ----------------------------
 

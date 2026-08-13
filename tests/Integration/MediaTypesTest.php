@@ -26,6 +26,26 @@ $skipUnlessReachable = fn () => ! ServiceHarness::reachable()
     : false;
 
 /**
+ * The service's reported body cap, or null when it reports none.
+ *
+ * Extracted so the skip guard and the body can ask the same question. Pest 4
+ * binds `$this` so that static analysis resolves it to TestCall, where
+ * markTestSkipped() does not exist, so the guard moves to a ->skip() closure —
+ * the idiom this file already uses for reachability.
+ */
+function cc21MaxBodyBytes(): ?int
+{
+    $limits = ServiceHarness::health()['limits'] ?? [];
+    $max = is_array($limits) ? ($limits['max_body_bytes'] ?? null) : null;
+
+    return is_int($max) ? $max : null;
+}
+
+$skipUnlessMaxBodyReported = fn () => cc21MaxBodyBytes() === null
+    ? 'service does not report max_body_bytes'
+    : false;
+
+/**
  * Raw POST to the service, so the error paths can be asserted directly.
  *
  * Guzzle rather than a stream context: `$http_response_header` is deprecated on
@@ -195,12 +215,10 @@ it('signs what the engine detects when the declared type disagrees', function ()
 // --- AC7: an oversized video is refused for the right reason ---------------
 
 it('refuses an oversized video by naming the limit and that video is bounded by it', function () {
-    $limits = ServiceHarness::health()['limits'] ?? [];
-    $max = is_array($limits) ? ($limits['max_body_bytes'] ?? null) : null;
-
-    if (! is_int($max)) {
-        $this->markTestSkipped('service does not report max_body_bytes');
-    }
+    // Cannot be null: the ->skip() guard below asked the same question first.
+    // The throw states that invariant rather than assuming it, and narrows the
+    // type for static analysis.
+    $max = cc21MaxBodyBytes() ?? throw new RuntimeException('max_body_bytes vanished after the skip guard');
 
     // Just over the limit after base64 inflation (4/3), sent as video/mp4. The
     // body parser refuses before any route, so the message cannot depend on the
@@ -221,4 +239,4 @@ it('refuses an oversized video by naming the limit and that video is bounded by 
         // ...and what it means for video, rather than a bare byte count.
         ->and($error)->toContain('video/mp4')
         ->and($body)->toHaveKey('cid');
-})->skip($skipUnlessReachable)->group('SPEC-021', 'integration');
+})->skip($skipUnlessReachable)->skip($skipUnlessMaxBodyReported)->group('SPEC-021', 'integration');

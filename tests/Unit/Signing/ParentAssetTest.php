@@ -72,7 +72,13 @@ it('names the source type in the missing-parent message', function () {
 
     try {
         spec028Signer($client)->sign(spec028Png(), $manifest);
-        $this->fail('expected MissingParentAssetException');
+
+        // Not $this->fail(): Pest 4 binds $this so that static analysis resolves
+        // it to TestCall, where that method does not exist. A thrown
+        // RuntimeException fails the test just as loudly and says the same
+        // thing, and it is the shape ReaderSelectionTest already uses for
+        // "the call that should have thrown did not".
+        throw new RuntimeException('expected MissingParentAssetException');
     } catch (MissingParentAssetException $e) {
         // A caller who reaches this has asked for something C2PA records as an
         // operation on an existing asset. The message has to say which claim
