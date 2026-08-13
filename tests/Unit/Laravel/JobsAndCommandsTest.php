@@ -195,7 +195,12 @@ it('read command reports a credential', function () {
 
     expect($exit)->toBe(0)
         ->and($output)->toContain('C2PA Test Signing Cert')
-        ->and($output)->toContain('Valid');
+        // Label AND value. `toContain('Valid')` passed for any output at all:
+        // `Valid` is a substring of the label `isSignatureValid`, so the
+        // assertion held even with validationState removed from the command
+        // entirely — measured 2026-08-13. Same shape as the `peak`/`speaks`
+        // case this repository already documents.
+        ->and($output)->toContain('validationState    : Valid');
 })->group('SPEC-006');
 
 // --- AC4: `SignAssetJob` signs and writes ----------------------------------
