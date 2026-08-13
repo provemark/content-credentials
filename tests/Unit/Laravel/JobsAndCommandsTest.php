@@ -227,6 +227,27 @@ function h6ReadOutput(ManifestReport $report): string
     return $output;
 }
 
+it('read command reports an asset with no credentials as empty, not as absent evidence', function () {
+    // The path an unsigned upload takes. SPEC-010 makes a manifest-less asset an
+    // empty report rather than an error, and every accessor then answers false
+    // or empty — but nothing pinned what the COMMAND prints for it, and AC7 put
+    // a new line into that output.
+    //
+    // The risk is specific: `timestamp` must read `absent`, never `present`.
+    // An asset carrying no C2PA data at all has no timestamp to speak of, and a
+    // report that said otherwise would be the absence-of-evidence-as-trust
+    // conflation SPEC-013 exists to prevent — announced by the very field added
+    // to avoid it.
+    $output = h6ReadOutput(new ManifestReport(null, null, [], [], null));
+
+    expect($output)->toContain('hasManifest        : false')
+        ->and($output)->toContain('timestamp          : absent')
+        ->and($output)->toContain('isTrusted          : false')
+        ->and($output)->toContain('signer             : (none)')
+        ->and($output)->toContain('digitalSourceTypes : (none)')
+        ->and($output)->toContain('validationState    : (none)');
+})->group('SPEC-006', 'SPEC-010');
+
 it('read command distinguishes a timestamped manifest from one without', function () {
     // SPEC-006 AC7. Asserted as a DIFFERENCE between two runs: an assertion
     // that one output "mentions a timestamp" would pass for a hardcoded line,
