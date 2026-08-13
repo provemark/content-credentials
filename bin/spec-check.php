@@ -179,8 +179,17 @@ function extractReferences(string $cell): array
 {
     $refs = [];
 
-    // `path/to/File.php`, `service/server.js` — anything with an extension
-    if (preg_match_all('/`([^`]*\.(?:php|js|ts|py|rb|go))`/i', $cell, $m)) {
+    // `path/to/File.php`, `service/server.js` — anything with an extension.
+    //
+    // Config extensions are here too, and deliberately: some criteria are
+    // enforced by a build tool rather than by an it(), and the artefact that
+    // enforces them is a config file. SPEC-004 AC7 is architecture, held by
+    // `deptrac.yaml`; without this the only way to cite it was prose, which the
+    // bare-title fallback then reported as a renamed test forever.
+    //
+    // Not `json`: SPEC-030 cites `express.json`, which is middleware rather
+    // than a file, and adding it turned that into a path that does not exist.
+    if (preg_match_all('/`([^`]*\.(?:php|js|ts|py|rb|go|yaml|yml|neon))`/i', $cell, $m)) {
         foreach ($m[1] as $p) {
             $refs[] = new Reference('path', $p);
         }

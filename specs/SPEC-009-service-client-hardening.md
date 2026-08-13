@@ -164,8 +164,8 @@ unsupported mime → 400; valid → 200).
 
 | Acceptance criterion | Test (`it …` / check) | Source (file/symbol) |
 |-----------------------|-----------------------|----------------------|
-| AC1 (#5 over-limit) | rejects an over-limit signing/read response before decoding | `Core\Support\ResponseBody::readBounded()`, `SigningServiceSigner::sign()` / `SigningServiceReader::read()`, `SigningServiceConfig::$maxResponseBytes` |
+| AC1 (#5 over-limit) | `tests/Unit/ResponseBoundsTest.php` :: "rejects an over-limit signing response before decoding"; "rejects an over-limit read response before parsing" | `Core\Support\ResponseBody::readBounded()`, `SigningServiceSigner::sign()` / `SigningServiceReader::read()`, `SigningServiceConfig::$maxResponseBytes` |
 | AC2 (#5 within-limit) | still signs when the response is within the limit | `ResponseBody::readBounded()` |
 | — (D4 config) | throws MissingConfigurationException for an invalid max_response_bytes | `ContentCredentialsServiceProvider::maxResponseBytes()`, `config/content-credentials.php` |
-| AC3 (#4 auth) | curl: wrong/short token → 401, valid → 200 (constant-time) | `service/server.js` `tokenMatches()` (SHA-256 + `timingSafeEqual`) |
-| AC4 (#6 codes) | curl: invalid base64 → 400, unsupported mime → 400, valid → 200 | `service/server.js` `isValidBase64()` + `SUPPORTED_MIME` in `/v1/sign` and `/v1/read` |
+| AC3 (#4 auth) | `tests/Integration/UnauthenticatedBoundsTest.php` :: "answers 401 rather than 413 when the token is invalid"; "still signs and reads back with a valid token, carrying a correlation id" (both tagged SPEC-030, which automated in August what this row verified by hand in July; the constant-time property itself is a code property, not observable from a test) | `service/server.js` `tokenMatches()` (SHA-256 + `timingSafeEqual`) |
+| AC4 (#6 codes) | `tests/Integration/MediaTypesTest.php` :: "refuses content that is not valid base64 with 400, not 500" (tagged SPEC-009); "refuses an unsupported media type and names what it supports" (SPEC-021). The read path's half is `tests/Integration/ReadEmptyManifestTest.php` :: "rejects malformed read input with 400, not 500" (SPEC-010) | `service/server.js` `isValidBase64()` + `SUPPORTED_MIME` in `/v1/sign` and `/v1/read` |
