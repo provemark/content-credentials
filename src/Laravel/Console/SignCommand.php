@@ -11,6 +11,7 @@ use Provemark\ContentCredentials\Core\Signing\Asset;
 use Provemark\ContentCredentials\Core\Signing\SignerInterface;
 use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 use Provemark\ContentCredentials\Laravel\Support\AtomicWrite;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 final class SignCommand extends Command
 {
@@ -57,13 +58,13 @@ final class SignCommand extends Command
         try {
             $mediaType = $this->mediaTypeFromPath($input);
         } catch (UnsupportedMediaTypeException $e) {
-            $this->error($e->getMessage());
+            $this->error(OutputFormatter::escape($e->getMessage()));
 
             return self::FAILURE;
         }
 
         if (! is_file($input)) {
-            $this->error("Input file not found: {$input}");
+            $this->error('Input file not found: '.OutputFormatter::escape($input));
 
             return self::FAILURE;
         }
@@ -77,7 +78,7 @@ final class SignCommand extends Command
 
         $bytes = file_get_contents($input);
         if ($bytes === false) {
-            $this->error("Cannot read input file: {$input}");
+            $this->error('Cannot read input file: '.OutputFormatter::escape($input));
 
             return self::FAILURE;
         }
@@ -93,18 +94,23 @@ final class SignCommand extends Command
         try {
             $signed = $signer->sign(new Asset($bytes, $mediaType), $builder->build());
         } catch (ContentCredentialsException $e) {
-            $this->error('Signing failed: '.$e->getMessage());
+            $this->error('Signing failed: '.OutputFormatter::escape($e->getMessage()));
 
             return self::FAILURE;
         }
 
         if (! AtomicWrite::toPath($output, $signed->bytes)) {
-            $this->error("Cannot write signed image to: {$output}");
+            $this->error('Cannot write signed image to: '.OutputFormatter::escape($output));
 
             return self::FAILURE;
         }
 
-        $this->info(sprintf('Signed %s -> %s (%d bytes)', $input, $output, strlen($signed->bytes)));
+        $this->info(sprintf(
+            'Signed %s -> %s (%d bytes)',
+            OutputFormatter::escape($input),
+            OutputFormatter::escape($output),
+            strlen($signed->bytes),
+        ));
 
         return self::SUCCESS;
     }

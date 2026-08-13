@@ -203,6 +203,55 @@ it('read command reports a credential', function () {
         ->and($output)->toContain('validationState    : Valid');
 })->group('SPEC-006');
 
+it('cannot be restyled by a signer name out of an untrusted manifest', function () {
+    // Measured 2026-08-13, before the fix: Symfony's OutputFormatter reads
+    // `<...>` as markup, so an issuer of `Acme <fg=black;bg=black>` emitted
+    // ESC[30;40m and rendered every FOLLOWING line black-on-black — including
+    // `isTrusted`. Whoever produced the asset chooses that string, and the
+    // operator reading it is exactly who this command is for.
+    $app = h6ConsoleApp();
+
+    $report = new ManifestReport(
+        'urn:c2pa:test',
+        new SignerInfo('Acme <fg=black;bg=black>', '</>Hidden', 'Es256'),
+        [h6AiAssertion(['name' => 'ACME GenAI'])],
+        [],
+        ValidationState::Valid,
+    );
+    $app->instance(ReaderInterface::class, new class($report) implements ReaderInterface
+    {
+        public function __construct(private ManifestReport $report) {}
+
+        public function read(Asset $asset): ManifestReport
+        {
+            return $this->report;
+        }
+    });
+    $app->instance(ReaderFactory::class, new ReaderFactory(
+        new Repository(['content-credentials' => ['reader' => 'service']]),
+        new SigningServiceReader(new MockClient, new Psr17Factory, new Psr17Factory, new SigningServiceConfig('https://sign.test', 'k')),
+    ));
+
+    [$exit, $output] = h6Run(new ReadCommand, $app, ['file' => h6TempFile('png')]);
+
+    expect($exit)->toBe(0)
+        // The issuer survives VERBATIM. This is the assertion that fails
+        // without escape(), and finding one that does took a second attempt:
+        // asserting the absence of an ANSI sequence passes either way here,
+        // because this harness writes to an UNDECORATED BufferedOutput and an
+        // undecorated formatter strips the tag instead of colouring with it.
+        //
+        // Which is the second harm, and the quieter one. Unescaped, the report
+        // prints `signer             : Acme ` — the rest of the name is gone,
+        // in every environment rather than only in a terminal. An issuer can
+        // therefore delete itself from an operator's report.
+        ->and($output)->toContain('Acme <fg=black;bg=black>')
+        ->and($output)->toContain('</>Hidden')
+        // And the verdict the tag would colour out in a real terminal is still
+        // there to be read.
+        ->and($output)->toContain('isTrusted          : false');
+})->group('SPEC-006');
+
 // --- AC4: `SignAssetJob` signs and writes ----------------------------------
 
 it('SignAssetJob signs the source and writes the destination', function () {
