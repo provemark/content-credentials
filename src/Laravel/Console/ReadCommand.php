@@ -9,6 +9,7 @@ use Provemark\ContentCredentials\Core\Manifest\Exception\UnsupportedMediaTypeExc
 use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
 use Provemark\ContentCredentials\Core\Signing\Asset;
 use Provemark\ContentCredentials\Laravel\ReaderFactory;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 final class ReadCommand extends Command
 {
@@ -44,7 +45,7 @@ final class ReadCommand extends Command
         }
 
         if (! is_file($file)) {
-            $this->error("File not found: {$file}");
+            $this->error('File not found: '.OutputFormatter::escape($file));
 
             return self::FAILURE;
         }
@@ -52,14 +53,14 @@ final class ReadCommand extends Command
         try {
             $mediaType = $this->mediaTypeFromPath($file);
         } catch (UnsupportedMediaTypeException $e) {
-            $this->error($e->getMessage());
+            $this->error(OutputFormatter::escape($e->getMessage()));
 
             return self::FAILURE;
         }
 
         $bytes = file_get_contents($file);
         if ($bytes === false) {
-            $this->error("Cannot read file: {$file}");
+            $this->error('Cannot read file: '.OutputFormatter::escape($file));
 
             return self::FAILURE;
         }
@@ -70,12 +71,26 @@ final class ReadCommand extends Command
         // SPEC-020 AC6: two c2pa-rs versions are in play — 0.89.0 in the
         // extension, 0.90.5 in the service — so which engine produced this report
         // has to be visible where someone is already standing when they wonder.
-        $this->line('reader             : '.$factory->mode());
+        // Everything below that came out of a manifest is escaped before it is
+        // written. `line()` goes through Symfony's OutputFormatter, which reads
+        // `<...>` as markup — and a manifest is untrusted input, which CLAUDE.md
+        // requires be treated as such wherever it is parsed.
+        //
+        // Measured 2026-08-13: an issuer of `Acme <fg=black;bg=black>` renders
+        // every FOLLOWING line black-on-black, so a signer name chosen by
+        // whoever produced the asset can hide the `isTrusted` verdict from the
+        // operator reading it. escape() neutralises the angle brackets and
+        // leaves ordinary names byte-identical, so AC3 still sees the issuer.
+        $this->line('reader             : '.OutputFormatter::escape($factory->mode()));
         $this->line('hasManifest        : '.($report->hasManifest() ? 'true' : 'false'));
         $this->line('isAiGenerated      : '.($report->isAiGenerated() ? 'true' : 'false'));
-        $this->line('digitalSourceTypes : '.(implode(', ', $report->digitalSourceTypes()) ?: '(none)'));
+        $this->line('digitalSourceTypes : '.OutputFormatter::escape(
+            implode(', ', $report->digitalSourceTypes()) ?: '(none)',
+        ));
         $this->line('signer             : '.($signer !== null
-            ? $signer->issuer.($signer->commonName !== null ? ' / CN='.$signer->commonName : '')
+            ? OutputFormatter::escape(
+                $signer->issuer.($signer->commonName !== null ? ' / CN='.$signer->commonName : ''),
+            )
             : '(none)'));
         $state = $report->validationState();
         $this->line('validationState    : '.($state !== null ? $state->value : '(none)'));
