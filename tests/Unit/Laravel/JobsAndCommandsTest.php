@@ -195,8 +195,44 @@ it('read command reports a credential', function () {
 
     expect($exit)->toBe(0)
         ->and($output)->toContain('C2PA Test Signing Cert')
-        ->and($output)->toContain('Valid');
+        ->and($output)->toContain('Valid')
+        // SPEC-007's accessor, surfaced here because it is the fourth question
+        // asked about a received asset. This fixture carries no timestamp; the
+        // test below signs off the other half, because an assertion on `false`
+        // alone would also pass for a hardcoded string.
+        ->and($output)->toContain('hasTimestamp       : false');
 })->group('SPEC-006');
+
+it('read command reports a timestamp when the manifest carries one', function () {
+    $app = h6ConsoleApp();
+
+    $report = new ManifestReport(
+        'urn:c2pa:test',
+        new SignerInfo('C2PA Test Signing Cert', 'C2PA Signer', 'Es256'),
+        [h6AiAssertion(['name' => 'ACME GenAI'])],
+        [],
+        ValidationState::Valid,
+        hasTimestamp: true,
+    );
+    $app->instance(ReaderInterface::class, new class($report) implements ReaderInterface
+    {
+        public function __construct(private ManifestReport $report) {}
+
+        public function read(Asset $asset): ManifestReport
+        {
+            return $this->report;
+        }
+    });
+    $app->instance(ReaderFactory::class, new ReaderFactory(
+        new Repository(['content-credentials' => ['reader' => 'service']]),
+        new SigningServiceReader(new MockClient, new Psr17Factory, new Psr17Factory, new SigningServiceConfig('https://sign.test', 'k')),
+    ));
+
+    [$exit, $output] = h6Run(new ReadCommand, $app, ['file' => h6TempFile('png')]);
+
+    expect($exit)->toBe(0)
+        ->and($output)->toContain('hasTimestamp       : true');
+})->group('SPEC-006', 'SPEC-007');
 
 // --- AC4: `SignAssetJob` signs and writes ----------------------------------
 
