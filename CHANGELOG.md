@@ -19,6 +19,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The README named the wrong section of the CAI's community-resources page.**
+  It said the library is listed under *Related projects*; the Content
+  Authenticity Initiative has since split third-party entries out of that
+  section into **External projects**, under a notice that the CAI has not vetted
+  and does not endorse them. The listing itself is unchanged and is still the
+  only PHP entry on the page. Wording only — it was a listing and not a
+  conformance claim before, and it still is.
+
+### Repository
+
+- The comment in `.github/workflows/ci.yml` explaining why the `ext-c2pa`
+  integration profile does not block `main` carried a stale profile count: it
+  said all *seven* legs pull the c2pa-node native binary during the container
+  build, written before `tsa-unreachable` made it eight. No step, profile or
+  condition changed.
+
 ## [0.12.0] - 2026-08-13
 
 A minor release. One behaviour change and three fixes, and the behaviour change
