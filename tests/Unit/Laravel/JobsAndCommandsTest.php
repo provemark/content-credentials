@@ -203,6 +203,56 @@ it('read command reports a credential', function () {
         ->and($output)->toContain('validationState    : Valid');
 })->group('SPEC-006');
 
+/** Runs the read command over a report and returns its output. */
+function h6ReadOutput(ManifestReport $report): string
+{
+    $app = h6ConsoleApp();
+
+    $app->instance(ReaderInterface::class, new class($report) implements ReaderInterface
+    {
+        public function __construct(private ManifestReport $report) {}
+
+        public function read(Asset $asset): ManifestReport
+        {
+            return $this->report;
+        }
+    });
+    $app->instance(ReaderFactory::class, new ReaderFactory(
+        new Repository(['content-credentials' => ['reader' => 'service']]),
+        new SigningServiceReader(new MockClient, new Psr17Factory, new Psr17Factory, new SigningServiceConfig('https://sign.test', 'k')),
+    ));
+
+    [, $output] = h6Run(new ReadCommand, $app, ['file' => h6TempFile('png')]);
+
+    return $output;
+}
+
+it('read command distinguishes a timestamped manifest from one without', function () {
+    // SPEC-006 AC7. Asserted as a DIFFERENCE between two runs: an assertion
+    // that one output "mentions a timestamp" would pass for a hardcoded line,
+    // and today has shown three times that asserting the absence of something
+    // passes by default.
+    $signer = new SignerInfo('C2PA Test Signing Cert', 'C2PA Signer', 'Es256');
+    $assertions = [h6AiAssertion(['name' => 'ACME GenAI'])];
+
+    $with = h6ReadOutput(new ManifestReport(
+        'urn:c2pa:test', $signer, $assertions, [], ValidationState::Valid, hasTimestamp: true,
+    ));
+    $without = h6ReadOutput(new ManifestReport(
+        'urn:c2pa:test', $signer, $assertions, [], ValidationState::Valid,
+    ));
+
+    expect($with)->toContain('timestamp          : present (unverified)')
+        ->and($without)->toContain('timestamp          : absent')
+        ->and($with)->not->toBe($without)
+        // AC7's second half: the report may not read as proof of time. `true`
+        // beside `isTrusted: false` is the conflation SPEC-013 exists to stop,
+        // so the value states presence and says outright that nothing verified
+        // the timestamp authority's own certificate.
+        ->and($with)->not->toContain('timestamp          : true')
+        ->and($with)->toContain('unverified');
+})->group('SPEC-006', 'SPEC-007');
+
 it('cannot be restyled by a signer name out of an untrusted manifest', function () {
     // Measured 2026-08-13, before the fix: Symfony's OutputFormatter reads
     // `<...>` as markup, so an issuer of `Acme <fg=black;bg=black>` emitted

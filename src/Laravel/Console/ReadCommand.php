@@ -106,6 +106,17 @@ final class ReadCommand extends Command
         $this->line('validationState    : '.($state !== null ? $state->value : '(none)'));
         $this->line('isSignatureValid   : '.($report->isSignatureValid() ? 'true' : 'false'));
         $this->line('isTrusted          : '.($report->isTrusted() ? 'true' : 'false'));
+        // SPEC-006 AC7. Reported as a STATE rather than as a bare `true`,
+        // because the criterion forbids exactly that: hasTimestamp() means the
+        // RFC 3161 token is present and structurally parseable, and trust of
+        // the timestamp authority's own certificate is a separate concern this
+        // package does not check (SPEC-007 D3, docs/production.md). A bare
+        // `true` sitting under `isTrusted: false` reads as "the time is proven",
+        // which is the absence-of-evidence-as-trust conflation SPEC-013 exists
+        // to prevent.
+        $this->line('timestamp          : '.($report->hasTimestamp()
+            ? 'present (unverified)'
+            : 'absent'));
 
         return self::SUCCESS;
     }

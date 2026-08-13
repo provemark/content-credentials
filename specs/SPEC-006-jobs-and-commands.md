@@ -105,6 +105,21 @@ required error paths.
   - Then the exception propagates out of `handle()` (so the queue can retry /
     eventually fail the job); no partial/corrupt destination file is left behind.
 
+- **AC7 — the read command reports whether the manifest carries a timestamp**
+  *(added by the 2026-08-13 amendment; see Amendment for why)*
+  - Given a `ManifestReport` whose active manifest carries an RFC 3161
+    timestamp, and one that does not
+  - When `content-credentials:read` runs against each
+  - Then the output reports the timestamp state for both, labelled, and the two
+    outputs differ in that field
+  - And the report does **not** describe the timestamp as trusted or as proof of
+    time. Per SPEC-007 D3 and the accessor's own docblock, `hasTimestamp()`
+    means the token is **present and structurally parseable**; trust of the
+    timestamp authority's own certificate is a separate concern, stated in
+    `docs/production.md`. SPEC-013 exists because absence of evidence must not
+    read as trust, and a bare `true` beside `isTrusted: false` invites exactly
+    that reading
+
 ## API sketch
 
 Illustrative only. `declare(strict_types=1)`; PHPStan level max. Lives in
@@ -223,20 +238,13 @@ and that enumeration was never updated. An enumeration that drifts is worse than
 a floor, because it reads as exhaustive. It is amended to match, and AC7 below
 states the rule rather than restating the list.
 
-**AC7 is new** *(reading, CLI)*
-
-- Given a `ManifestReport` whose active manifest carries an RFC 3161 timestamp,
-  and one that does not
-- When `content-credentials:read` runs against each
-- Then the output reports the timestamp state for both, labelled, and the two
-  outputs differ in that field
-- And the report does **not** describe the timestamp as trusted or as proof of
-  time. Per SPEC-007 D3 and the accessor's own docblock, `hasTimestamp()` means
-  the token is **present and structurally parseable**; trust of the timestamp
-  authority's own certificate is a separate concern, stated in
-  `docs/production.md`. SPEC-013 exists because absence of evidence must not
-  read as trust, and a bare `true` beside `isTrusted: false` invites exactly
-  that reading.
+**AC7 is new**, and lives in `## Behavior` with the others rather than here.
+It was written into this section when the amendment was drafted, which is a
+defect SPEC-020's amendment tripped the same afternoon: `bin/spec-check.php`
+reads criteria from Behavior only, so a criterion written into an amendment
+gets a traceability row pointing at nothing the tool can find. It never errored
+here only because AC7 had no row until now. SPEC-028's amendment had already
+set the pattern — the criterion goes in Behavior, the amendment narrates.
 
 **One precondition before the criterion is worth much.** No CI profile sets
 `CONTENTAUTH_TSA_URL`, so SPEC-019 AC2's cross-reader comparison of
@@ -272,3 +280,4 @@ PHPStan ignore in `phpstan.neon`.
 | AC4 | SignAssetJob signs the source and writes the destination | `Jobs\SignAssetJob::handle()`, `Events\AssetSigned` |
 | AC5 | SignAssetJob is a bounded, retrying queue job | `Jobs\SignAssetJob` (`ShouldQueue`, `$tries`, `backoff()`) |
 | AC6 | SignAssetJob lets a signing failure propagate and leaves no output | `Jobs\SignAssetJob::handle()` |
+| AC7 | `tests/Unit/Laravel/JobsAndCommandsTest.php` :: "read command reports a credential"; "read command distinguishes a timestamped manifest from one without" | `Console\ReadCommand` |
