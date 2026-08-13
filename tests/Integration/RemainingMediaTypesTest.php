@@ -23,6 +23,26 @@ $skipUnlessReachable = fn () => ! ServiceHarness::reachable()
     ? 'signing service not reachable — start it with docker compose up -d'
     : false;
 
+/**
+ * The service's reported body cap, or null when it reports none.
+ *
+ * Its own copy rather than a call into MediaTypesTest, which only exists when
+ * Pest collects that file — the same reason spec030AuditRecords carries a local
+ * copy. Pest 4 binds `$this` so that static analysis resolves it to TestCall,
+ * where markTestSkipped() does not exist, so the guard is a ->skip() closure.
+ */
+function cc23MaxBodyBytes(): ?int
+{
+    $limits = ServiceHarness::health()['limits'] ?? [];
+    $max = is_array($limits) ? ($limits['max_body_bytes'] ?? null) : null;
+
+    return is_int($max) ? $max : null;
+}
+
+$skipUnlessMaxBodyReported = fn () => cc23MaxBodyBytes() === null
+    ? 'service does not report max_body_bytes'
+    : false;
+
 /** Sign the committed fixture for a type and read it back through the service. */
 function cc23RoundTrip(MediaType $type): void
 {
@@ -76,12 +96,8 @@ it('accepts the four added types on the running service', function () {
 // --- AC3: the oversized-body refusal covers every video type ---------------
 
 it('names every video type when refusing an oversized body', function () {
-    $limits = ServiceHarness::health()['limits'] ?? [];
-    $max = is_array($limits) ? ($limits['max_body_bytes'] ?? null) : null;
-
-    if (! is_int($max)) {
-        $this->markTestSkipped('service does not report max_body_bytes');
-    }
+    // Cannot be null: the ->skip() guard below asked the same question first.
+    $max = cc23MaxBodyBytes() ?? throw new RuntimeException('max_body_bytes vanished after the skip guard');
 
     $response = (new Client)->post(ServiceHarness::baseUrl().'/v1/sign', [
         'headers' => ['Authorization' => 'Bearer '.ServiceHarness::apiKey()],
@@ -106,7 +122,7 @@ it('names every video type when refusing an oversized body', function () {
     foreach (['video/mp4', 'video/quicktime', 'video/x-msvideo'] as $mime) {
         expect($error)->toContain($mime);
     }
-})->skip($skipUnlessReachable)->group('SPEC-023', 'integration');
+})->skip($skipUnlessReachable)->skip($skipUnlessMaxBodyReported)->group('SPEC-023', 'integration');
 
 // --- AC6 (service half): what stays out, stays out -------------------------
 

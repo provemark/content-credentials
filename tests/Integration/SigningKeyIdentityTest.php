@@ -55,6 +55,18 @@ $skipUnlessReported = fn () => spec018CertBlock() === null
     ? 'service does not report signing_cert (pre-SPEC-018)'
     : false;
 
+// Pest 4 binds `$this` in a test closure so that static analysis resolves it to
+// TestCall, where markTestSkipped() does not exist. These express the same
+// conditions as ->skip() closures, which this file already uses and which are
+// decided before the body runs rather than part-way through it.
+$skipUnlessOpenssl = fn () => trim((string) shell_exec('command -v openssl 2>/dev/null')) === ''
+    ? 'openssl not available'
+    : false;
+
+$skipUnlessContainer = fn () => spec018Container() === null
+    ? 'signing-service container not running'
+    : false;
+
 /** The running signing-service container id, or null when it is not up. */
 function spec018Container(): ?string
 {
@@ -119,13 +131,14 @@ it('matches the fingerprint of the certificate the service was configured with',
         : null;
 
     if ($expected === null) {
-        $this->markTestSkipped('openssl not available to compute an independent fingerprint');
+        throw new RuntimeException('openssl produced no fingerprint after the skip guard');
     }
 
     expect(spec018Fingerprint())->toBe($expected);
 })->group('SPEC-018', 'integration')
     ->skip($skipUnlessReachable)
     ->skip($skipUnlessReported)
+    ->skip($skipUnlessOpenssl)
     ->skip(fn () => getenv('CONTENTAUTH_SERVICE_URL') !== false && getenv('CONTENTAUTH_SERVICE_URL') !== ''
         ? 'service URL overridden — the certificate under test may not be the repository one'
         : false);
@@ -205,7 +218,7 @@ it('reports a different fingerprint for a different signing certificate', functi
     $container = spec018Container();
 
     if ($container === null) {
-        $this->markTestSkipped('signing-service container not running');
+        throw new RuntimeException('container vanished after the skip guard');
     }
 
     // A throwaway signing identity. Generated on the host (the image has no
@@ -222,7 +235,7 @@ it('reports a different fingerprint for a different signing certificate', functi
     ));
 
     if (! is_file($dir.'/probe.crt')) {
-        $this->markTestSkipped('openssl not available to generate a second certificate');
+        throw new RuntimeException('openssl generated no certificate after the skip guard');
     }
 
     // Piped through `docker exec -i`, not `docker cp`. The service container now
@@ -261,7 +274,9 @@ it('reports a different fingerprint for a different signing certificate', functi
     );
 })->group('SPEC-018', 'integration')
     ->skip($skipUnlessReachable)
-    ->skip($skipUnlessReported);
+    ->skip($skipUnlessReported)
+    ->skip($skipUnlessContainer)
+    ->skip($skipUnlessOpenssl);
 
 it('reports the same fingerprint across a restart with the same certificate', function () {
     // The other half of AC2: the value must track the certificate, not the
@@ -270,7 +285,7 @@ it('reports the same fingerprint across a restart with the same certificate', fu
     $container = spec018Container();
 
     if ($container === null) {
-        $this->markTestSkipped('signing-service container not running');
+        throw new RuntimeException('container vanished after the skip guard');
     }
 
     $probe = spec018Probe($container, 3996);
@@ -283,7 +298,8 @@ it('reports the same fingerprint across a restart with the same certificate', fu
     );
 })->group('SPEC-018', 'integration')
     ->skip($skipUnlessReachable)
-    ->skip($skipUnlessReported);
+    ->skip($skipUnlessReported)
+    ->skip($skipUnlessContainer);
 
 // --- AC3: nothing secret is exposed ------------------------------------------
 
