@@ -223,4 +223,4 @@ http resolver is not implemented", so the service signs via `CallbackSigner` +
 | AC2 | reports a manifest without a timestamp field as not timestamped; reports no timestamp when there is no manifest | `SigningServiceReader::parseHasTimestamp()`, `ManifestReport::hasTimestamp()` |
 | AC3 | treats a malformed timestamp as absent without throwing (4 datasets) | `SigningServiceReader::parseHasTimestamp()` |
 | AC4 | `bin/e2e.php` timestamp assertion vs `/health` (integration, verified 2026-07-28) | `service/server.js` async `CallbackSigner` path; `GET /health` `timestamping` |
-| AC5 | direct `/v1/sign` with unreachable TSA ⇒ HTTP 500, no `signed_content` (integration, verified 2026-07-28) | `service/server.js` sign `catch` (no untimestamped fallback) |
+| AC5 | `tests/Integration/TimestampFailsClosedTest.php` :: "refuses to sign when the timestamp authority cannot be reached"; "reports the timestamp authority as configured on /health". Automated 2026-08-13 in the `tsa-unreachable` CI profile; verified by hand 2026-07-28 until then | `service/server.js` sign `catch` (no untimestamped fallback) |
