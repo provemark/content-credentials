@@ -77,7 +77,7 @@ jobs:
     # reaches outside this repository". That is wrong, and the same afternoon
     # proved it. EVERY profile builds the service container, and that build runs
     # `npm ci`, which downloads `@contentauth/c2pa-node`'s native binary from
-    # GitHub releases. All seven legs carry that dependency. What is true of
+    # GitHub releases. All eight legs carry that dependency. What is true of
     # `ext-c2pa` is only that it carries a SECOND one: PIE fetches a prebuilt
     # archive from `ericmann/ext-c2pa`, a project with a single release.
     #
