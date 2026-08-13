@@ -137,6 +137,17 @@ except AC4, which is about absence.
   - And given none, it is constructed without anchors and `isTrusted()` is false
     by design rather than by failure — matching SPEC-014's distinction
 
+- **AC8 — a detected engine is distinguishable from a chosen one**
+  *(added by the 2026-08-13 amendment; see Amendment for why)*
+  - Given `content-credentials.reader` set to `auto`, with the extension
+    available
+  - When `content-credentials:read` runs
+  - Then the output reports the resolved engine **and** that the mode was
+    `auto`, distinguishably
+  - And given the mode set explicitly to `extension` with the same engine
+    resolved, the two outputs differ — so a report can never be read as a
+    configuration it did not have
+
 ## API sketch
 
 Illustrative only. Confined to `src/Laravel/` and `config/`.
@@ -222,15 +233,12 @@ refusal as `mode()` for anything else, so a typo cannot reach either accessor.
 `mode()` is unchanged and keeps returning the resolved engine; the pair is what
 AC6 asked for.
 
-**AC8 is new** *(reading, CLI)*
-
-- Given `content-credentials.reader` set to `auto`, with the extension available
-- When `content-credentials:read` runs
-- Then the output reports the resolved engine **and** that the mode was `auto`,
-  distinguishably
-- And given the mode set explicitly to `extension` with the same engine
-  resolved, the two outputs differ — so the report can never be read as a
-  configuration it did not have
+**AC8 is new**, and lives in `## Behavior` with the others rather than here.
+That is the pattern SPEC-028's amendment set, and it is not cosmetic:
+`bin/spec-check.php` reads criteria from the Behavior section only, so a
+criterion written into an amendment gets a traceability row that points at
+nothing the tool can find — `AC8 has a traceability row but no entry in
+Behavior`. Measured on the first run after this amendment was drafted.
 
 **What this amendment deliberately does not change.** A review of 2026-08-13
 raised a second concern: the command reports the factory's answer rather than the
@@ -256,6 +264,7 @@ least one test; every source file maps back to this spec.
 | AC5 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "refuses a mode it does not recognise"; "names the modes it accepts when refusing" | `src/Laravel/ReaderFactory.php` `mode()` |
 | AC6 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "reports the resolved mode without inspecting class names"; "reports the mode with no reader configured"; "prints the resolved reader mode in the read command" | `src/Laravel/ReaderFactory.php` `mode()`, `src/Laravel/Console/ReadCommand.php` |
 | AC7 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "passes configured trust anchors to the in-process reader"; "accepts trust anchors given as a path as well as as contents" | `src/Laravel/ReaderFactory.php` `trustAnchors()`, `config/content-credentials.php` |
+| AC8 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "distinguishes an auto-resolved engine from a configured one"; "names the engine and the configuration when auto falls back"; "prints the resolved reader mode in the read command" | `src/Laravel/ReaderFactory.php` `configuredMode()`, `src/Laravel/Console/ReadCommand.php` |
 
 ### Implementation notes
 

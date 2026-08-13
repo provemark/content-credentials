@@ -62,11 +62,12 @@ other — which is the situation a capability method would exist for, and which
 does not exist yet. See [Stability and support](stability.md) for why that is
 left unbuilt.
 
-`php artisan content-credentials:read <file>` prints the mode it resolved, so
-"which engine produced this report?" is answerable without reading config:
+`php artisan content-credentials:read <file>` prints the engine it resolved
+*and* what the configuration asked for, so "which engine produced this report,
+and was that a choice or a detection?" is answerable without reading config:
 
 ```
-reader             : extension
+reader             : extension (configured: auto)
 hasManifest        : true
 ```
 

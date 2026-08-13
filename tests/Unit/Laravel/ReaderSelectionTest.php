@@ -280,5 +280,56 @@ it('prints the resolved reader mode in the read command', function () {
 
     @unlink($file);
 
-    expect($output->fetch())->toContain('reader             : service');
+    expect($output->fetch())->toContain('reader             : service (configured: service)');
 })->group('SPEC-020');
+
+/** Runs the read command against a stub reader and returns its output. */
+function ccReadOutput(string $mode): string
+{
+    $app = ccReaderApp($mode);
+
+    $app->instance(ReaderInterface::class, new class implements ReaderInterface
+    {
+        public function read(Asset $asset): ManifestReport
+        {
+            return new ManifestReport(null, null, [], [], null);
+        }
+    });
+
+    $file = tempnam(sys_get_temp_dir(), 'spec020').'.png';
+    file_put_contents($file, "\x89PNG\r\n\x1a\n");
+
+    $command = new ReadCommand;
+    $command->setLaravel($app);
+    $output = new BufferedOutput;
+    $command->run(new ArrayInput(['file' => $file]), $output);
+
+    @unlink($file);
+
+    return $output->fetch();
+}
+
+it('distinguishes an auto-resolved engine from a configured one', function () {
+    // AC8 (amended 2026-08-13). Both configurations resolve to the SAME engine
+    // here, which is the whole point: if the command printed only the resolved
+    // mode the two would be byte-identical, and a bug report could not say
+    // whether the engine was chosen or detected. `auto` is not the default
+    // precisely because an engine must not change itself; this is the evidence
+    // for that having happened.
+    //
+    // Asserted as a difference between two real runs rather than as the absence
+    // of something, because an assertion that something bad is missing passes
+    // by default.
+    $auto = ccReadOutput('auto');
+    $explicit = ccReadOutput('extension');
+
+    expect($auto)->toContain('(configured: auto)')
+        ->and($explicit)->toContain('(configured: extension)')
+        ->and($auto)->not->toBe($explicit);
+})->group('SPEC-020')->skip($skipUnlessExtension);
+
+it('names the engine and the configuration when auto falls back', function () {
+    // The other side of auto: without the extension it resolves to service, and
+    // the report still has to say the choice was not made by a human.
+    expect(ccReadOutput('auto'))->toContain('reader             : service (configured: auto)');
+})->group('SPEC-020')->skip($skipIfExtension);
