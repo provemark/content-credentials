@@ -2,7 +2,7 @@
 
 | Field      | Value                                   |
 |------------|-----------------------------------------|
-| Status     | implemented                             |
+| Status     | implemented (amended 2026-08-13 — see Amendment) |
 | Author     | Maurice van Loon (maintainer)           |
 | Approved   | Maurice van Loon — 2026-07-27           |
 | Supersedes | —                                       |
@@ -33,7 +33,8 @@ inspect a file without writing code. Neither exists yet.
 - **Artisan command `content-credentials:read`** — inspect a local file:
   `content-credentials:read {file}`. Prints `hasManifest`, `isAiGenerated`,
   `digitalSourceTypes`, signer, `validationState`, `isSignatureValid`,
-  `isTrusted` via the bound `ReaderInterface`.
+  `isTrusted` via the bound `ReaderInterface`. *(Amended 2026-08-13: also
+  `reader` and `hasTimestamp` — see Amendment.)*
 - **Queued job `SignAssetJob`** (`implements ShouldQueue`) — signs a source file
   and writes the signed file to a destination, off the request path, with
   bounded retries + backoff (signing is a network call). Delegates to
@@ -48,7 +49,9 @@ inspect a file without writing code. Neither exists yet.
   command reports the library's own `validationState`/`isSignatureValid`, not a
   trust-list decision).
 - A queue-driven read/verify job (only signing is queued in v1).
-- CAWG, TSA, formats beyond PNG/JPEG (inherited from SPEC-001/002).
+- CAWG and formats beyond PNG/JPEG (inherited from SPEC-001/002). *(TSA was
+  listed here until 2026-08-13; the inheritance expired when SPEC-007 shipped —
+  see Amendment.)*
 
 ## Behavior
 
@@ -198,6 +201,51 @@ approved spec is self-contained.
   console/queue APIs are acceptable if needed, scoped as in SPEC-004.
 
 No open questions remain.
+
+## Amendment (2026-08-13)
+
+Found by a review of #70, which added `hasTimestamp` to the `read` command and
+was reverted because this spec put it out of scope. Two of the three defects
+below predate that PR.
+
+**The Out-of-scope exclusion of TSA had expired, and nobody revisited it.** It
+read "CAWG, TSA, formats beyond PNG/JPEG (inherited from SPEC-001/002)", and the
+parenthesis is the whole story: on 2026-07-27 this package had no timestamping
+at all, so the commands could not report on it. SPEC-007 implemented TSA and
+gave the reading contract `ManifestReport::hasTimestamp(): bool`. The exclusion
+was inherited from a state that stopped being true, and an inherited exclusion
+does not expire on its own — which is why it silently governed a decision six
+weeks later.
+
+**The In-scope description of what `read` prints was already wrong before this.**
+It enumerates seven fields; the command has printed `reader` since SPEC-020 AC6,
+and that enumeration was never updated. An enumeration that drifts is worse than
+a floor, because it reads as exhaustive. It is amended to match, and AC7 below
+states the rule rather than restating the list.
+
+**AC7 is new** *(reading, CLI)*
+
+- Given a `ManifestReport` whose active manifest carries an RFC 3161 timestamp,
+  and one that does not
+- When `content-credentials:read` runs against each
+- Then the output reports the timestamp state for both, labelled, and the two
+  outputs differ in that field
+- And the report does **not** describe the timestamp as trusted or as proof of
+  time. Per SPEC-007 D3 and the accessor's own docblock, `hasTimestamp()` means
+  the token is **present and structurally parseable**; trust of the timestamp
+  authority's own certificate is a separate concern, stated in
+  `docs/production.md`. SPEC-013 exists because absence of evidence must not
+  read as trust, and a bare `true` beside `isTrusted: false` invites exactly
+  that reading.
+
+**One precondition before the criterion is worth much.** No CI profile sets
+`CONTENTAUTH_TSA_URL`, so SPEC-019 AC2's cross-reader comparison of
+`hasTimestamp` compares two `false` values and has never observed agreement
+non-vacuously. The extension carries c2pa-rs 0.89.0 against the service's
+0.90.5, and `ManifestStoreParser` reads `signature_info.time` as written against
+the latter. Reporting the value to an operator is only as good as that
+comparison; closing it belongs to SPEC-019 and is noted here so the dependency
+is not discovered a third time.
 
 ## Traceability
 
