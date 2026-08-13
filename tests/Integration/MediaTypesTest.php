@@ -185,6 +185,28 @@ it('refuses an unsupported media type and names what it supports', function (str
 })->with(['image/bmp', 'application/pdf', 'text/plain'])
     ->skip($skipUnlessReachable)->group('SPEC-021', 'integration');
 
+// SPEC-009 AC4 — client errors on /v1/sign are 400, not 500.
+//
+// Lives here rather than in a file of its own because the criterion has two
+// halves and the test above already covers the other one: an unsupported
+// mime_type. Its traceability cell said "curl: invalid base64 -> 400" — a
+// verification done by hand in July 2026 and never automated, which is how
+// bin/spec-check.php came to report the row unresolved. The read path had this
+// covered (SPEC-010) and the sign path did not.
+it('refuses content that is not valid base64 with 400, not 500', function () {
+    [$status, $body] = cc21Post('/v1/sign', [
+        'content' => '!!! not base64 !!!',
+        'mime_type' => 'image/png',
+        'extra_assertions' => [],
+    ]);
+
+    expect($status)->toBe(400)
+        ->and($body)->toHaveKey('error')
+        // Nothing signed, and not a 500 either: a malformed request is the
+        // caller's error, and a 500 would send them looking at our logs.
+        ->and($body)->not->toHaveKey('signed_content');
+})->skip($skipUnlessReachable)->group('SPEC-009', 'integration');
+
 // --- AC4: mismatched bytes and declared type do not silently succeed --------
 
 it('signs what the engine detects when the declared type disagrees', function () {

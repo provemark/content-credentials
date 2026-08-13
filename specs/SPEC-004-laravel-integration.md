@@ -248,4 +248,4 @@ Implemented 2026-07-27. Tests in
 | AC4 | proxies sign() through the facade to the bound signer | `ContentCredentials` (facade), `ContentCredentialsManager::sign()` |
 | AC5 | uses a container-bound PSR-18 client over discovery | `ContentCredentialsServiceProvider::resolveClient()` |
 | AC6 | throws MissingConfigurationException when api_key is blank; names the key | `register()` (`SigningServiceConfig` closure), `Exception\MissingConfigurationException` |
-| AC7 | deptrac (`composer check`) | `deptrac.yaml` (Laravel → Core), enforced build-side |
+| AC7 | `./deptrac.yaml` — the `Core: ~` empty allow-list, run by `composer deptrac` in `composer check` and by the Architecture step of every CI leg. Build-enforced, as the criterion itself states, so no `it()` covers it | `src/Laravel/` may depend on `src/Core/` and not the reverse; illuminate/* stays in require-dev |
