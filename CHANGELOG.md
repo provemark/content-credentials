@@ -19,6 +19,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-08-13
+
+A minor release. One behaviour change and three fixes, and the behaviour change
+is the reason this is not a patch: **`php artisan content-credentials:read`
+prints different output than it did in 0.11.0**, so anything matching that output
+exactly needs a look before you upgrade. The Changed entry below leads with it.
+
+Nothing else in the public API moved. No change in `service/`, so there is no
+container to rebuild for this one.
+
 ### Changed
 
 - **`php artisan content-credentials:read` prints two things it did not before,
@@ -1335,7 +1345,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.11.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.12.0...main
+[0.12.0]: https://github.com/provemark/content-credentials/releases/tag/v0.12.0
 [0.11.0]: https://github.com/provemark/content-credentials/releases/tag/v0.11.0
 [0.10.1]: https://github.com/provemark/content-credentials/releases/tag/v0.10.1
 [0.10.0]: https://github.com/provemark/content-credentials/releases/tag/v0.10.0
