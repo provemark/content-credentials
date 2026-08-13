@@ -44,6 +44,34 @@ final readonly class ReaderFactory
      */
     public function mode(): string
     {
+        $mode = $this->configuredMode();
+
+        if ($mode !== 'auto') {
+            return $mode;
+        }
+
+        return ExtC2paReader::isAvailable() ? 'extension' : 'service';
+    }
+
+    /**
+     * What the configuration asked for, including `auto` — never resolved.
+     *
+     * SPEC-020 AC6 asks for the active mode AND the engine behind it, and
+     * `mode()` alone answers only the second: it resolves `auto` before
+     * returning, so `extension` could mean either a deliberate choice or a
+     * detection. That distinction is the decision this spec is built on —
+     * `auto` is not the default precisely because an engine must not change
+     * itself — and a bug report that cannot separate the two has lost the
+     * evidence for the failure the design guards against (AC8, amended
+     * 2026-08-13).
+     *
+     * Validation lives here rather than in `mode()` so a typo cannot reach
+     * either accessor by a second path.
+     *
+     * @throws MissingConfigurationException on an unrecognised mode
+     */
+    public function configuredMode(): string
+    {
         $configured = $this->config->get('content-credentials.reader', 'service');
         $mode = is_string($configured) ? $configured : '';
 
@@ -58,11 +86,7 @@ final readonly class ReaderFactory
             ));
         }
 
-        if ($mode !== 'auto') {
-            return $mode;
-        }
-
-        return ExtC2paReader::isAvailable() ? 'extension' : 'service';
+        return $mode;
     }
 
     /**

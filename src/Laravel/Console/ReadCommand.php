@@ -81,7 +81,17 @@ final class ReadCommand extends Command
         // whoever produced the asset can hide the `isTrusted` verdict from the
         // operator reading it. escape() neutralises the angle brackets and
         // leaves ordinary names byte-identical, so AC3 still sees the issuer.
-        $this->line('reader             : '.OutputFormatter::escape($factory->mode()));
+        // AC8: the engine AND what the configuration asked for. `mode()` alone
+        // resolves `auto`, so `extension` could mean chosen or detected — and
+        // "was this deliberate?" is the question a bug report about engine
+        // drift starts from.
+        //
+        // Always annotated, never only when it was auto. If the suffix appeared
+        // conditionally, an explicit `extension` and an older build's output
+        // would be identical, and absence would mean two different things.
+        $this->line('reader             : '.OutputFormatter::escape(
+            sprintf('%s (configured: %s)', $factory->mode(), $factory->configuredMode()),
+        ));
         $this->line('hasManifest        : '.($report->hasManifest() ? 'true' : 'false'));
         $this->line('isAiGenerated      : '.($report->isAiGenerated() ? 'true' : 'false'));
         $this->line('digitalSourceTypes : '.OutputFormatter::escape(
