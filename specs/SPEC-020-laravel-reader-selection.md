@@ -2,7 +2,7 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | implemented                                       |
+| Status     | implemented (amended 2026-08-13 — see Amendment)  |
 | Author     | Maurice van Loon (maintainer)                     |
 | Approved   | Maurice van Loon — 2026-08-06                     |
 | Supersedes | —                                                 |
@@ -194,6 +194,53 @@ final readonly class ReaderFactory
   locations. Documented in the README and in the config file's comment rather
   than smoothed over: someone who sets `trust_anchors` and keeps getting
   `isTrusted() === false` from the service reader must be able to find out why.
+
+## Amendment (2026-08-13)
+
+**AC6 asks for two things and the API returns one.** The criterion reads "it can
+learn the active mode **and the engine behind it**", with the parenthetical that
+"which engine answered?" must be answerable in a bug report. `ReaderFactory`
+exposes a single `mode()`, which resolves `auto` before returning:
+
+    configured=service   mode() returns: service
+    configured=auto      mode() returns: extension
+
+So `mode()` answers the engine and destroys the mode. `content-credentials:read`
+prints `reader             : extension`, and nobody reading that output can tell
+whether the extension was **chosen** or **detected**.
+
+That distinction is not incidental to this spec — it is the decision the spec was
+written around. `auto` is deliberately not the default because an application
+that installs the extension for an unrelated reason must not silently change
+which c2pa-rs version decides its trust verdicts. A report that cannot separate
+deliberate from detected removes the evidence for exactly the failure the design
+guards against, and it does so in the one place built to answer the question.
+
+**`ReaderFactory::configuredMode(): string` is new.** It returns the validated
+configured value — `service`, `extension` or `auto` — and applies the same
+refusal as `mode()` for anything else, so a typo cannot reach either accessor.
+`mode()` is unchanged and keeps returning the resolved engine; the pair is what
+AC6 asked for.
+
+**AC8 is new** *(reading, CLI)*
+
+- Given `content-credentials.reader` set to `auto`, with the extension available
+- When `content-credentials:read` runs
+- Then the output reports the resolved engine **and** that the mode was `auto`,
+  distinguishably
+- And given the mode set explicitly to `extension` with the same engine
+  resolved, the two outputs differ — so the report can never be read as a
+  configuration it did not have
+
+**What this amendment deliberately does not change.** A review of 2026-08-13
+raised a second concern: the command reports the factory's answer rather than the
+identity of the `ReaderInterface` the container actually returned, so an
+application that rebinds that interface would be reported wrongly. The provider
+binds `ReaderInterface` from `ReaderFactory::make()`, and rebinding it is
+documented nowhere — not in `docs/`, not in the README. Guarding an override
+nobody advertises would mean duplicating the mode-to-engine mapping inside the
+command, where it would go stale the moment a third reader exists; `docs/readers.md`
+already contemplates one. Recorded here so the concern is not re-raised as new.
 
 ## Traceability
 
