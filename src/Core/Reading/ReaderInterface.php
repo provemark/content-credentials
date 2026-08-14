@@ -10,7 +10,9 @@ use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 /**
  * Reads the C2PA manifest from an asset and reports what it carries.
  *
- * v1 ships one adapter, SigningServiceReader (PSR-18 client for service/).
+ * Two adapters: SigningServiceReader (PSR-18 client for service/, the default)
+ * and ExtC2paReader (in-process, via ericmann/ext-c2pa, opt-in). Both return
+ * the same ManifestReport; see docs/readers.md for the trade-off.
  */
 interface ReaderInterface
 {
