@@ -104,3 +104,4 @@ Follow these before searching; most questions are already answered in one step.
 | **48** | 2026-08-10 | [c2pa-node 0.8.3, and measuring a "panic" that does not panic](notes/step-48-c2pa-node-0-8-3-underflow-measured.md) |
 | **49** | 2026-08-12 | [What TYPO3 actually offers, and why it cannot live in this repo](notes/step-49-typo3-integration-measured.md) |
 | **50** | 2026-08-13 | [Two claims about other files, both aged silently](notes/step-50-external-projects-and-a-stale-count.md) |
+| **51** | 2026-08-14 | [The reach baseline, captured before it expires](notes/step-51-reach-baseline-measured.md) |
