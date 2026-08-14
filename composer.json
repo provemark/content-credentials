@@ -10,7 +10,10 @@
         "ai-generated",
         "eu-ai-act",
         "provenance",
-        "laravel"
+        "laravel",
+        "metadata",
+        "image-metadata",
+        "verification"
     ],
     "authors": [
         {
