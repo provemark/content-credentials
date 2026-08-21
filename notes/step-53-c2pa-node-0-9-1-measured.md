@@ -143,6 +143,36 @@ direction mattering more than the forward one.
   eight.
 - **Media types beyond PNG.** The integration suite covers all thirteen and
   passed; nothing was signed and inspected by hand per type the way SPEC-021 did.
-- **`SPEC-006`'s stale line.** `specs/SPEC-006-jobs-and-commands.md:253` still
-  says the service carries 0.90.5. It is an `approved` spec, so it was left
-  alone rather than edited; correcting it needs an amendment.
+
+## Afterwards: the SPEC-006 line, and what checking it turned up
+
+`specs/SPEC-006-jobs-and-commands.md:253` still says the service carries 0.90.5,
+and it is an `approved` spec, so nothing above touched it. Amending it properly
+meant reading the paragraph rather than replacing the number — which found a
+second expired claim in the same sentence, and a better one.
+
+**"No CI profile sets `CONTENTAUTH_TSA_URL`" was false 24 minutes after it was
+written.** The amendment landed in `653ff9d` at 07:50 on 2026-08-13; `20cd04d`
+added the `tsa-unreachable` profile at 08:14 the same morning, and that profile
+sets exactly that variable. `git merge-base --is-ancestor 653ff9d 20cd04d`
+confirms the order. A wrong premise under a conclusion that happens to hold.
+
+The conclusion does hold, for a reason the paragraph never gave: `tsa-unreachable`
+points at the discard port, so every signature is refused and no timestamped
+asset exists to compare — and it runs `groups: SPEC-007` anyway, while the only
+profile running SPEC-019 is `ext-c2pa`, which sets no TSA. So the gap needs a
+profile that installs the extension **and** reaches a working TSA, not one that
+merely sets the variable.
+
+And the precondition that amendment left open is no longer entirely open. On this
+machine, `.env` carrying a working TSA, the same signed asset read both ways:
+
+| reader | c2pa-rs | `hasTimestamp` |
+|---|---|---|
+| `SigningServiceReader` | 0.90.15 | `true` |
+| `ExtC2paReader` | 0.89.0 | `true` |
+
+First non-vacuous agreement on that accessor — once, by hand, on one machine,
+which is worth strictly less than a CI profile. Recorded in the SPEC-006
+amendment of 2026-08-21 as "no longer never observed, still not observed by
+anything that runs on its own".
