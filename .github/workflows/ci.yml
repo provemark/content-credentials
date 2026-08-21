@@ -5,6 +5,16 @@ on:
     branches: [main]
   pull_request:
 
+# Declared here rather than inherited. The repository default is already `read`,
+# so this changes nothing today — but it is a setting, flippable in the UI with
+# no commit and no review, and two supply-chain findings were dismissed on the
+# strength of it (a compromised third-party action gets a read-only token, no
+# secrets, and no write path back into the repo). A guarantee that load-bearing
+# belongs in the file, where a diff would show it moving. audit.yml already
+# declares its own.
+permissions:
+  contents: read
+
 jobs:
   check:
     name: composer check (PHP ${{ matrix.php }}, Laravel ${{ matrix.laravel }})

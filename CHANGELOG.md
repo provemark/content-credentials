@@ -97,6 +97,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   each ruled out; the cause is unexplained and on Dependabot's side. Recorded
   because `dependabot.yml` already singles out c2pa-node as the one dependency
   whose bumps are never routine — that now needs a person to notice as well.
+- `.github/workflows/ci.yml` declares `permissions: contents: read` instead of
+  inheriting it. The repository default was already `read`, so nothing changes
+  in what CI can do; the point is that the guarantee now lives in the file,
+  where a change to it shows up in a diff, rather than in a repository setting
+  that can be flipped in the UI with no commit and no review. `audit.yml`
+  already declared its own.
 
 ## [0.12.0] - 2026-08-13
 
