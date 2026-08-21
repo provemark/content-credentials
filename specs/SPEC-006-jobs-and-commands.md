@@ -120,6 +120,19 @@ required error paths.
     read as trust, and a bare `true` beside `isTrusted: false` invites exactly
     that reading
 
+- **AC8 — untrusted manifest values cannot rewrite the operator's terminal**
+  *(added by the 2026-08-21 output-safety amendment; adversarial input)*
+  - Given a manifest whose `digitalSourceType` or signer fields carry C0/C1
+    control characters — `ESC`, `CR`, backspace — alongside Symfony markup
+  - When `content-credentials:read` runs against it
+  - Then no control character reaches the output stream, every surrounding
+    report line is printed in full and in order, and the printable remainder of
+    the value is still shown, so AC3 continues to see the issuer
+  - And the neutralising happens **at this command, not in the parser**:
+    SPEC-033 AC4 requires accessors to return the value byte-for-byte, so a
+    reader-level filter would violate an implemented criterion and change what
+    every caller sees
+
 ## API sketch
 
 Illustrative only. `declare(strict_types=1)`; PHPStan level max. Lives in
@@ -301,6 +314,53 @@ a working TSA: the same signed asset read both ways returns `hasTimestamp` =
 than a CI profile and is recorded so the gap is described accurately: no longer
 "never observed", but still "not observed by anything that runs on its own".
 
+## Amendment (2026-08-21, output safety)
+
+Found by a full-scope security review. **AC8 is new** and lives in `## Behavior`
+with the others, per the pattern the amendment above had to learn the hard way.
+
+**The escaping added on 2026-08-13 closed half of the attack it was written
+for.** `OutputFormatter::escape()` is one `preg_replace` over `<`, `>` and a
+trailing backslash — verified in
+`vendor/symfony/console/Formatter/OutputFormatter.php:41-46`. Raw `ESC` (0x1B)
+passes through it untouched, in the decorated and the undecorated formatter
+alike. So the markup route was shut and the direct-ANSI route, which does not
+need the formatter to interpret anything, was not.
+
+**Nothing failed, because this spec had no criterion about output at all.**
+AC1–AC7 cover signing, reading, the job and the timestamp. A control that exists
+but is incomplete, with no criterion pinning it, is how the same defect arrives
+twice — which is the reason this amendment adds a criterion rather than only a
+filter.
+
+**Measured end-to-end, not reasoned.** An asset signed through the running
+service with `digitalSourceType` ending in `ESC[30;40m` reads back with the
+bytes intact — hex tail `656469611b5b33303b34306d`, `validationState: Valid`.
+The value is unconstrained at the source: `digitalSourceTypes()` accepts any
+string, since the `DigitalSourceType::tryFrom()` mapping happens only inside
+`involvesGenerativeAi()`. `digitalSourceTypes` and `signer` print **before**
+`validationState`, `isSignatureValid` and `isTrusted`, and no SGR reset is ever
+written, so the attacker's attribute persists over the verdict lines. That is
+byte-for-byte the harm the 2026-08-13 note recorded through the markup route.
+
+**Severity is medium, and saying so is part of the criterion's scope.** No RCE,
+no disclosure, no privilege escalation, and it needs an interactive ANSI
+terminal — in captured CI output the bytes are inert. What earns it a criterion
+is the location: this is the command whose entire purpose is that a person
+judges a suspect asset, and the attack falsifies that judgement at the moment it
+is made.
+
+**Where the fix may not go.** SPEC-033 AC4 requires the accessor to return the
+value byte-for-byte, control characters included, deliberately. Sanitising in
+`ManifestStoreParser` would violate an implemented criterion and would change
+what every caller sees, not just this command's output. Hence the second clause
+of AC8.
+
+**One half of the original report is not claimed.** The signer
+`issuer`/`commonName` path comes from the X.509 DN as c2pa-rs formats it, and
+that control bytes survive that encoding was never established. AC8 covers both
+fields because they share one sink, but only `digitalSourceType` is measured.
+
 ## Traceability
 
 Filled when status becomes `implemented`. Every acceptance criterion maps to at
@@ -327,3 +387,4 @@ PHPStan ignore in `phpstan.neon`.
 | AC5 | SignAssetJob is a bounded, retrying queue job | `Jobs\SignAssetJob` (`ShouldQueue`, `$tries`, `backoff()`) |
 | AC6 | SignAssetJob lets a signing failure propagate and leaves no output | `Jobs\SignAssetJob::handle()` |
 | AC7 | `tests/Unit/Laravel/JobsAndCommandsTest.php` :: "read command reports a credential"; "read command distinguishes a timestamped manifest from one without" | `Console\ReadCommand` |
+| AC8 | `tests/Unit/Laravel/JobsAndCommandsTest.php` :: "strips control characters out of an untrusted manifest before printing"; "cannot be restyled by a signer name out of an untrusted manifest" | `Console\ReadCommand::fromManifest()` |

@@ -94,11 +94,11 @@ final class ReadCommand extends Command
         ));
         $this->line('hasManifest        : '.($report->hasManifest() ? 'true' : 'false'));
         $this->line('isAiGenerated      : '.($report->isAiGenerated() ? 'true' : 'false'));
-        $this->line('digitalSourceTypes : '.OutputFormatter::escape(
+        $this->line('digitalSourceTypes : '.self::fromManifest(
             implode(', ', $report->digitalSourceTypes()) ?: '(none)',
         ));
         $this->line('signer             : '.($signer !== null
-            ? OutputFormatter::escape(
+            ? self::fromManifest(
                 $signer->issuer.($signer->commonName !== null ? ' / CN='.$signer->commonName : ''),
             )
             : '(none)'));
@@ -119,5 +119,38 @@ final class ReadCommand extends Command
             : 'absent'));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Neutralise a value that came out of a manifest, for terminal output.
+     *
+     * SPEC-006 AC8. Two separate hazards, and `escape()` only covers one:
+     *
+     * - **Symfony markup.** `line()` goes through `OutputFormatter`, which
+     *   reads `<...>` as markup. Closed on 2026-08-13 by `escape()`.
+     * - **Control characters.** `escape()` is one `preg_replace` over `<`, `>`
+     *   and a trailing backslash, so a raw `ESC` (0x1B) survives it in both the
+     *   decorated and the undecorated formatter. Measured through the running
+     *   service: a `digitalSourceType` ending in `ESC[30;40m` round-trips
+     *   through c2pa-rs intact, and — because this line prints ABOVE the
+     *   verdict lines and nothing writes an SGR reset — colours `isTrusted`
+     *   out of the operator's view. `CR` and backspace overwrite it instead.
+     *
+     * Stripped, not escaped: the printable tail is kept (`ESC[30;40m` becomes
+     * the literal `[30;40m`), so the value stays legible and AC3 still sees the
+     * issuer, while nothing in it can move a cursor. `\n` and `\t` are outside
+     * the class on purpose — they are the formatting this report itself uses.
+     *
+     * This belongs here and not in `ManifestStoreParser`: SPEC-033 AC4 requires
+     * accessors to return the value byte-for-byte, so filtering at the reader
+     * would violate an implemented criterion and change what every caller sees,
+     * not just what this command prints.
+     */
+    private static function fromManifest(string $value): string
+    {
+        // C0 except tab and newline, DEL, and the C1 range in its UTF-8 form.
+        $stripped = preg_replace('/[\x00-\x08\x0B-\x1F\x7F]|\xC2[\x80-\x9F]/', '', $value);
+
+        return OutputFormatter::escape($stripped ?? '');
     }
 }
