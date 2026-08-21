@@ -19,6 +19,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **`content-credentials:read` could be made to hide its own verdict.** The
+  command escapes values that came out of a manifest before printing them, but
+  `OutputFormatter::escape()` neutralises Symfony markup only — `<`, `>` and a
+  trailing backslash. A raw `ESC` (0x1B) passed straight through it. Because
+  `digitalSourceTypes` and `signer` print *above* `validationState`,
+  `isSignatureValid` and `isTrusted`, and nothing writes an SGR reset, whoever
+  produced an asset could append `ESC[30;40m` to a `digitalSourceType` and
+  colour the verdict lines out of the operator's terminal — or inject newlines
+  and print a fabricated report over the real one. Measured end-to-end: the
+  bytes survive signing, c2pa-rs and the parser intact, on a manifest that reads
+  back `Valid`. Control characters are now stripped at the command, keeping the
+  printable remainder, so the value stays legible and the verdict below it stays
+  readable. **Medium, not high** — no code execution, no disclosure, no
+  privilege escalation, and it needs an interactive ANSI terminal; in captured
+  CI output the bytes were inert. What made it worth fixing is where it sat:
+  this is the command whose whole purpose is that a person judges a suspect
+  asset. Governed by a new **SPEC-006 AC8**, added by amendment — the spec had
+  no criterion about output at all, which is why the 2026-08-13 fix for the
+  markup half of this same attack left the control-character half open with
+  nothing to fail. The filter deliberately does **not** live in
+  `ManifestStoreParser`: SPEC-033 AC4 requires accessors to return values
+  byte-for-byte, so both readers still report exactly what the manifest said.
+
 ### Fixed
 
 - **The README named the wrong section of the CAI's community-resources page.**
@@ -72,6 +97,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   each ruled out; the cause is unexplained and on Dependabot's side. Recorded
   because `dependabot.yml` already singles out c2pa-node as the one dependency
   whose bumps are never routine — that now needs a person to notice as well.
+- `.github/workflows/ci.yml` declares `permissions: contents: read` instead of
+  inheriting it. The repository default was already `read`, so nothing changes
+  in what CI can do; the point is that the guarantee now lives in the file,
+  where a change to it shows up in a diff, rather than in a repository setting
+  that can be flipped in the UI with no commit and no review. `audit.yml`
+  already declared its own.
 
 ## [0.12.0] - 2026-08-13
 

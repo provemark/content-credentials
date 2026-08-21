@@ -323,6 +323,70 @@ it('cannot be restyled by a signer name out of an untrusted manifest', function 
         ->and($output)->toContain('isTrusted          : false');
 })->group('SPEC-006');
 
+// --- AC8: control characters out of an untrusted manifest -------------------
+
+it('strips control characters out of an untrusted manifest before printing', function () {
+    // AC8. The sibling test above covers the MARKUP half of this attack, which
+    // was fixed on 2026-08-13. This is the other half, and it needs no
+    // formatter cooperation at all: OutputFormatter::escape() is one
+    // preg_replace over `<`, `>` and a trailing backslash, so a raw ESC (0x1B)
+    // walks straight through it into the terminal.
+    //
+    // Measured end-to-end through the running service before this test existed:
+    // an asset signed with a digitalSourceType ending in ESC[30;40m reads back
+    // with the bytes intact (hex tail 656469611b5b33303b34306d, validationState
+    // Valid). digitalSourceTypes and signer print BEFORE the verdict lines and
+    // nothing writes an SGR reset, so the attribute persists over `isTrusted`.
+    $app = h6ConsoleApp();
+
+    $report = new ManifestReport(
+        'urn:c2pa:test',
+        // ESC[2J ESC[H clears the screen and homes the cursor; the CR in the
+        // common name returns to column 0 to overwrite what was just printed.
+        new SignerInfo("Acme\x1b[2J\x1b[H", "CN\rOverwrite", 'Es256'),
+        [['label' => 'c2pa.actions.v2', 'data' => ['actions' => [[
+            'action' => 'c2pa.created',
+            'digitalSourceType' => AI_URI_6."\x1b[30;40m",
+            'softwareAgent' => ['name' => 'ACME GenAI'],
+        ]]]]],
+        [],
+        ValidationState::Valid,
+    );
+    $app->instance(ReaderInterface::class, new class($report) implements ReaderInterface
+    {
+        public function __construct(private ManifestReport $report) {}
+
+        public function read(Asset $asset): ManifestReport
+        {
+            return $this->report;
+        }
+    });
+    $app->instance(ReaderFactory::class, new ReaderFactory(
+        new Repository(['content-credentials' => ['reader' => 'service']]),
+        new SigningServiceReader(new MockClient, new Psr17Factory, new Psr17Factory, new SigningServiceConfig('https://sign.test', 'k')),
+    ));
+
+    [$exit, $output] = h6Run(new ReadCommand, $app, ['file' => h6TempFile('png')]);
+
+    expect($exit)->toBe(0)
+        // Present-shaped, per the rule this repository keeps relearning: pin
+        // what the line MUST say, not what it must lack. Stripping removes the
+        // ESC and leaves its printable tail, so `[30;40m` stays as literal
+        // text — inert, and visible evidence that something was in there.
+        ->and($output)->toContain('digitalSourceTypes : '.AI_URI_6.'[30;40m')
+        ->and($output)->toContain('signer             : Acme[2J[H / CN=CNOverwrite')
+        // AC3 still sees the issuer: the printable part is not truncated.
+        ->and($output)->toContain('Acme')
+        // And every verdict line below the injection is printed in full.
+        ->and($output)->toContain('validationState    : Valid')
+        ->and($output)->toContain('isSignatureValid   : true')
+        ->and($output)->toContain('isTrusted          : false')
+        // The whole stream is free of C0/C1 controls except tab and newline.
+        // Expressed as an equality on a computed count rather than as
+        // not->toContain(), so it states a fact instead of an absence.
+        ->and(preg_match('/[\x00-\x08\x0B-\x1F\x7F]/', $output))->toBe(0);
+})->group('SPEC-006');
+
 // --- AC4: `SignAssetJob` signs and writes ----------------------------------
 
 it('SignAssetJob signs the source and writes the destination', function () {
