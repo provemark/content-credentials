@@ -106,3 +106,4 @@ Follow these before searching; most questions are already answered in one step.
 | **50** | 2026-08-13 | [Two claims about other files, both aged silently](notes/step-50-external-projects-and-a-stale-count.md) |
 | **51** | 2026-08-14 | [The reach baseline, captured before it expires](notes/step-51-reach-baseline-measured.md) |
 | **52** | 2026-08-14 | [What the search results actually show, and the half that was missing](notes/step-52-search-visibility-measured.md) |
+| **53** | 2026-08-21 | [c2pa-node 0.9.1, and a bump Dependabot never offered](notes/step-53-c2pa-node-0-9-1-measured.md) |
