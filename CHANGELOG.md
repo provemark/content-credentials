@@ -19,6 +19,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-08-21
+
+A minor release with a security fix and an engine change, and the two reach you
+by different routes — which is the thing to get straight before upgrading.
+
+**The security fix ships in the Composer package.** `php artisan
+content-credentials:read` now strips control characters out of values that came
+from a manifest, because a crafted asset could otherwise colour or overwrite the
+command's own `isTrusted` verdict in an operator's terminal. That means the
+output changes for such assets: an `ESC[30;40m` in a `digitalSourceType` now
+prints as the literal text `[30;40m`. Ordinary values are unaffected, byte for
+byte. Medium severity — no code execution, no disclosure, no privilege
+escalation, and it needs an interactive terminal — but it sits in the one
+command whose purpose is that a person judges a suspect asset. See the Security
+entry, and SPEC-006 AC8, which is new and exists because this spec had no
+criterion about output at all.
+
+**The engine change does not.** The signing service moves to
+`@contentauth/c2pa-node` 0.9.1, carrying c2pa-rs 0.90.5 → 0.90.15, four of whose
+fixes harden the path that parses assets you did not produce. `service/` is
+`export-ignore`d, so **`composer update` does not deliver this** — it reaches you
+through `git pull` plus `docker compose up -d --build`, and only if you run the
+service yourself. Nothing in the manifest format, the API or the wire contract
+changed with it: verified against a 0.8.3 baseline as identical on manifest
+structure, timestamping, trusted verification and cross-reader agreement.
+
+No public API moved in either half.
+
 ### Security
 
 - **`content-credentials:read` could be made to hide its own verdict.** The
@@ -1430,7 +1458,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.12.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.13.0...main
+[0.13.0]: https://github.com/provemark/content-credentials/releases/tag/v0.13.0
 [0.12.0]: https://github.com/provemark/content-credentials/releases/tag/v0.12.0
 [0.11.0]: https://github.com/provemark/content-credentials/releases/tag/v0.11.0
 [0.10.1]: https://github.com/provemark/content-credentials/releases/tag/v0.10.1
