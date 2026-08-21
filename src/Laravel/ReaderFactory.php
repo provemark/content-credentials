@@ -16,7 +16,7 @@ use Provemark\ContentCredentials\Laravel\Exception\MissingConfigurationException
  *
  * Three modes, and the default is **`service`**. Autodetection is offered as
  * `auto` but is deliberately not the default: the two readers run different
- * c2pa-rs versions — 0.89.0 in `ext-c2pa`, 0.90.5 in the signing service — so an
+ * c2pa-rs versions — 0.89.0 in `ext-c2pa`, 0.90.15 in the signing service — so an
  * application that installs the extension for an unrelated reason must not
  * silently change which engine decides its trust verdicts. That choice is made
  * by a person, once, visibly.

@@ -16,7 +16,7 @@ return [
     |
     | `auto` is what most people want, and it is deliberately NOT the default:
     | the two readers carry different c2pa-rs versions (0.89.0 in the extension,
-    | 0.90.5 in the service), so installing the extension for an unrelated reason
+    | 0.90.15 in the service), so installing the extension for an unrelated reason
     | must not silently change which engine decides your trust verdicts. Set this
     | yourself and the choice is visible.
     |

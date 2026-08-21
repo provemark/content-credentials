@@ -2,7 +2,7 @@
 
 | Field      | Value                                   |
 |------------|-----------------------------------------|
-| Status     | implemented (amended 2026-08-13 — see Amendment) |
+| Status     | implemented (amended 2026-08-13 and 2026-08-21 — see Amendments) |
 | Author     | Maurice van Loon (maintainer)           |
 | Approved   | Maurice van Loon — 2026-07-27           |
 | Supersedes | —                                       |
@@ -254,6 +254,52 @@ non-vacuously. The extension carries c2pa-rs 0.89.0 against the service's
 the latter. Reporting the value to an operator is only as good as that
 comparison; closing it belongs to SPEC-019 and is noted here so the dependency
 is not discovered a third time.
+
+## Amendment (2026-08-21)
+
+Corrective only. No criterion, no scope and no behaviour changes; this section
+exists because the paragraph above aged in two ways and the second one is the
+interesting one. The 2026-08-13 text is left standing rather than rewritten —
+it is a dated record of what was believed that morning, and editing it would
+delete the evidence of how quickly it stopped being true.
+
+**The engine version is stale.** "The service's 0.90.5" is now **0.90.15**:
+`@contentauth/c2pa-node` 0.8.3 → 0.9.1 (NOTES Step 53), read from the running
+container rather than from the changelog. The extension is unchanged at c2pa-rs
+**0.89.0** — `ericmann/ext-c2pa` is still v0.1.0 and pins `c2pa` exactly — so
+the gap the paragraph is about got **wider**, from five patch releases to
+fifteen. Everything the paragraph concludes from that gap holds harder, not
+less.
+
+**"No CI profile sets `CONTENTAUTH_TSA_URL`" was false 24 minutes after it was
+written.** `20cd04d` added the `tsa-unreachable` profile at 08:14 on the same
+day this amendment landed at 07:50, and that profile sets exactly that variable.
+The sentence is now a wrong premise sitting under a right conclusion, which is
+the shape this log keeps recording: a claim that was true when written, aged by
+a change nobody connected to it.
+
+**The conclusion survives, for a reason the paragraph does not give.** SPEC-019
+AC2's `hasTimestamp` comparison is still vacuous in CI, but not because no
+profile configures a TSA. Two reasons, both structural:
+
+- `tsa-unreachable` points `CONTENTAUTH_TSA_URL` at the discard port, where the
+  async path refuses **every** signature. No timestamped asset is produced there,
+  so there is nothing for a cross-reader comparison to read.
+- That profile runs `groups: SPEC-007`. The only profile that runs SPEC-019 is
+  `ext-c2pa`, and it sets no TSA at all.
+
+So the dependency this paragraph flagged is still open in CI, and closing it
+still belongs to SPEC-019. What changed is the diagnosis: it needs a profile
+that both installs the extension **and** reaches a working TSA, not merely a
+profile that sets the variable.
+
+**Measured 2026-08-21, outside CI**, on a developer machine whose `.env` carries
+a working TSA: the same signed asset read both ways returns `hasTimestamp` =
+`true` from the service reader (c2pa-rs 0.90.15) and `true` from `ExtC2paReader`
+(0.89.0). So the two engines have now been observed agreeing on this accessor
+**non-vacuously** — once, by hand, on one machine. That is worth strictly less
+than a CI profile and is recorded so the gap is described accurately: no longer
+"never observed", but still "not observed by anything that runs on its own".
 
 ## Traceability
 

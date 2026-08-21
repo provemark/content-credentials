@@ -29,6 +29,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   only PHP entry on the page. Wording only — it was a listing and not a
   conformance claim before, and it still is.
 
+### Service (requires `git pull` + `docker compose up -d --build`)
+
+- **`@contentauth/c2pa-node` 0.8.3 → 0.9.1**, which carries **c2pa-rs 0.90.5 →
+  0.90.15** (confirmed from the running container, not the changelog:
+  `org.contentauth.c2pa_rs` reads `0.90.15`). Ten engine patch releases, four of
+  them on the path that parses assets you did not produce: hardening against deep
+  recursion in update manifests with parent cycles (0.90.15), against `inputTo`
+  reverifications going exponential on ingredient-path reachability (0.90.14),
+  validation of `inputTo` ingredients against manifest tampering (0.90.12), and a
+  panic on an out-of-range GeneralizedTime timestamp (0.90.11). **No advisory is
+  attached to any of them** — the GitHub advisory database is empty for both
+  `c2pa` and `@contentauth/c2pa-node`, and `npm audit` is clean — so this is
+  defence in depth on the untrusted-input path, not a patched vulnerability.
+  Verified unchanged before and after: the single `c2pa.actions.v2` assertion,
+  `claim_version` 2, the async TSA timestamp (SPEC-007 still fails closed against
+  a dead authority), trusted verification under `CONTENTAUTH_TRUST_SETTINGS`, the
+  `/health` document byte-for-byte, and cross-reader equivalence with `ext-c2pa`
+  (SPEC-019 AC2). The crafted-manifest probe from the 0.10.1 entry still produces
+  a handled `HTTP 500` with the process alive. The timestamped PNG differs by one
+  byte (55,478 → 55,479), which is signature DER length, not structure.
+- 0.9.0 restructures the package: `@contentauth/c2pa-utilities` is a new
+  dependency and `@contentauth/c2pa-types` is now a real one rather than a dev
+  one. Its Reader also validates asset size before reading, at a 10 GB limit —
+  far above `MAX_BODY_SIZE` (20 MB), so nothing that used to be read is now
+  refused by it.
+- The vendored **c2patool** used by `bin/verify.sh` moved 0.27.7 → 0.27.15 (not
+  in the repository; it is gitignored). It verifies both newly signed assets and
+  ones signed by the previous engine with trust on, unchanged.
+
 ### Repository
 
 - The comment in `.github/workflows/ci.yml` explaining why the `ext-c2pa`
@@ -36,6 +65,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   said all *seven* legs pull the c2pa-node native binary during the container
   build, written before `tsa-unreachable` made it eight. No step, profile or
   condition changed.
+- **Dependabot did not offer the c2pa-node bump above.** Its weekly job ran three
+  days after 0.9.1 was published, fetched the package metadata, saw the 0.9.1
+  tarball, and then logged `Latest version is 0.8.3 / No update needed`. Engine
+  constraints, deprecation, transitive resolution and the exact version pin were
+  each ruled out; the cause is unexplained and on Dependabot's side. Recorded
+  because `dependabot.yml` already singles out c2pa-node as the one dependency
+  whose bumps are never routine — that now needs a person to notice as well.
 
 ## [0.12.0] - 2026-08-13
 

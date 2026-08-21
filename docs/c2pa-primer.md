@@ -2,8 +2,9 @@
 
 Topic-ordered reference distilled from the spike log (`NOTES.md`, indexing the
 per-step files in `notes/`). Everything here was verified against running code
-(c2patool 0.27.7, @contentauth/c2pa-node 0.8.3, c2pa-rs test certs), first on
-2026-07-27 and last reconciled on 2026-08-12 — none of it is from model memory.
+(c2patool 0.27.15, @contentauth/c2pa-node 0.9.1, c2pa-rs test certs), first on
+2026-07-27, last reconciled in full on 2026-08-12, and re-run against those two
+tool versions on 2026-08-21 — none of it is from model memory.
 When this page and the log disagree, the log (the raw record) wins; fix this
 page. When neither answers a question, ask — do not guess.
 
@@ -81,8 +82,8 @@ scaffolding anyway — see NOTES.md Step 1 for the four blockers.)
 
 ## 4. c2pa-node API essentials (`service/src/`)
 
-- Maintained package: **`@contentauth/c2pa-node`** (currently 0.8.3, carrying
-  c2pa-rs 0.90.5). The old unscoped `c2pa-node` is EOL at 0.5.26 — never depend
+- Maintained package: **`@contentauth/c2pa-node`** (currently 0.9.1, carrying
+  c2pa-rs 0.90.15). The old unscoped `c2pa-node` is EOL at 0.5.26 — never depend
   on it. The
   `contentauth/c2pa-node-v2` repo was archived ~2026-06-08; development and the
   real CHANGELOG moved to the `contentauth/c2pa-js` monorepo under
@@ -182,7 +183,7 @@ intact, and confirmed with `c2patool` under trust settings:
 
 ## 9. The two readers, and where parsing happens
 
-`SigningServiceReader` (HTTP, c2pa-rs 0.90.5) and `ExtC2paReader` (in-process,
+`SigningServiceReader` (HTTP, c2pa-rs 0.90.15) and `ExtC2paReader` (in-process,
 0.89.0) answer the same questions. Two differences matter when choosing:
 
 - **Engine version.** The extension lags the service, which is why `auto` is not
