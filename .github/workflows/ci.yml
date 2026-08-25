@@ -215,12 +215,22 @@ jobs:
           # verifying trust" existed on developer machines and in no CI profile,
           # which is why a configuration difference could be reported as an
           # engine divergence for two days without CI noticing.
+          #
+          # SPEC-020 rides along because this is the ONLY job with the extension
+          # loaded, and six of that spec's tests carry `->skip($skipUnlessExtension)`.
+          # Until now they ran in no CI job at all: the `check` legs have no
+          # extension, so they skipped there, and this leg filtered them out by
+          # group. That left the ABSENCE half of reader selection covered and the
+          # PRESENCE half — that `extension` and `auto` are distinguishable, that
+          # trust anchors reach the in-process reader — resting entirely on a
+          # developer machine that happened to have ext-c2pa installed. `skipped`
+          # and `passed` are different words and CI reported the first as green.
           - name: ext-c2pa
             env: |
               RATE_LIMIT_REQUESTS=1000
               READ_RATE_LIMIT_REQUESTS=1000
               CONTENTAUTH_TRUST_SETTINGS=/run/secrets/c2pa-trust.settings.json
-            groups: SPEC-019
+            groups: SPEC-019 SPEC-020
             ext: true
 
     steps:
@@ -339,10 +349,17 @@ jobs:
             || { echo "::error::expected ext-c2pa $EXT_C2PA_VERSION, loaded $LOADED"; exit 1; }
           php --ri c2pa
 
+      # `groups` is a space-separated list, and each entry becomes its OWN
+      # --group flag. Pest does not accept `--group=A,B`: it matches no tests and
+      # reports "No tests found" with exit 0, which on this leg (continue-on-error)
+      # would be indistinguishable from a pass. Measured, not assumed — that
+      # comma form was the first thing tried here and it ran nothing.
       - name: Integration tests (${{ matrix.profile.groups }})
         run: |
           set -a && . ./.env && set +a
-          vendor/bin/pest --group=${{ matrix.profile.groups }} | tee /tmp/pest.out
+          flags=""
+          for g in ${{ matrix.profile.groups }}; do flags="$flags --group=$g"; done
+          vendor/bin/pest $flags | tee /tmp/pest.out
           exit "${PIPESTATUS[0]}"
 
       # A skipped equivalence check is not a passing one, and the difference is
@@ -355,6 +372,27 @@ jobs:
             || { echo "::error::SPEC-019 AC2 did not run — the two readers were never compared"; exit 1; }
           grep -q '✓.*agrees with the signing-service reader' /tmp/pest.out \
             || { echo "::error::SPEC-019 AC2 was skipped rather than passed"; sed -n '1,80p' /tmp/pest.out; exit 1; }
+
+      # The same guard for SPEC-020, and for the same reason: adding the group
+      # buys nothing if its extension-only tests skip quietly. This asserts the
+      # PRESENCE branch — that `auto` resolves to the in-process reader when the
+      # extension is there — actually executed.
+      #
+      # Four of the six extension-only tests are guarded here. The other two,
+      # `passes configured trust anchors to the in-process reader` and `accepts
+      # trust anchors given as a path as well as as contents`, additionally need
+      # `out/signed.png` and so still skip in CI. Producing it means running
+      # `bin/e2e.php`, which ends in `bin/verify.sh` and therefore needs
+      # `tools/c2patool` — a local binary this workflow does not install. Left
+      # out deliberately rather than half-wired; those two remain covered only on
+      # a developer machine, which is exactly the gap this step exists to name.
+      - name: Assert the extension-only reader selection ran
+        if: matrix.profile.ext
+        run: |
+          grep -q '✓.*binds the in-process reader under auto when the extension is available' /tmp/pest.out \
+            || { echo "::error::SPEC-020 presence branch did not run — auto-resolution was never exercised with the extension loaded"; sed -n '1,80p' /tmp/pest.out; exit 1; }
+          grep -q '✓.*binds the in-process reader when the mode is extension' /tmp/pest.out \
+            || { echo "::error::SPEC-020: explicit extension mode was skipped rather than passed"; sed -n '1,80p' /tmp/pest.out; exit 1; }
 
       - name: Service logs on failure
         if: failure()
