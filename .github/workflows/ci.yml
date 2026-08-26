@@ -349,6 +349,25 @@ jobs:
             || { echo "::error::expected ext-c2pa $EXT_C2PA_VERSION, loaded $LOADED"; exit 1; }
           php --ri c2pa
 
+      # SPEC-020 AC7 reads a signed asset back twice — once with the repository's
+      # trust anchors configured and once without — and asserts the verdict
+      # DIFFERS. That needs a real signed asset, which `out/signed.png` is, and
+      # it is gitignored because it is a build product of the service that is
+      # already running in this job.
+      #
+      # bin/spike.php, not bin/e2e.php: spike is curl plus the service and writes
+      # exactly this file, while e2e ends in bin/verify.sh and therefore wants
+      # tools/c2patool, a local binary this workflow does not install. Fetching
+      # c2patool to produce a fixture would add a fourth external download to a
+      # workflow that has already been broken three times by the three it has.
+      - name: Produce the signed fixture for SPEC-020 AC7
+        if: matrix.profile.ext
+        run: |
+          set -a && . ./.env && set +a
+          php bin/spike.php
+          test -s out/signed.png \
+            || { echo "::error::out/signed.png was not produced — SPEC-020 AC7 would skip"; exit 1; }
+
       # `groups` is a space-separated list, and each entry becomes its OWN
       # --group flag. Pest does not accept `--group=A,B`: it matches no tests and
       # reports "No tests found" with exit 0, which on this leg (continue-on-error)
@@ -378,14 +397,15 @@ jobs:
       # PRESENCE branch — that `auto` resolves to the in-process reader when the
       # extension is there — actually executed.
       #
-      # Four of the six extension-only tests are guarded here. The other two,
-      # `passes configured trust anchors to the in-process reader` and `accepts
-      # trust anchors given as a path as well as as contents`, additionally need
-      # `out/signed.png` and so still skip in CI. Producing it means running
-      # `bin/e2e.php`, which ends in `bin/verify.sh` and therefore needs
-      # `tools/c2patool` — a local binary this workflow does not install. Left
-      # out deliberately rather than half-wired; those two remain covered only on
-      # a developer machine, which is exactly the gap this step exists to name.
+      # All six extension-only tests are guarded here. The last two are the ones
+      # that matter most and were the last to arrive: they are the only place the
+      # extension's TRUST verdict is exercised. AC7 asserts anchors reach the
+      # reader by asserting the verdict differs with and without them, and the
+      # path test asserts a `trust_anchors` given as a PATH is resolved to PEM
+      # contents — NOTES Step 11 records that every trust surface underneath this
+      # layer takes contents and silently verifies nothing when handed a path.
+      # Silently verifying nothing is the failure this guard exists to catch, and
+      # a skipped test reports it as green.
       - name: Assert the extension-only reader selection ran
         if: matrix.profile.ext
         run: |
@@ -393,6 +413,10 @@ jobs:
             || { echo "::error::SPEC-020 presence branch did not run — auto-resolution was never exercised with the extension loaded"; sed -n '1,80p' /tmp/pest.out; exit 1; }
           grep -q '✓.*binds the in-process reader when the mode is extension' /tmp/pest.out \
             || { echo "::error::SPEC-020: explicit extension mode was skipped rather than passed"; sed -n '1,80p' /tmp/pest.out; exit 1; }
+          grep -q '✓.*passes configured trust anchors to the in-process reader' /tmp/pest.out \
+            || { echo "::error::SPEC-020 AC7 was skipped rather than passed — the extension's trust verdict is unverified"; sed -n '1,80p' /tmp/pest.out; exit 1; }
+          grep -q '✓.*accepts trust anchors given as a path as well as as contents' /tmp/pest.out \
+            || { echo "::error::SPEC-020: a trust_anchors PATH was never exercised against the in-process reader"; sed -n '1,80p' /tmp/pest.out; exit 1; }
 
       - name: Service logs on failure
         if: failure()
