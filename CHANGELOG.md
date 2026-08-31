@@ -19,24 +19,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Changed
+### Added
 
-- **Manifests now declare `2.4.0` and are shaped for it.** C2PA 2.4 §18.15.2
-  requires at least one actions assertion in the claim's `created_assertions`
-  array, where 2.3 permitted "either the created_assertions or
-  gathered_assertions array". That one word matters here more than anywhere:
-  `gathered_assertions` is defined as the field for assertions *"provided to the
-  claim generator by other components in the workflow"*, and the actions
-  assertion carrying your Article 50 marking is the opposite of that. It is now
-  attributed to the signer.
+- **Manifests now say which C2PA rules they follow, and follow 2.4.** Every
+  signed manifest carries `specVersion: "2.4.0"` in `claim_generator_info`, and
+  `ManifestReport::declaredSpecVersion()` reports what any manifest declares —
+  `null` when it declares none. Until now a verifier meeting one of these assets
+  had to infer the version from its shape, which is the inference a provenance
+  format exists to remove.
+
+  **Why 2.4 is the one worth declaring.** C2PA 2.4 §18.15.2 requires at least one
+  actions assertion in the claim's `created_assertions` array, where 2.3 permitted
+  *"either the created_assertions or gathered_assertions array"*. That one word
+  matters here more than anywhere else, because `gathered_assertions` is defined
+  as the field for assertions *"provided to the claim generator by other
+  components in the workflow"* — and the actions assertion carrying your Article
+  50 marking is the opposite of that. It is now attributed to the signer.
 
   **You do not need to change anything.** The signing service sets this, because
-  "attributed to the signer" is a statement about the signer — an older client
-  keeps working unchanged against a rebuilt service. Both halves of the change,
-  the declaration and the shape, live in `service/server.js`, so this reaches you
-  through `git pull` plus a rebuild rather than through `composer update`, and
-  there is no way to end up with one without the other. `GET /health` reports
-  `spec_version`.
+  "attributed to the signer" is a statement about the signer; an older client
+  keeps working unchanged against a rebuilt service. The declaration and the
+  shape both live in `service/server.js`, so that half reaches you through
+  `git pull` plus a rebuild rather than through `composer update`, and there is
+  no way to end up with one without the other. `GET /health` reports
+  `spec_version` so a rebuild is confirmable without spending a signature.
+  Reading — `declaredSpecVersion()` — ships in the Composer package.
+
+  The service refuses to start on a declared version that is not SemVer, rather
+  than signing manifests carrying a declaration that breaks the one rule the
+  field itself is subject to.
 
   **One inherited exception, documented in [Reading and verifying](docs/readers.md).**
   The engine generates a thumbnail and places it in `gathered_assertions`, though
@@ -47,34 +58,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   record the exception rather than delete a useful feature to make a declaration
   look tidier.
 
-### Added
-
-- **Manifests now say which C2PA rules they follow.** Every signed manifest
-  carries `specVersion: "2.3.0"` in `claim_generator_info`, and
-  `ManifestReport::declaredSpecVersion()` reports what any manifest declares —
-  `null` when it declares none. Until now a verifier meeting one of these assets
-  had to infer the version from its shape, which is the inference a provenance
-  format exists to remove.
-
-  **`2.3.0` and not 2.4, for a measured reason.** A declaration is a signed
-  statement, so the only defensible value is the true one. C2PA 2.4 requires the
-  mandatory actions assertion to appear only in `created_assertions`, and
-  c2pa-rs places ours in `gathered_assertions` — its own reference tool does the
-  same, so nobody signing through c2pa-rs 0.90.x can declare 2.4 honestly. The
-  full audit is in SPEC-035. SemVer rather than `2.3`, because 2.3 §10.2.2 says
-  the field "shall contain a SemVer formatted specVersion field".
-
-  **The two halves reach you by different routes, and you can have one without
-  the other.** Reading (`declaredSpecVersion()`) ships in the Composer package.
-  *Declaring* lives in `service/server.js`, which is `export-ignore`d, so it
-  needs `git pull` plus a rebuild. After a `composer update` alone you can read
-  what someone else's manifest declares while your own service still declares
-  nothing — that is expected, not a bug. `GET /health` reports `spec_version`
-  so you can confirm a rebuild landed without spending a signature.
-
-  The service refuses to start on a declared version that is not SemVer, rather
-  than signing manifests carrying a declaration that breaks the one rule the
-  field is subject to.
+  What this is *not*: a conformance claim. The audit behind it covered the
+  requirements that touch what this package emits, not the whole specification,
+  and a Generator Product under the C2PA Conformance Program is your deployment
+  rather than this library — see [Going to production](docs/production.md).
 
 ## [0.13.1] - 2026-08-31
 
