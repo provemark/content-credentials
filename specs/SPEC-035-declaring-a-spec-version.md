@@ -75,6 +75,49 @@ in the path.
   survives verbatim through the older engine. Both readers can return the same
   value, so adding the accessor to `spec019Accessors()` is safe.
 
+### The audit, and its answer: **2.3.0**
+
+Carried out 2026-08-31, before any implementation, because the answer is AC1's
+pinned value and writing code for an unknown version number is the wrong order.
+Our own output was taken from an asset signed through the service and read with
+`c2patool --detailed`.
+
+| Requirement | Version | Level | What we emit | |
+|---|---|---|---|---|
+| Claim v2 | 2.0+ | — | `claim_version: 2` | ✓ |
+| Actions label is `c2pa.actions.v2` | 2.x | — | yes | ✓ |
+| First action is `c2pa.created` or `c2pa.opened` | 2.3 | MUST | `c2pa.created` | ✓ |
+| Actions assertion declares `allActionsIncluded` | 2.3 | SHOULD | absent | does not falsify |
+| `specVersion` present | 2.3 *may* → 2.4 *should* | SHOULD | this spec adds it | — |
+| `specVersion`, if present, is **SemVer** | 2.3 §10.2.2 | SHALL | see AC1 | constrains the value |
+| Actions assertion appears **only** in `created_assertions` | 2.4 | **MUST** | ours is in `gathered_assertions` | **✗** |
+| `allActionsIncluded: true` on open-and-immediately-resave | 2.4 | MUST (conditional) | we never perform that action | vacuously ✓ |
+
+**We satisfy 2.3 and fail 2.4 on exactly one requirement**, quoted from the 2.4
+specification: *"Required that the mandatory actions assertion appear only in
+`created_assertions` (not `gathered_assertions`)."*
+
+**That failure is not ours, and this is why the out-of-scope entry below says
+the fix is upstream.** `c2patool` 0.27.16 — pure c2pa-rs 0.90.16, with neither
+this package nor the service in the path — produces the identical layout:
+
+```
+created_assertions  -> ['c2pa.hash.data']
+gathered_assertions -> ['c2pa.thumbnail.claim', 'c2pa.actions.v2']
+```
+
+The reference implementation does not satisfy that requirement either, so
+**nobody signing through c2pa-rs 0.90.x can honestly declare 2.4.** Nor is there
+a lever we are failing to pull: `ManifestAssertionKind` in c2pa-node is
+`"Cbor" | "Json" | "Binary" | "Uri"` — a serialisation form, not the
+created/gathered distinction — and c2pa-rs exposes no public builder API for
+placing an assertion in `created_assertions`.
+
+**What this audit did not cover.** Only the requirements that touch what this
+package emits, enumerated from the 2.3 and 2.4 version histories — not the full
+specification text, which is far larger. AC2's guard inherits that scope, and its
+docblock must say so, or a passing guard will be read as full conformance.
+
 ## Scope
 
 **In scope**
@@ -105,9 +148,12 @@ in the path.
 - Other 2.4 additions: `relatedAssertions` in action parameters, watermarking
   actions referencing soft bindings, live/CMAF streaming, enhanced cloud data
   assertions.
-- **Raising the version we satisfy.** This spec declares what is true today. Work
-  to *become* compliant with a higher version is a separate undertaking, and AC2
-  is what will tell you it is needed.
+- **Raising the version we satisfy.** This spec declares what is true today, and
+  as the audit shows, the single thing between us and 2.4 is **upstream work, not
+  ours**: c2pa-rs places the actions assertion in `gathered_assertions` and
+  offers no API to do otherwise, so its own reference tool fails the same
+  requirement. The trigger to revisit is c2pa-rs gaining that control — at which
+  point AC2 fails against a raised declaration and tells you so.
 - Changing the **claim version**. We emit claim v2 and this spec does not touch
   that.
 
@@ -136,9 +182,12 @@ covered by a Pest test tagged `->group('SPEC-035')`.
 - **AC1 — a signed manifest declares a specification version**
   - Given an asset signed through this package
   - When the manifest is read back
-  - Then `claim_generator_info` carries `specVersion` with the declared value as
-    a pinned exact string, alongside the existing name, version and
-    `org.contentauth.c2pa_rs` keys
+  - Then `claim_generator_info` carries `specVersion` with the value **`"2.3.0"`**
+    — pinned as an exact string, alongside the existing name, version and
+    `org.contentauth.c2pa_rs` keys. **SemVer, not `"2.3"`**: 2.3 §10.2.2 says the
+    field *"may be present, and if so, shall contain a SemVer formatted
+    `specVersion` field"*, so a two-part value violates the requirement the field
+    itself is subject to
 
 - **AC2 — the declaration is guarded against becoming untrue**
   - Given the declared version and the list of that version's requirements that
@@ -158,12 +207,16 @@ covered by a Pest test tagged `->group('SPEC-035')`.
     this package emits, not what a caller wishes to claim about it
 
 - **AC4 — a malformed declared version stops the service at startup** *(error path)*
-  - Given a service configured with a declared version that is empty or not a
-    recognised C2PA specification version
+  - Given a service configured with a declared version that is empty or **not
+    SemVer-formatted** — `"2.3"` is the case to cover, because it is the shape a
+    reader would reach for first and it is exactly what 2.3 §10.2.2 forbids
   - When the service starts
   - Then it refuses to start, naming the offending value, rather than signing
-    manifests that carry a meaningless declaration — the same fail-closed stance
-    SPEC-014 takes for trust settings carrying no material
+    manifests that carry a declaration violating the format rule the field is
+    subject to — the same fail-closed stance SPEC-014 takes for trust settings
+    carrying no material. The check is on **SemVer shape**, not membership of a
+    list of known versions: a list would need editing every time C2PA publishes,
+    and would reject a valid declaration for being unfamiliar
 
 - **AC5 — a deployment can be checked without signing**
   - Given a running signing service
@@ -209,8 +262,12 @@ $report->declaredSpecVersion();   // '2.2' | null
   signed statement, so the only defensible value is the true one. That converts
   the blocker into measurable work — audit what we emit against each version's
   applicable requirements, take the highest one that fully passes, and let AC2
-  hold it there. The expected answer is **lower than 2.4**; the domain rules were
-  verified against 2.2 and nothing since has moved us up.
+  hold it there. **The audit has since been done and the answer is `2.3.0`** —
+  see *The audit, and its answer* above. Worth noting against the guess recorded
+  here first: the expectation was "lower than 2.4, probably 2.2, because the
+  domain rules were verified against 2.2". That was wrong in a useful direction —
+  we clear 2.3 outright, and fail 2.4 on one requirement that the reference
+  implementation fails too.
 - **How granular is the AC2 requirement list?** The full specification is far
   larger than the part that describes what a claim generator emits. *Non-blocker*,
   leaning: enumerate only the requirements that touch our own output — actions
