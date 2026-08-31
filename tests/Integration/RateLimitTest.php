@@ -326,26 +326,44 @@ it('answers /health while signing is saturating the cap', function () {
     $payload = (string) tempnam(sys_get_temp_dir(), 'spec015');
     file_put_contents($payload, json_encode(signBody(true), JSON_THROW_ON_ERROR));
 
+    // Sustain the load rather than fire one burst and hope to catch it.
+    //
+    // The previous version fired `$burst` requests once and polled to a deadline
+    // for them. That fixed *when* we look but not *how long there is to look
+    // at*, and it went red again on 2026-08-31 in the `hardened` profile, on a
+    // commit that changed one markdown file. `in_flight` counts only requests
+    // past the rate-limit and concurrency gates (`service/server.js`) and drops
+    // again on response close, so a burst that drains quickly — or whose
+    // requests are refused at the door and therefore never counted — leaves
+    // nothing to observe, and the poll spends its whole deadline seeing zero.
+    //
+    // Driving the load from a sentinel makes the busy window last as long as we
+    // are looking, instead of the other way round.
+    $sentinel = (string) tempnam(sys_get_temp_dir(), 'spec015run');
+    $codes = (string) tempnam(sys_get_temp_dir(), 'spec015codes');
+
     $command = sprintf(
-        'seq %d | xargs -P %d -I{} curl -s -o /dev/null -X POST %s -H %s -H %s --data-binary @%s',
+        // Paced, and capped as a safety net rather than as a limit we expect to
+        // reach. The happy path exits after one burst, so this costs what the
+        // previous version cost; the pacing and the cap only bite when the test
+        // is already failing, and they are what keeps that failure from
+        // draining the rate-limit budget the rest of the suite shares — one
+        // clear red turning into ten confusing ones.
+        'for _ in $(seq 1 60); do [ -f %s ] || break; '
+        .'seq %d | xargs -P %d -I{} curl -s -o /dev/null -w "%%{http_code}\n" '
+        .'-X POST %s -H %s -H %s --data-binary @%s >> %s; sleep 0.2; done',
+        escapeshellarg($sentinel),
         $burst,
         $burst,
         escapeshellarg(ServiceHarness::baseUrl().'/v1/sign'),
         escapeshellarg('Authorization: Bearer '.ServiceHarness::apiKey()),
         escapeshellarg('Content-Type: application/json'),
         escapeshellarg($payload),
+        escapeshellarg($codes),
     );
 
     shell_exec($command.' > /dev/null 2>&1 &');
 
-    // While that is in flight, /health must answer — and say it is busy.
-    //
-    // Polled to a deadline rather than for a fixed window. A fixed window is a
-    // race: the background clients take time to fork and the burst itself lasts
-    // only about a second, so a window that starts too early or ends too late
-    // observes nothing and fails a working service. Observed doing exactly that
-    // in CI, on a run whose predecessor had passed with the same code.
-    //
     // Exits as soon as the service reports work in flight, so the common case
     // is fast and only a genuine failure pays the full deadline.
     $peak = 0;
@@ -361,17 +379,34 @@ it('answers /health while signing is saturating the cap', function () {
             break;
         }
 
-        usleep(50_000);
+        usleep(20_000);
     }
 
+    // Stop the load BEFORE asserting: a failing expectation must not leave a
+    // loop running against the shared service for the rest of the suite.
+    @unlink($sentinel);
     sleep(3);
+
+    // What the service actually answered, so a failure says *why* nothing was
+    // in flight and not merely that nothing was. The 2026-08-31 failure could
+    // not distinguish "refused at the door" from "drained before we looked",
+    // and that ambiguity is what made it expensive to diagnose. An empty
+    // summary is itself the answer: no client ever ran.
+    $answered = array_count_values(array_filter(array_map(
+        trim(...),
+        explode("\n", (string) @file_get_contents($codes)),
+    )));
+    ksort($answered);
+    $summary = json_encode($answered, JSON_THROW_ON_ERROR);
+
     @unlink($payload);
+    @unlink($codes);
 
     expect($health)->toHaveKey('status')
         ->and($health['status'])->toBe('ok')
         ->and($peak)->toBeGreaterThan(
             0,
-            'the service reported nothing in flight while a burst was being signed, polled for 15s'
+            "the service reported nothing in flight while signing was sustained for up to 15s; it answered {$summary}"
         );
 })->group('SPEC-015', 'integration')
     ->skip($skipUnlessReachable)
