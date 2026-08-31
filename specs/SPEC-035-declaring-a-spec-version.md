@@ -61,8 +61,19 @@ in the path.
 - **`claim_generator_info` is an open map.** c2pa-rs adds its own key and does
   not validate ours. Nothing upstream checks that a declared version is accurate,
   which is why AC2 exists and is the substance of this spec.
-- **It is built entirely service-side** (`service/server.js:973`). See the
-  delivery note under Scope: this ships through a rebuild, not through Composer.
+- **The declaring half is service-side** (`service/server.js:973`), and
+  `claim_generator_info` is built there as an object literal with fixed keys —
+  only `name` comes from the caller, via `creator_name`. So AC3 is **already
+  true by construction**: there is no path by which a caller can reach
+  `specVersion`. What AC3 buys is a test that keeps it that way, not code.
+- **AC6 carries no reader-equivalence risk.** The obvious worry is that
+  `ExtC2paReader` runs c2pa-rs **0.89.0** while the service runs 0.90.x, so the
+  two readers might disagree and trip SPEC-019 AC2. Measured directly: the
+  extension reading an asset signed by 0.90.16 returns
+  `claim_generator_info: [{"name":"specversion probe","version":"1.0.0",`
+  `"org.contentauth.c2pa_rs":"0.90.16","specVersion":"2.4"}]` — the declaration
+  survives verbatim through the older engine. Both readers can return the same
+  value, so adding the accessor to `spec019Accessors()` is safe.
 
 ## Scope
 
@@ -100,11 +111,22 @@ in the path.
 - Changing the **claim version**. We emit claim v2 and this spec does not touch
   that.
 
-**Delivery note.** `claim_generator_info` is assembled in `service/server.js`,
-which is `export-ignore`d. This change therefore reaches users through `git pull`
-plus a rebuild and **not** through `composer update`. AC5 exists so an operator
-can confirm a rebuild landed without spending a signature, and the CHANGELOG
-entry must say this plainly.
+**Delivery note — this spec has two halves that arrive by different routes, and
+a deployment can hold one without the other.**
+
+*Declaring* (AC1, AC4, AC5) happens in `service/server.js`, where
+`claim_generator_info` is assembled. `service/` is `export-ignore`d, so that half
+reaches users through `git pull` plus a rebuild and **not** through
+`composer update`.
+
+*Reading* (AC6) is a client accessor and ships **in** the Composer package.
+
+So after a `composer update` alone, a user can read what someone else's manifest
+declares while their own service still declares nothing — the halves are
+independent and that combination is not a bug. AC5 exists so an operator can
+confirm the service half landed without spending a signature, and the CHANGELOG
+entry must set both routes out plainly rather than describe the spec as one
+change.
 
 ## Behavior
 
