@@ -85,11 +85,13 @@ $report->involvesGenerativeAi(); // true — wider than isAiGenerated(); see doc
 $report->signer()?->issuer;      // e.g. "C2PA Test Signing Cert"
 $report->hasTimestamp();         // true when signed with a trusted timestamp (see "Going to production")
 $report->isTrusted();            // true only when the service verified against a trust list
+$report->declaredSpecVersion();  // e.g. '2.3.0' — which C2PA rules the generator says it followed, or null
 ```
 
 > **Claims versus verdicts.** `isAiGenerated()`, `signer()`,
-> `digitalSourceTypes()` and `softwareAgents()` describe what a manifest
-> *asserts*; they answer for a tampered or unverifiable manifest too.
+> `digitalSourceTypes()`, `softwareAgents()` and `declaredSpecVersion()`
+> describe what a manifest *asserts*; they answer for a tampered or
+> unverifiable manifest too.
 > `isSignatureValid()` and `isTrusted()` are the verdicts.
 > `isVerifiedAiGenerated()` combines the marking with the signature verdict, so
 > the safe check is also the short one to write.

@@ -74,7 +74,42 @@ final class ManifestStoreParser
             self::validationCodes($store),
             $state,
             self::parseHasTimestamp($active),
+            self::parseDeclaredSpecVersion($active),
         );
+    }
+
+    /**
+     * The C2PA specification version the manifest's generator declared, if any
+     * (SPEC-035 AC6).
+     *
+     * Untrusted input, like everything else here: a manifest we did not produce
+     * may carry anything at all under this key, so a missing, non-string or
+     * empty value yields null rather than an exception. The value is reported
+     * verbatim and is deliberately **not** validated as SemVer — this reports
+     * what a manifest claims, and silently dropping a malformed claim would hide
+     * exactly the thing an operator inspecting a suspect asset wants to see.
+     *
+     * @param  array<array-key, mixed>  $manifest
+     */
+    private static function parseDeclaredSpecVersion(array $manifest): ?string
+    {
+        $info = $manifest['claim_generator_info'] ?? null;
+        if (! is_array($info)) {
+            return null;
+        }
+
+        foreach ($info as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+
+            $declared = $entry['specVersion'] ?? null;
+            if (is_string($declared) && $declared !== '') {
+                return $declared;
+            }
+        }
+
+        return null;
     }
 
     /**
