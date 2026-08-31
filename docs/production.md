@@ -1,8 +1,8 @@
 # Going to production
 
-Certificates a public verifier will trust, trust-list verification, and how
-this package maps onto the C2PA Conformance Program. Back to the
-[README](../README.md).
+Certificates a public verifier will trust, trust-list verification, what the EU
+AI Act asks for beyond what this package does, and how this package maps onto
+the C2PA Conformance Program. Back to the [README](../README.md).
 
 The test certificates above are only trusted against the bundled test settings.
 For a signature a public verifier will trust, you need a certificate from a CA on
@@ -54,6 +54,51 @@ startup is what stops you believing trust is on when it is not.
 
 The bundled anchors trust only the c2pa-rs **test** certificates. Replace them
 with the trust list your verifier uses before production.
+
+## Marking under the AI Act: one layer of two
+
+Article 50(2) has applied since **2 August 2026**. It binds the **provider of the
+generative system** — in most deployments that is you, not this package — and
+generative systems already on the market before that date have until
+**2 December 2026** to carry a machine-readable mark.
+
+The Article itself asks only that outputs be marked machine-readably and be
+detectable as AI-generated, "effective, interoperable, robust and reliable as far
+as technically feasible". The AI Office's [Code of Practice on Transparency of
+AI-generated Content](https://digital-strategy.ec.europa.eu/en/policies/code-practice-ai-generated-content)
+(10 June 2026) is the recognised route to demonstrating that. It is **voluntary**,
+but signatories get a degree of presumption of conformity and a more favourable
+enforcement posture — and it takes the position that no single technique suffices
+on its own, so it asks for layers:
+
+| Layer | What it asks for | This package |
+|---|---|---|
+| 1. Signed metadata | Digitally signed, **timestamped** metadata recording whether content is AI-generated or manipulated, embedded tamper-evidently | **Yes** — this is what it does |
+| 2. Imperceptible watermarking | A mark woven into the content itself, robust to re-encoding and cropping | **No, and it will not** |
+| 3. Fingerprinting / logging | Identifiers resolved against a registry database | No — optional under the Code |
+
+The Code names no vendor. IPTC's reading is that C2PA is the only technology
+meeting the layer-1 criteria, which is the basis on which this package is built.
+
+**Note the word *timestamped*.** RFC 3161 timestamping is supported here and
+fails closed rather than falling back to an untimestamped signature — but it is
+**off unless you set `CONTENTAUTH_TSA_URL`**, as described above. Signing without
+one produces a signature that does not fully meet layer 1.
+
+**On layer 2, and why it is not a gap we intend to close.** A watermark is a
+pixel-level change, so it must be applied *before* signing. Watermarking an asset
+this package has already signed invalidates its manifest, exactly like any other
+post-sign mutation — the same rule as the resize and re-encode warnings
+elsewhere in these docs. It therefore belongs upstream of signing, in whatever
+produces your asset, not inside a signing library. The CAI's open-source
+implementation is [TrustMark](https://github.com/adobe/trustmark) (MIT), which
+produces the C2PA *soft binding* this layer is built on.
+
+So: if you are pursuing the Code of Practice route, you need a watermarking step
+alongside this package, ordered before it. If you are relying on Article 50(2)
+directly rather than on the Code, signed provenance metadata may well be
+sufficient on its own — but that is a judgement for your counsel, and this page
+is not it.
 
 ## Conformance alignment
 

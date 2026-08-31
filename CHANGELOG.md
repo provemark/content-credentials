@@ -19,6 +19,41 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Documentation
+
+- **The README implied more coverage than the package delivers.** It opened by
+  describing this library as the machine-readable marking "required by the EU AI
+  Act, Article 50" — which a reader could reasonably take to mean that
+  installing it discharges Article 50(2). Since 10 June 2026 that is no longer
+  the whole picture. The AI Office's [Code of Practice on Transparency of
+  AI-generated Content](https://digital-strategy.ec.europa.eu/en/policies/code-practice-ai-generated-content)
+  is the recognised route to demonstrating compliance, and it takes the position
+  that no single technique suffices on its own: it asks for digitally signed and
+  **timestamped** metadata — what this package does — *plus* imperceptible
+  watermarking woven into the content, which it does not do. [Going to
+  production](docs/production.md) gains a section setting out all three layers
+  the Code describes, which of them this package covers, and the dates that bind
+  your deployment rather than this package: Article 50(2) applicable since
+  2 August 2026, with 2 December 2026 for generative systems already on the
+  market, and the obligation falling on the **provider of the generative
+  system**. The README carries a two-line pointer rather than the argument
+  itself, because SPEC-027 caps it at 300 lines and it was already at 296.
+- **Why layer 2 is not a gap we intend to close.** A watermark is a pixel-level
+  change, so it must be applied *before* signing; applying it to an already
+  signed asset invalidates the manifest, exactly like the resize and re-encode
+  cases documented elsewhere. It belongs upstream of signing, in whatever
+  produces your asset, and the page points at the CAI's own implementation
+  (TrustMark) rather than leaving the reader to find one.
+- **Timestamping is off by default, and the page now says so where it matters.**
+  RFC 3161 timestamping is what satisfies the Code's *timestamped* requirement,
+  and it fails closed when the TSA is unreachable — but only once
+  `CONTENTAUTH_TSA_URL` is set. Signing without it produces a signature that does
+  not fully meet the Code's first layer. That was stated further down the page
+  already; it is now stated next to the requirement it answers.
+
+No code changed. Both files ship in the Composer package, so unlike a `service/`
+change this does reach you through `composer update`.
+
 ## [0.13.0] - 2026-08-21
 
 A minor release with a security fix and an engine change, and the two reach you
