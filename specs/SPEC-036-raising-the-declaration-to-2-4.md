@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — while draft                                     |
+| Approved   | Maurice van Loon (maintainer), 2026-08-31         |
 | Supersedes | — (raises the value SPEC-035 declares)            |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -65,6 +65,16 @@ is this package's own path.
   **`Valid` is not evidence of conformance in either direction** — every
   criterion below has to be asserted structurally rather than inferred from a
   verdict.
+- **The flag is observable everywhere; the placement is not.** `"created": true`
+  comes back on the assertion in the ordinary manifest report, so
+  `ManifestReport::assertions()` can see it and every criterion below can run in
+  CI. The `created_assertions` array itself is visible only through
+  `c2patool --detailed`, which CI does not install — so the criteria assert the
+  **flag we emit**, and this measurement records the mapping from flag to
+  placement. That mapping is an engine behaviour, and SPEC-035 AC7 already fails
+  on an engine bump, which is the prompt to re-measure it. Asserting the flag in
+  a test that runs everywhere beats asserting the placement in one that reports
+  `skipped` on every machine.
 - **What is left in `gathered_assertions` afterwards** is the open question this
   spec must answer: `c2pa.thumbnail.claim` on the creation path, and
   additionally `c2pa.thumbnail.ingredient` and `c2pa.ingredient.v3` on the
@@ -94,8 +104,8 @@ thing that exposes it. The reasoning is with the criterion.
 
 **In scope**
 
-- Emitting `"created": true` on the actions assertion, on both the creation and
-  the manipulated paths.
+- Emitting `"created": true` on the actions assertion **from the service**, on
+  both the creation and the manipulated paths.
 - Re-auditing against the **normative text** of C2PA 2.4 — not its version
   history — for the requirements that touch what this package emits.
 - Raising SPEC-035's declared value to `2.4.0` and extending its AC2 guard row
@@ -119,13 +129,19 @@ thing that exposes it. The reasoning is with the criterion.
   wider use remains out of scope for the reasons SPEC-035 records.
 - Raising beyond 2.4.
 
-**Delivery note.** Same split as SPEC-035, and for the same reason. The actions
-assertion is built by the PHP client, so `"created": true` ships in the Composer
-package; the declared value and any thumbnail setting live in
-`service/server.js`, which is `export-ignore`d and reaches users through
-`git pull` plus a rebuild. A deployment can therefore emit a 2.4-shaped manifest
-while still declaring `2.3.0`, or the reverse — which is why AC6 pins them
-together at the point where it can.
+**Delivery note — one route, and that is the point.** Both halves live in
+`service/server.js`: the declared value, and the flag that makes it true. So this
+reaches users through `git pull` plus a rebuild and **not** through
+`composer update`, and there is no way to hold one half without the other.
+
+An earlier draft put the flag in the PHP client and added a criterion refusing
+mismatched combinations. Implementing it showed why that was wrong: it broke
+every existing caller the moment a service was rebuilt — 37 integration tests
+went red, which is what a user's deployment would have done — and it put a
+decision about **claim structure** in the hands of the party that does not sign.
+`created` means "attributed to the signer". The signer is the service. Moving it
+there removed the mismatch rather than guarding it, and removed the criterion
+with it.
 
 ## Behavior
 
@@ -133,17 +149,20 @@ Acceptance criteria as Given/When/Then. Each is individually testable and will b
 covered by a Pest test tagged `->group('SPEC-036')`.
 
 - **AC1 — the actions assertion is attributed to the signer, on the creation path**
-  - Given an asset signed for AI-generated content through this package
-  - When the raw claim is inspected
-  - Then `c2pa.actions.v2` appears in `created_assertions` and **not** in
-    `gathered_assertions`, satisfying 2.4 §18.15.2 — asserted on the claim's own
-    arrays, because the validator does not check this and reports `Valid` either
-    way
+  - Given an asset signed for AI-generated content through this package, by a
+    client that sends **no** `created` flag of its own
+  - When the signed manifest is read back
+  - Then the actions assertion carries `"created": true`, which is what places it
+    in `created_assertions` per 2.4 §18.15.2. **The service sets it, not the
+    client**: `created` means "attributed to the signer", and the signer is the
+    service — where an assertion sits in the claim is a property of how the claim
+    generator builds it, like `claim_generator_info`. Asserted on the flag rather
+    than on the array, for the observability reason recorded above
 
 - **AC2 — and on the manipulated path**
   - Given an asset signed for manipulated content, with a parent ingredient
-  - When the raw claim is inspected
-  - Then `c2pa.actions.v2` likewise appears in `created_assertions`, and the
+  - When the signed manifest is read back
+  - Then the actions assertion likewise carries `"created": true`, and the
     `c2pa.opened` action still carries its `parameters.ingredients` hashed-uri
     reference — the 2.4 requirement that was already met must not regress while
     the placement changes
@@ -165,16 +184,17 @@ covered by a Pest test tagged `->group('SPEC-036')`.
 
 - **AC5 — the inherited thumbnail exception is pinned, and alarms when it is fixed**
   - Given an asset signed through this package
-  - When `gathered_assertions` is inspected
-  - Then the auto-generated `c2pa.thumbnail.claim` is **present** there — the one
-    known departure from what that field means, asserted positively so the test
-    cannot pass by the absence of something
-  - And when it stops being true — because c2pa-rs has moved it, per
-    `contentauth/c2pa-rs` #2106 — the test fails, and **its failure is a prompt
-    rather than a defect**: the message says so, and says that the documented
-    exception can now be removed
-  - And the exception is documented where a reader of a manifest would look for
-    it, naming it as upstream's default rather than a choice of ours
+  - When its manifest is read
+  - Then the auto-generated thumbnail is **present**, and the documented
+    exception explaining where it sits and whose default that is exists in
+    `docs/` — both asserted positively, so neither can pass by the absence of
+    something
+  - And the alarm for upstream fixing it is **SPEC-035 AC7**, which fails on any
+    engine bump and prompts the re-audit that would notice the move. A test
+    asserting the `gathered_assertions` placement directly would need
+    `c2patool --detailed`, which CI does not install, and would report `skipped`
+    on every machine — the failure mode this repository has already paid for
+    once
 
   **Why the exception is kept rather than removed.** The obvious alternative is
   to suppress the thumbnail — `builder.thumbnail.enabled: false` works and leaves
@@ -203,16 +223,7 @@ covered by a Pest test tagged `->group('SPEC-036')`.
   exception**, rather than manufacture conformance by deleting the thing that
   exposes it.
 
-- **AC6 — a caller cannot get a 2.4 manifest that declares 2.3, or the reverse** *(error path)*
-  - Given a client emitting `"created": true` against a service still declaring
-    `2.3.0`, or a service declaring `2.4.0` receiving an actions assertion
-    without the flag
-  - When the manifest is built
-  - Then the mismatch is refused with a message naming both halves, rather than
-    signing a manifest whose shape and whose declaration disagree — the split
-    delivery makes this reachable in a real deployment, not a hypothetical
-
-- **AC7 — the in-process reader still agrees** *(error path)*
+- **AC6 — the in-process reader still agrees** *(error path)*
   - Given an asset whose actions assertion sits in `created_assertions`
   - When it is read through `SigningServiceReader` and through `ExtC2paReader`,
     which runs c2pa-rs **0.89.0** — older than the engine that wrote it
@@ -278,10 +289,9 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
+| AC1 | `tests/Integration/SpecVersion24Test.php` :: it marks the actions assertion as created on the creation path | `service/server.js` — `markActionsAsCreated()` |
+| AC2 | `tests/Integration/SpecVersion24Test.php` :: it marks it as created on the manipulated path, keeping the ingredient reference | `service/server.js` — `markActionsAsCreated()`; the ingredient reference is c2pa-rs's |
+| AC3 | `tests/Integration/SpecVersion24Test.php` :: it declares 2.4.0 and emits manifests shaped for it; `tests/Integration/SpecVersionTest.php` :: it satisfies every requirement of the version it declares (row 8) | `service/server.js` — `SPEC_VERSION` |
+| AC4 | `tests/Integration/SpecVersionTest.php` :: it satisfies every requirement of the version it declares — the docblock states the scope | `tests/Integration/SpecVersionTest.php` — the guard's docblock |
+| AC5 | `tests/Integration/SpecVersion24Test.php` :: it still carries the upstream thumbnail, and documents the exception | `docs/readers.md` — the inherited-exception note |
+| AC6 | `tests/Integration/SpecVersion24Test.php` :: it keeps the Article 50 marking readable by the extension, on an older engine | `src/Core/Reading/ExtC2paReader.php` — unchanged; this criterion guards it against regression |

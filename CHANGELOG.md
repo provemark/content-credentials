@@ -19,6 +19,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Manifests now declare `2.4.0` and are shaped for it.** C2PA 2.4 §18.15.2
+  requires at least one actions assertion in the claim's `created_assertions`
+  array, where 2.3 permitted "either the created_assertions or
+  gathered_assertions array". That one word matters here more than anywhere:
+  `gathered_assertions` is defined as the field for assertions *"provided to the
+  claim generator by other components in the workflow"*, and the actions
+  assertion carrying your Article 50 marking is the opposite of that. It is now
+  attributed to the signer.
+
+  **You do not need to change anything.** The signing service sets this, because
+  "attributed to the signer" is a statement about the signer — an older client
+  keeps working unchanged against a rebuilt service. Both halves of the change,
+  the declaration and the shape, live in `service/server.js`, so this reaches you
+  through `git pull` plus a rebuild rather than through `composer update`, and
+  there is no way to end up with one without the other. `GET /health` reports
+  `spec_version`.
+
+  **One inherited exception, documented in [Reading and verifying](docs/readers.md).**
+  The engine generates a thumbnail and places it in `gathered_assertions`, though
+  the generator made it. That is c2pa-rs's default, it affects every tool built on
+  it including `c2patool`, and upstream tracks it as
+  [c2pa-rs #2106](https://github.com/contentauth/c2pa-rs/issues/2106) with a fix
+  that moves the thumbnail rather than removes it. We keep the thumbnail and
+  record the exception rather than delete a useful feature to make a declaration
+  look tidier.
+
 ### Added
 
 - **Manifests now say which C2PA rules they follow.** Every signed manifest

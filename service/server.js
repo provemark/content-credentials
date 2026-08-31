@@ -67,14 +67,16 @@ const TRUST_SETTINGS_PATH = process.env.CONTENTAUTH_TRUST_SETTINGS || undefined;
 // it is a signed statement about which rules this software obeys, and the guard
 // that keeps it true (SPEC-035 AC2) is written for this exact value.
 //
-// 2.3.0 and not 2.4 for one measured reason -- 2.4 requires the mandatory
-// actions assertion to appear only in `created_assertions`, and c2pa-rs places
-// ours in `gathered_assertions`. Its own reference tool does the same, so this
-// is the engine's ceiling rather than ours. See the audit in the spec.
+// 2.4.0 since SPEC-036. 2.4 SS18.15.2 requires at least one actions assertion
+// in the claim's `created_assertions` array, where 2.3 permitted "either the
+// created_assertions or gathered_assertions array". markActionsAsCreated()
+// below is what puts it there, and it runs on every signature -- so raising
+// this constant and satisfying it are the same change, and an older client
+// cannot produce a manifest that understates or overstates the declaration.
 //
 // SemVer, not "2.3": C2PA 2.3 SS10.2.2 says the field "may be present, and if
 // so, shall contain a SemVer formatted specVersion field".
-const SPEC_VERSION = '2.3.0';
+const SPEC_VERSION = '2.4.0';
 
 /**
  * Fail startup on a declared version that is not SemVer.
@@ -344,6 +346,35 @@ function exceedsDepth(value, limit, depth = 0) {
  *
  * @returns {string|null} the violated constraint, or null when acceptable.
  */
+/**
+ * Mark the actions assertion as created rather than gathered (SPEC-036).
+ *
+ * C2PA 2.4 SS18.15.2 requires at least one actions assertion in the claim's
+ * `created_assertions` array, where 2.3 permitted "either the created_assertions
+ * or gathered_assertions array". `created: true` is what puts it there, and
+ * `gathered_assertions` is defined as the field for assertions "provided to the
+ * claim generator by other components in the workflow" -- close to the opposite
+ * of what this one means.
+ *
+ * Set HERE and not by the caller, because `created` means "attributed to the
+ * signer" and the signer is this service. Where an assertion sits in the claim
+ * is a property of how the claim generator builds it, like claim_generator_info
+ * above; a caller says what happened to the asset, not how we structure the
+ * claim about it. Setting it here also means an older client keeps working
+ * against a rebuilt service instead of failing every signature, which an
+ * earlier draft of SPEC-036 got wrong.
+ *
+ * Non-actions assertions are left alone: they genuinely did come from the
+ * caller, so `gathered` is the honest placement for them.
+ */
+function markActionsAsCreated(assertions) {
+  return assertions.map((assertion) => (
+    typeof assertion?.label === 'string' && assertion.label.startsWith('c2pa.actions')
+      ? { ...assertion, created: true }
+      : assertion
+  ));
+}
+
 function rejectAssertions(assertions) {
   if (assertions === undefined) return null;
   if (!Array.isArray(assertions)) return 'extra_assertions must be an array';
@@ -1016,7 +1047,7 @@ app.post('/v1/sign', async (req, res) => {
       { name: creator_name || 'c2pa-spike-signer', version: '0.1.0', specVersion: SPEC_VERSION },
     ],
     format: mime_type,
-    assertions: Array.isArray(extra_assertions) ? extra_assertions : [],
+    assertions: markActionsAsCreated(Array.isArray(extra_assertions) ? extra_assertions : []),
   };
 
   // GOTCHA: builder.sign() RETURNS the C2PA manifest store bytes (JUMBF), NOT

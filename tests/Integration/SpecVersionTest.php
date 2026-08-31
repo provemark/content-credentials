@@ -25,7 +25,7 @@ use Provemark\ContentCredentials\Tests\Integration\ServiceHarness;
  *
  * @see specs/SPEC-035-declaring-a-spec-version.md
  */
-const SPEC035_DECLARED = '2.3.0';
+const SPEC035_DECLARED = '2.4.0';   // raised by SPEC-036; AC2 row 7 keeps the two in step
 
 $spec035SkipUnlessReachable = fn () => ! ServiceHarness::reachable()
     ? 'signing service not reachable — start it with docker compose up -d'
@@ -170,8 +170,24 @@ it('satisfies every requirement of the version it declares', function () {
     // Row 7 — the declared value equals the version this list was written for.
     // This row is the mechanism, not a formality: raising the constant without
     // extending the list fails here rather than silently declaring more than has
-    // been checked.
+    // been checked. It did its job: raising to 2.4.0 required row 8 below.
     expect($declared)->toBe(SPEC035_DECLARED);
+
+    // Row 8 — added by SPEC-036 when the declaration rose to 2.4.0. C2PA 2.4
+    // §18.15.2 requires at least one actions assertion in the claim's
+    // `created_assertions` array, where 2.3 permitted "either the
+    // created_assertions or gathered_assertions array"; `created: true` is what
+    // puts it there. Asserted on the flag rather than the array because the
+    // array needs `c2patool --detailed`, which CI does not install — see
+    // SPEC-036's measurements.
+    $actionsAssertion = null;
+    $allAssertions = $manifest['assertions'] ?? null;
+    foreach (is_array($allAssertions) ? $allAssertions : [] as $candidate) {
+        if (is_array($candidate) && ($candidate['label'] ?? null) === 'c2pa.actions.v2') {
+            $actionsAssertion = $candidate;
+        }
+    }
+    expect($actionsAssertion['created'] ?? null)->toBeTrue();
 })->group('SPEC-035', 'integration')->skip($spec035SkipUnlessReachable);
 
 // --- AC3: the caller cannot set or override the declared version -------------
