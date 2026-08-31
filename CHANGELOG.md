@@ -19,6 +19,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-08-31
+
 ### Added
 
 - **Manifests now say which C2PA rules they follow, and follow 2.4.** Every
@@ -1559,7 +1561,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.13.1...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.14.0...main
+[0.14.0]: https://github.com/provemark/content-credentials/releases/tag/v0.14.0
 [0.13.1]: https://github.com/provemark/content-credentials/releases/tag/v0.13.1
 [0.13.0]: https://github.com/provemark/content-credentials/releases/tag/v0.13.0
 [0.12.0]: https://github.com/provemark/content-credentials/releases/tag/v0.12.0
