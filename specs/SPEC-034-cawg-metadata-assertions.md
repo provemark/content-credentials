@@ -59,6 +59,35 @@ carries no typed decoder for it. **That asymmetry is this spec's real design
 content**, not a blocker: we would be writing metadata that our own accessors
 must interpret, because the engine beneath will hand it back as an opaque shape.
 
+### When this becomes worth building
+
+This spec is correct and deliberately unscheduled. It is written down so the
+research behind it survives, not as a commitment to build — the same standing
+SPEC-016 holds, and for the same kind of reason.
+
+**The Code of Practice is not the trigger.** It is voluntary. Our users'
+obligation under Article 50(2) is the *marking*, which this package already
+does; CAWG metadata answers a different question — who made this and on what
+terms — and only matters to someone pursuing the Code's richer-metadata measure.
+Treating a voluntary code as a requirement would be the same overreach
+`docs/production.md` was corrected to avoid.
+
+Any one of these is the signal to approve it:
+
+- **A user asks to record creator, rights or licence in the manifest.** Nobody
+  has. Reach is early and the baseline is in NOTES Step 51 — read it rather than
+  restating a number from here, because those numbers rot.
+- **A deliberate decision that this package targets Code of Practice
+  signatories**, which is a positioning choice rather than an event, and would
+  make the richer-metadata measure part of what we exist to serve.
+- **c2pa-rs gains a typed decoder for `cawg.metadata`.** That would dissolve the
+  asymmetry above: we would no longer be the only thing in the stack able to read
+  back what we wrote, and the read half of this spec would get much cheaper.
+
+Until then the honest position is that we understand this and it is not time.
+**Do not implement it because the spec reads as ready** — that readiness is what
+a spec is supposed to look like, and it is not evidence of demand.
+
 ## Scope
 
 **In scope**
