@@ -22,19 +22,24 @@ what a provenance format exists to remove.
 C2PA 2.3 introduced a `specVersion` declaration; 2.4 moved it from the claim into
 `claim_generator_info`, deprecated the claim-level field, and strengthened the
 recommendation that claim generators include it. Our manifests carry
-`claim_generator_info` already — a name, a version, and the `org.contentauth.c2pa_rs`
-key the engine adds — and no `specVersion`.
+`claim_generator_info` already — a name, a version, and the
+`org.contentauth.c2pa_rs` key the engine adds — and no `specVersion`.
 
 **The engine will never supply it.** That is settled, not pending, and it is the
 finding that turns this from a chore into a decision: if the value appears, it is
 because this package chose it.
 
 And a version declaration is not a label. It is a claim that this manifest
-follows those rules — signed, like everything else in the manifest. Declaring
-2.4 while not meeting a recommendation 2.3 introduced would be a statement we do
-not honour, in the one artefact whose purpose is that its statements can be
-relied on. **The work here is deciding what we declare and making it true; the
-field itself is one key.** That is why this is a spec rather than a patch.
+follows those rules — signed, like everything else in the manifest. **The work
+here is therefore not adding a key; it is establishing which version we actually
+satisfy, and building a guard that keeps the declaration true as the package
+changes.**
+
+Note what this spec deliberately does *not* argue: that we should declare the
+newest version. Declaring 2.4 while following 2.2 would be a false statement in
+the one artefact whose purpose is that its statements can be relied on.
+Declaring 2.2 accurately is both honest and more useful than declaring nothing.
+**Aim for true, not for high.**
 
 ### Measurements this spec rests on
 
@@ -50,47 +55,56 @@ in the path.
   `Option<String>`, set to `None` in three constructors, serialised only
   `if self.spec_version.is_some()`, and exposed through a public
   `set_spec_version()`. It is opt-in, and the reference tool does not opt in.
-- **Both fields pass through verbatim if supplied.** `specVersion` placed in
-  `claim_generator_info` and `allActionsIncluded` placed beside `actions` both
-  survive signing and read back unchanged, with `validation_state: Valid`.
+- **The field passes through verbatim if supplied.** `specVersion` placed in
+  `claim_generator_info` survives signing and reads back unchanged, with
+  `validation_state: Valid`.
 - **`claim_generator_info` is an open map.** c2pa-rs adds its own key and does
-  not validate ours. Nothing upstream checks that a declared version is accurate.
-- **A silent-drop trap, measured by falling into it.** `allActionsIncluded`
-  placed on an individual *action* rather than beside `actions` is **discarded
-  without error**, and validation still reports `Valid`. The field simply is not
-  in the read-back. A mis-shaped manifest is therefore indistinguishable from a
-  correct one by any signal the engine gives.
-- **The two fields live in different layers.** `claim_generator_info` is built
-  entirely service-side (`service/server.js:973`), so `specVersion` reaches users
-  through `git pull` plus a rebuild. `allActionsIncluded` belongs to the actions
-  assertion, which the PHP client owns through `extra_assertions`, so it reaches
-  users through `composer update`. One spec, two delivery routes.
+  not validate ours. Nothing upstream checks that a declared version is accurate,
+  which is why AC2 exists and is the substance of this spec.
+- **It is built entirely service-side** (`service/server.js:973`). See the
+  delivery note under Scope: this ships through a rebuild, not through Composer.
 
 ## Scope
 
 **In scope**
 
-- Declaring a specification version in `claim_generator_info`, chosen by this
-  package rather than by the caller.
-- A guard that the declaration is **true**: a test that fails if we declare a
-  version whose applicable requirements our manifests do not meet.
-- Emitting `allActionsIncluded` where it can be stated honestly, at the assertion
-  level the specification defines.
-- Refusing the mis-shaped placement rather than letting the engine discard it.
+- Establishing, by audit against the published requirements, which specification
+  version this package's manifests actually satisfy.
+- Declaring that version in `claim_generator_info`, chosen by this package rather
+  than by the caller.
+- A guard that the declaration stays **true** as the package changes.
 - Exposing, on read, what a foreign manifest declares.
 
 **Out of scope** (each needs its own spec before it may be built)
 
-- **Inferring `allActionsIncluded`.** This package receives bytes and cannot know
-  what happened to an asset before it arrived. Setting the flag on a caller's
-  behalf would convert our ignorance into their attestation.
+- **`allActionsIncluded`.** Removed from this spec deliberately, and the reason
+  is worth recording because the field looks like it belongs here. It is a claim
+  that the action list is *complete* — that nothing else was done to the asset.
+  This package receives bytes and cannot know an asset's history, so it can only
+  ever be a caller's statement that we relay unverified. That is a feature with
+  its own risk profile, nobody has asked for it, and bundling it here would mean
+  approving two unrelated decisions at once. Recorded findings for whoever
+  picks it up: it belongs **beside** `actions` at assertion level, and placing it
+  on an individual action instead causes c2pa-rs to **discard it without error**
+  while validation still reports `Valid` — a mis-shaped manifest is
+  indistinguishable from a correct one by any signal the engine gives, so that
+  spec must refuse the mis-shape in our own layer.
 - The **deprecated claim-level** `spec_version`. 2.4 moved it; we implement the
   location that is current, not the one c2pa-rs happens to expose a setter for.
 - Other 2.4 additions: `relatedAssertions` in action parameters, watermarking
   actions referencing soft bindings, live/CMAF streaming, enhanced cloud data
   assertions.
+- **Raising the version we satisfy.** This spec declares what is true today. Work
+  to *become* compliant with a higher version is a separate undertaking, and AC2
+  is what will tell you it is needed.
 - Changing the **claim version**. We emit claim v2 and this spec does not touch
   that.
+
+**Delivery note.** `claim_generator_info` is assembled in `service/server.js`,
+which is `export-ignore`d. This change therefore reaches users through `git pull`
+plus a rebuild and **not** through `composer update`. AC5 exists so an operator
+can confirm a rebuild landed without spending a signature, and the CHANGELOG
+entry must say this plainly.
 
 ## Behavior
 
@@ -105,30 +119,35 @@ covered by a Pest test tagged `->group('SPEC-035')`.
     `org.contentauth.c2pa_rs` keys
 
 - **AC2 — the declaration is guarded against becoming untrue**
-  - Given the declared version and the set of its requirements that apply to what
-    this package emits
+  - Given the declared version and the list of that version's requirements that
+    apply to what this package emits
   - When the guard runs
-  - Then it fails if any applicable requirement is unmet, so raising the declared
-    version cannot be a one-line edit that quietly outruns the manifest
+  - Then it fails if any applicable requirement is unmet, naming the requirement,
+    so that raising the declared value cannot be a one-line edit that quietly
+    outruns the manifest — and so that a later change which breaks a requirement
+    is caught as a failing test rather than as a false declaration in signed
+    output
 
-- **AC3 — allActionsIncluded is a caller statement, never a default**
-  - Given a caller who has not stated that the action list is complete
-  - When the manifest is built
-  - Then no `allActionsIncluded` is emitted; and when the caller does state it,
-    the flag appears beside `actions` at assertion level with that value
-
-- **AC4 — the mis-shaped placement is refused, not silently dropped** *(error path)*
-  - Given an actions assertion carrying `allActionsIncluded` on an individual
-    action rather than beside `actions`
-  - When it is submitted for signing
-  - Then it is rejected with a message naming the correct location, rather than
-    signed into a manifest the engine has quietly stripped it from
-
-- **AC5 — the caller cannot set or override the declared version** *(error path)*
-  - Given a caller supplying `specVersion` themselves
+- **AC3 — the caller cannot set or override the declared version** *(error path)*
+  - Given a caller supplying `specVersion` themselves, through `creator_name`,
+    an extra assertion, or any other field they control
   - When the manifest is built or signed
   - Then the value is refused rather than merged: the declaration describes what
     this package emits, not what a caller wishes to claim about it
+
+- **AC4 — a malformed declared version stops the service at startup** *(error path)*
+  - Given a service configured with a declared version that is empty or not a
+    recognised C2PA specification version
+  - When the service starts
+  - Then it refuses to start, naming the offending value, rather than signing
+    manifests that carry a meaningless declaration — the same fail-closed stance
+    SPEC-014 takes for trust settings carrying no material
+
+- **AC5 — a deployment can be checked without signing**
+  - Given a running signing service
+  - When `GET /health` is called
+  - Then it reports the specification version the service declares, so an
+    operator can confirm a rebuild landed
 
 - **AC6 — reading reports what a foreign manifest declares**
   - Given an asset whose manifest declares a specification version, and a second
@@ -137,32 +156,13 @@ covered by a Pest test tagged `->group('SPEC-035')`.
   - Then the first reports the declared version verbatim and the second reports
     absence without failing, per the SPEC-003 contract
 
-- **AC7 — a deployment can be checked without signing**
-  - Given a running signing service
-  - When `GET /health` is called
-  - Then it reports the specification version the service declares, so an
-    operator can confirm a rebuild landed without spending a signature
-
 ## API sketch
 
 Illustrative only. `strict_types=1`, value objects `readonly`, public API
 `final`.
 
-```php
-// namespace Provemark\ContentCredentials\Core\Manifest;
-
-// AC3: an explicit caller statement, not a default.
-$manifest = ManifestBuilder::forAiGenerated(MediaType::Png)
-    ->withSoftwareAgent('ACME GenAI Image Model', '3.1.0')
-    ->withCompleteActionList()   // emits allActionsIncluded: true
-    ->build();
-
-// AC6: what a manifest we did not produce declares.
-$report->declaredSpecVersion();   // '2.4' | null
-```
-
-Service side (AC1, AC7) — `service/server.js`, where `claim_generator_info` is
-assembled today:
+Service side (AC1, AC4, AC5) — `service/server.js`, where
+`claim_generator_info` is assembled today:
 
 ```js
 claim_generator_info: [
@@ -170,34 +170,42 @@ claim_generator_info: [
 ],
 ```
 
+Client side (AC6) — what a manifest we did not produce declares:
+
+```php
+// namespace Provemark\ContentCredentials\Core\Reading;
+
+$report->declaredSpecVersion();   // '2.2' | null
+```
+
 ## Open questions
 
-- **Which version do we declare?** The honest candidates are the version whose
-  rules we actually follow and the version c2pa-rs implements, and they are not
-  the same — the crate implements a documented *subset*. Declaring the higher one
-  is the more useful claim and the easier one to falsify. **Blocker**: AC2 cannot
-  be written until this is answered, because it is the thing AC2 guards.
-- **Does declaring a version oblige us to `allActionsIncluded`?** 2.3 recommends
-  every actions assertion declare the state; 2.4 mandates it for a narrow case
-  (open-and-immediately-resave) that this package does not perform. If a
-  recommendation is enough to make a declaration untrue, AC2 gets much stricter.
-  *Non-blocker*, leaning that recommendations inform but do not falsify.
-- **Two delivery routes for one spec.** `specVersion` ships through a service
-  rebuild and `allActionsIncluded` through Composer, so a deployment can hold one
-  half and not the other. AC7 exists to make that visible. *Non-blocker*, but the
-  CHANGELOG entry must say it plainly — the same split the 0.13.0 entry had to
-  explain.
+- ~~**Which version do we declare?**~~ **RESOLVED (2026-08-31): the one we
+  actually satisfy, determined by audit.** The question was posed as a choice
+  between the newest version and the one c2pa-rs implements, which made it look
+  like a strategic decision needing a policy. It is not: a declaration is a
+  signed statement, so the only defensible value is the true one. That converts
+  the blocker into measurable work — audit what we emit against each version's
+  applicable requirements, take the highest one that fully passes, and let AC2
+  hold it there. The expected answer is **lower than 2.4**; the domain rules were
+  verified against 2.2 and nothing since has moved us up.
+- **How granular is the AC2 requirement list?** The full specification is far
+  larger than the part that describes what a claim generator emits. *Non-blocker*,
+  leaning: enumerate only the requirements that touch our own output — actions
+  assertion shape, claim version, assertion labels, `digitalSourceType` — and say
+  in the test's docblock that the list is scoped that way, so nobody reads a
+  passing guard as full conformance.
+- **Does the declared version belong in configuration or in code?** Configuration
+  invites an operator to raise it and break the truth AC2 protects; a constant
+  makes AC4's malformed-value path unreachable in practice. *Non-blocker*,
+  leaning a constant in the service with AC4 covering the configured-override
+  path if one is ever added.
 - **The line this touches carries spike leftovers.** `server.js:973` still reads
   `name: creator_name || 'c2pa-spike-signer', version: '0.1.0'` — a default name
-  and a version that describe the spike rather than the release. Editing the
-  object for `specVersion` puts them under the cursor. *Non-blocker*, and
-  deliberately not folded in: changing the default claim generator name is
-  user-visible and belongs in its own change.
-- **Should `allActionsIncluded` be offered at all?** We cannot verify it, so
-  offering it means offering a caller the means to sign a statement we cannot
-  check. The counter-argument is that this is already true of `creator_name` and
-  every `extra_assertion`. *Non-blocker*, leaning offer it with the docs naming
-  it as the caller's assertion rather than the library's.
+  and a version describing the spike rather than the release. Editing the object
+  for `specVersion` puts them under the cursor. *Non-blocker*, and deliberately
+  not folded in: changing the default claim generator name is user-visible and
+  belongs in its own change.
 
 ## Traceability
 
@@ -212,4 +220,3 @@ least one test; every source file maps back to this spec.
 | AC4                  | —                           | —                    |
 | AC5                  | —                           | —                    |
 | AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
