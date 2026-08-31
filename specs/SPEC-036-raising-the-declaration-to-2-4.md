@@ -86,7 +86,9 @@ and it affects every c2pa-rs caller including c2patool itself.
 
 We can remove it: `builder.thumbnail.enabled: false` works through our path and
 leaves `gathered_assertions` **absent entirely**. Whether we should is a product
-question, not a conformance one, and AC5 is where this spec answers it.
+question, not a conformance one. **AC5 answers it: we keep the thumbnail and
+record the exception**, rather than manufacture conformance by deleting the
+thing that exposes it. The reasoning is with the criterion.
 
 ## Scope
 
@@ -161,15 +163,45 @@ covered by a Pest test tagged `->group('SPEC-036')`.
     because SPEC-035's guard was built from version histories and that is exactly
     how it missed the thumbnail
 
-- **AC5 — nothing the claim generator created is declared as gathered** *(the thumbnail decision)*
+- **AC5 — the inherited thumbnail exception is pinned, and alarms when it is fixed**
   - Given an asset signed through this package
   - When `gathered_assertions` is inspected
-  - Then it contains no assertion that this package's claim generator produced.
-    On the creation path that means the auto-generated thumbnail is suppressed,
-    since the specification's own NOTE says placing it there declares it "was not
-    sourced from the claim generator" — which is untrue of it
-  - And the removal is **documented as a visible change**: assets signed after
-    this no longer carry a thumbnail inside the credential
+  - Then the auto-generated `c2pa.thumbnail.claim` is **present** there — the one
+    known departure from what that field means, asserted positively so the test
+    cannot pass by the absence of something
+  - And when it stops being true — because c2pa-rs has moved it, per
+    `contentauth/c2pa-rs` #2106 — the test fails, and **its failure is a prompt
+    rather than a defect**: the message says so, and says that the documented
+    exception can now be removed
+  - And the exception is documented where a reader of a manifest would look for
+    it, naming it as upstream's default rather than a choice of ours
+
+  **Why the exception is kept rather than removed.** The obvious alternative is
+  to suppress the thumbnail — `builder.thumbnail.enabled: false` works and leaves
+  `gathered_assertions` absent entirely, measured. It is the wrong trade, for
+  three reasons.
+
+  *It is not our defect, and deletion is not the repair.* Upstream tracks this as
+  #2106 with a `// todo: add setting for created added thumbnails` on the line
+  responsible, and their intended fix is to move the thumbnail into
+  `created_assertions` — the correct one. Suppressing it here would permanently
+  remove a feature to work around a bug that is expected to go away.
+
+  *It is a mislabelling, not a false statement.* The marking, the signature and
+  the hard binding are untouched. What is wrong is that a thumbnail sits in the
+  field meaning "sourced from elsewhere" when the generator made it.
+
+  *And the strict reading is arguable.* The requirement is that
+  `gathered_assertions` "shall contain one or more URI references to assertions
+  that have been provided to the claim generator by other components in the
+  workflow" — a positive constraint on what it holds. That putting something else
+  there is forbidden comes from the accompanying NOTE, and a NOTE is not
+  normative. Removing a feature a person actually sees, on that reading, is not
+  proportionate.
+
+  What we do instead is say so: declare 2.4 **with a recorded, inherited
+  exception**, rather than manufacture conformance by deleting the thing that
+  exposes it.
 
 - **AC6 — a caller cannot get a 2.4 manifest that declares 2.3, or the reverse** *(error path)*
   - Given a client emitting `"created": true` against a service still declaring
@@ -210,19 +242,22 @@ Service side — the declared value and the thumbnail decision:
 ```js
 const SPEC_VERSION = '2.4.0';
 
-const settings = { version: 1, builder: { thumbnail: { enabled: false } } };
-const builder = Builder.withJson(manifestDefinition, settings);
+// No thumbnail setting: AC5 keeps c2pa-rs's auto-generated thumbnail where it
+// puts it, and pins that as a documented, inherited exception. Suppressing it
+// (`builder.thumbnail.enabled: false`) works, and is deliberately not done.
 ```
 
 ## Open questions
 
-- **Is suppressing the thumbnail the right answer, or should we wait for
-  upstream?** AC5 assumes suppression. The alternative is to accept the
-  contradiction until c2pa-rs #2106 lands, on the grounds that a thumbnail inside
-  a credential is genuinely useful to a person inspecting an asset, and that the
-  mismatch is a mislabelling of provenance rather than a false claim about the
-  content. **Blocker for AC5**, and the only question in this spec that is a
-  judgement rather than a measurement.
+- ~~**Is suppressing the thumbnail the right answer?**~~ **RESOLVED
+  (2026-08-31): no — keep it and pin the exception.** The question was posed as
+  conformance versus feature, which framed deletion as the rigorous choice. It is
+  not: the defect is upstream's, tracked with an intended fix that moves the
+  thumbnail rather than removes it; the departure is a mislabelling rather than a
+  false statement; and the strict reading rests on a NOTE, which is not
+  normative. Manufacturing a clean `gathered_assertions` by deleting the only
+  thing in it would make the declaration look better and the package worse. See
+  AC5.
 - **Does anything depend on the thumbnail today?** The primer records it as
   "expected, harmless" and no criterion asserts it, but consumers may have come
   to rely on it. *Non-blocker*, and the CHANGELOG must call the removal out
