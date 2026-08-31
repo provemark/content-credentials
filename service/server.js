@@ -89,9 +89,13 @@ const SPEC_VERSION = '2.4.0';
  */
 function assertSemVerSpecVersion(value) {
   if (typeof value !== 'string' || !/^\d+\.\d+\.\d+$/.test(value)) {
-    throw new Error(
-      `SPEC_VERSION must be a SemVer string such as 2.3.0, got ${JSON.stringify(value)}`,
+    // console.error + exit, not throw, to match every other startup guard in
+    // this file. A container in a restart loop should say what is wrong on one
+    // line; an uncaught Error buries that under a stack trace.
+    console.error(
+      `SPEC_VERSION must be a SemVer string such as 2.4.0, got ${JSON.stringify(value)}`,
     );
+    process.exit(1);
   }
 }
 

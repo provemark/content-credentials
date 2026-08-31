@@ -36,9 +36,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   components in the workflow"* — and the actions assertion carrying your Article
   50 marking is the opposite of that. It is now attributed to the signer.
 
-  **You do not need to change anything.** The signing service sets this, because
-  "attributed to the signer" is a statement about the signer; an older client
-  keeps working unchanged against a rebuilt service. The declaration and the
+  **You do not need to change your code to keep signing.** The service sets this,
+  because "attributed to the signer" is a statement about the signer; an older
+  client keeps working unchanged against a rebuilt service.
+
+  **The manifest itself does change, though.** The actions assertion now carries
+  a `"created": true` key, so anything that pins a manifest's exact shape will
+  see it — a snapshot test, a strict equality check, a fixture compared field by
+  field. This is not hypothetical: **thirteen tests in this repository broke on
+  precisely that** when the change landed. Reading accessors
+  (`isAiGenerated()`, `digitalSourceTypes()` and the rest) are unaffected. The declaration and the
   shape both live in `service/server.js`, so that half reaches you through
   `git pull` plus a rebuild rather than through `composer update`, and there is
   no way to end up with one without the other. `GET /health` reports
