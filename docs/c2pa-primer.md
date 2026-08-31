@@ -4,7 +4,10 @@ Topic-ordered reference distilled from the spike log (`NOTES.md`, indexing the
 per-step files in `notes/`). Everything here was verified against running code
 (c2patool 0.27.15, @contentauth/c2pa-node 0.9.1, c2pa-rs test certs), first on
 2026-07-27, last reconciled in full on 2026-08-12, and re-run against those two
-tool versions on 2026-08-21 — none of it is from model memory.
+tool versions on 2026-08-21 — none of it is from model memory. **§11 was added
+on 2026-08-31 and is measured against c2patool 0.27.16**; the rest of the page
+still carries the 0.27.15 verification, which is a difference worth keeping
+visible rather than smoothing over.
 When this page and the log disagree, the log (the raw record) wins; fix this
 page. When neither answers a question, ask — do not guess.
 
@@ -21,7 +24,11 @@ destructuring at the top of `app.post('/v1/sign')`.
 - Claim v2 REQUIRES an actions assertion whose **first action is
   `c2pa.created` or `c2pa.opened`**; anything else →
   `assertion.action.malformed: "first action must be created or opened"`.
-- c2pa-node auto-adds a `c2pa.thumbnail.claim` assertion. Expected; harmless.
+- c2pa-node auto-adds a `c2pa.thumbnail.claim` assertion. Expected; harmless —
+  but see §11 for where it lands, which is not where it belongs.
+- A claim v2 splits assertions into **`created_assertions`** and
+  **`gathered_assertions`**, and which one an assertion lands in is a claim
+  about who stands behind it. See §11.
 
 ## 2. The AI-generated marking (EU AI Act, Art. 50)
 
@@ -217,6 +224,68 @@ hearsay into attestation.
   `involvesGenerativeAi()` is the wider question and is false for
   `algorithmicMedia`.
 - Retired, never emit: `minorHumanEdits`, `digitalArt`, `softwareImage`.
+
+## 11. Declaring a version, and who an assertion is attributed to (SPEC-035/036)
+
+Measured 2026-08-31 against `c2patool` 0.27.16 (c2pa-rs 0.90.16) and
+`@contentauth/c2pa-node` 0.9.1, and against the **normative text** of the 2.3 and
+2.4 specifications rather than their change logs — the distinction mattered, see
+below.
+
+**A claim v2 has two assertion arrays, and the difference is attribution.**
+`created_assertions` holds what the claim generator made and stands behind:
+*"All created_assertions are attributed to the signer."* `gathered_assertions`
+holds assertions *"provided to the claim generator by other components in the
+workflow"*, and the specification's NOTE is explicit that putting one there
+declares it *"was not sourced from the claim generator and is not attributed to
+the signer"*.
+
+**2.3 and 2.4 differ by one word, and it is the word that matters to us.**
+§18.15.2, verbatim:
+
+- **2.3** — "at least one actions assertion present in **either** the
+  created_assertions **or gathered_assertions** array"
+- **2.4** — "at least one actions assertion present in **the created_assertions**
+  array"
+
+For a package whose point is one actions assertion saying "made by a machine",
+`gathered` is close to the opposite of what is meant.
+
+**`"created": true` on the assertion is what moves it.** Not a global setting and
+not an API call — a field on the assertion in the manifest definition JSON, read
+by `#[serde(default)]` in `sdk/src/manifest_assertion.rs`. Three other
+mechanisms were tried first and none of them worked: `builder.created_assertion_labels`
+in the settings, the `Create` builder intent, and a search for an
+`add_created_assertion` builder method. **The service sets this flag**, not the
+client, because "attributed to the signer" is a statement about the signer.
+
+**`specVersion` lives in `claim_generator_info`, and the engine never sets it.**
+`spec_version` is `Option<String>` in `sdk/src/claim.rs`, `None` in three
+constructors, serialised only when set — opt-in, and c2patool does not opt in. If
+the value appears, a claim generator chose it. 2.3 §10.2.2: the field "may be
+present, and if so, **shall** contain a SemVer formatted specVersion field", so
+`2.4.0` and never `2.4`.
+
+⚠️ **`validation_state: Valid` proves nothing about any of this.** c2pa-rs does
+not validate the placement rules. A manifest with its actions assertion in
+`gathered_assertions` — violating 2.4 §18.15.2 — reads back `Valid` with no
+status entry about it. Nor does anything validate the declared `specVersion`
+against what the manifest actually does: `claim_generator_info` is an open map.
+Both are claims, and a green verdict is not evidence for either. Assert structure
+directly.
+
+⚠️ **The auto-generated thumbnail lands in `gathered_assertions`**, though the
+generator made it. That contradicts what the field means, at 2.3 as much as at
+2.4, and it is c2pa-rs's default — every tool built on it, `c2patool` included.
+Tracked upstream as [c2pa-rs #2106](https://github.com/contentauth/c2pa-rs/issues/2106),
+whose fix moves the thumbnail rather than removing it. Suppressible via
+`builder.thumbnail.enabled: false`, which leaves `gathered_assertions` absent
+entirely — deliberately not done; see SPEC-036 AC5.
+
+**Where the created/gathered split is visible.** Only through
+`c2patool --detailed`. Neither `POST /v1/read` nor `ExtC2paReader` surfaces those
+arrays, so tests assert the `created` flag on the read-back assertion instead —
+which is observable everywhere, and is what we control.
 
 ## Open items (spec required before touching)
 
