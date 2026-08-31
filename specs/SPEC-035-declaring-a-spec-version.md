@@ -36,10 +36,10 @@ satisfy, and building a guard that keeps the declaration true as the package
 changes.**
 
 Note what this spec deliberately does *not* argue: that we should declare the
-newest version. Declaring 2.4 while following 2.2 would be a false statement in
+newest version. Declaring 2.4 while following 2.3 would be a false statement in
 the one artefact whose purpose is that its statements can be relied on.
-Declaring 2.2 accurately is both honest and more useful than declaring nothing.
-**Aim for true, not for high.**
+Declaring `2.3.0` accurately is both honest and more useful than declaring
+nothing. **Aim for true, not for high.**
 
 ### Measurements this spec rests on
 
@@ -190,14 +190,37 @@ covered by a Pest test tagged `->group('SPEC-035')`.
     itself is subject to
 
 - **AC2 — the declaration is guarded against becoming untrue**
-  - Given the declared version and the list of that version's requirements that
-    apply to what this package emits
+  - Given a manifest signed through this package, and the requirements below —
+    which are the ones the audit found that both apply to what this package
+    emits and belong to the declared version `2.3.0` or earlier:
+
+    1. **The claim is version 2** — `claim_version == 2`. *(MUST)*
+    2. **The actions assertion is labelled `c2pa.actions.v2`** — exact match on
+       the label, not a substring of it. *(MUST)*
+    3. **Exactly one actions assertion is present** — counted across
+       `c2pa.actions*`, because two are contradictory and resolve
+       verifier-dependently. *(MUST)*
+    4. **The first action is `c2pa.created` or `c2pa.opened`** — the first entry
+       of `actions`, which is what claim v2 makes mandatory. *(MUST)*
+    5. **`digitalSourceType`, where present, is one this package may emit** — a
+       full IPTC URI from the SPEC-026 emittable set. *(MUST)*
+    6. **`specVersion`, being present, is SemVer-formatted** — checked against
+       our own declaration, per 2.3 §10.2.2. *(SHALL)*
+    7. **The declared value equals the version this list was written for** — the
+       service constant compared against `2.3.0`.
+
   - When the guard runs
-  - Then it fails if any applicable requirement is unmet, naming the requirement,
-    so that raising the declared value cannot be a one-line edit that quietly
-    outruns the manifest — and so that a later change which breaks a requirement
-    is caught as a failing test rather than as a false declaration in signed
-    output
+  - Then it fails if any row is unmet, **naming the row** — so a later change
+    that breaks one is caught as a failing test rather than as a false statement
+    in signed output
+  - And **row 7 is what makes raising the declaration impossible to do by
+    accident**: the list is written for one version, so editing the constant
+    without extending the list fails immediately rather than silently declaring
+    more than has been checked
+  - And the guard's docblock states the scope the audit had — requirements
+    touching this package's own output, enumerated from the 2.3 and 2.4 version
+    histories, not the full specification — so that a passing guard is not read
+    as full conformance
 
 - **AC3 — the caller cannot set or override the declared version** *(error path)*
   - Given a caller supplying `specVersion` themselves, through `creator_name`,
@@ -230,6 +253,18 @@ covered by a Pest test tagged `->group('SPEC-035')`.
   - When both are read
   - Then the first reports the declared version verbatim and the second reports
     absence without failing, per the SPEC-003 contract
+
+- **AC7 — the reason we are not on 2.4 is pinned, and alarms when it changes**
+  - Given a manifest signed through this package
+  - When its claim is inspected
+  - Then the actions assertion is **present in `gathered_assertions`** — the
+    measured fact that costs us 2.4, asserted positively rather than as the
+    absence of something
+  - And when that stops being true — because c2pa-rs gained the control it does
+    not currently expose — the test fails, and **its failure is a prompt rather
+    than a defect**: the message says so, and points at the out-of-scope entry
+    for raising the declared version. Without this, the day 2.4 becomes reachable
+    is a day nobody notices
 
 ## API sketch
 
@@ -299,3 +334,4 @@ least one test; every source file maps back to this spec.
 | AC4                  | —                           | —                    |
 | AC5                  | —                           | —                    |
 | AC6                  | —                           | —                    |
+| AC7                  | —                           | —                    |
