@@ -152,12 +152,12 @@ docblock must say so, or a passing guard will be read as full conformance.
 - Other 2.4 additions: `relatedAssertions` in action parameters, watermarking
   actions referencing soft bindings, live/CMAF streaming, enhanced cloud data
   assertions.
-- **Raising the version we satisfy.** This spec declares what is true today, and
-  as the audit shows, the single thing between us and 2.4 is **upstream work, not
-  ours**: c2pa-rs places the actions assertion in `gathered_assertions` and
-  offers no API to do otherwise, so its own reference tool fails the same
-  requirement. The trigger to revisit is c2pa-rs gaining that control — at which
-  point AC2 fails against a raised declaration and tells you so.
+- **Raising the version we satisfy.** This spec declares what is true today.
+  ⚠️ This entry originally said the single thing between us and 2.4 was "upstream
+  work, not ours". **That is false** — see the second amendment below: it is one
+  field, `"created": true`, on the actions assertion in the manifest definition,
+  measured working through our own path. Raising the declaration remains out of
+  scope *here*, but as ordinary work rather than as a wait.
 - Changing the **claim version**. We emit claim v2 and this spec does not touch
   that.
 
@@ -357,6 +357,11 @@ your guess, not the claim.
 `ClaimAssertionType::Created` rather than `Gathered`. So the capability is
 present, not absent.
 
+⚠️ **The next three paragraphs are wrong. Superseded by the second amendment
+below (2026-08-31, the created flag), which supersedes them on the strength of
+a working measurement.** They are kept because the claim they make is quoted in
+a merged pull request and a commit message, and a reader may arrive holding it.
+
 **What could not be made to work.** Three routes, each producing a validly
 signed asset, each leaving the actions assertion in `gathered_assertions`:
 
@@ -381,7 +386,7 @@ the same placement behaviour from another angle — `contentauth/c2pa-rs` #2106
 (auto-generated thumbnails in `gathered_assertions` instead of `created_assertions`)
 and #2238 — so this is a known area upstream rather than a local mystery.
 
-**What would move it.** An answer to how the builder context is meant to be
+**What would move it** ~~(superseded)~~. An answer to how the builder context is meant to be
 populated, which is a specific and reproducible question rather than a wish. If
 that answer arrives and the placement changes, AC7's engine pin fails on the next
 bump, which is the prompt this spec already has in place — the re-audit path
@@ -391,6 +396,94 @@ needs no new machinery.
 amendment adds none, deliberately: `bin/spec-check.php` reads criteria from that
 section only, and a criterion written into an amendment gets a traceability row
 pointing at nothing the tool can find.
+
+## Amendment (2026-08-31, the created flag — and the first amendment was wrong)
+
+The maintainer asked whether 2.4 was really out of reach and whether the
+difference was deliberate. Both halves of that question earned their keep: the
+first amendment's answer was wrong, and reading the specification properly turned
+up something neither audit had found.
+
+**The audit's central conclusion stands.** Verified this time against the
+normative text rather than a changelog summary, by extracting both specification
+PDFs and comparing §18.15.2 word for word:
+
+- **2.3** — "There shall be at least one actions assertion present in **either**
+  the created_assertions **or gathered_assertions** array of the Claim of a
+  standard C2PA Manifest."
+- **2.4** — "There shall be at least one actions assertion present in **the
+  created_assertions** array of the Claim of a standard C2PA Manifest."
+
+So 2.4 genuinely differs, the change is deliberate and normative rather than a
+release note, and **the declared `2.3.0` is accurate**: 2.3 explicitly permits
+where our actions assertion sits.
+
+**What the first amendment got wrong.** It concluded that the lever "could not be
+reached from here", after three failed attempts at a global setting
+(`created_assertion_labels`) and at the `Create` intent. Both were the wrong
+mechanism. The control is a **field on the assertion itself**, in the manifest
+definition JSON we already send. `sdk/src/manifest_assertion.rs` at tag
+`c2pa-v0.90.16`:
+
+```rust
+/// True if this assertion is attributed to the signer
+/// This maps to a created vs a gathered assertion. (defaults to false)
+#[serde(default, skip_serializing_if = "std::ops::Not::not")]
+created: bool,
+```
+
+Measured, through `c2patool` **and** through `Builder.withJson(manifest,
+settings)` in c2pa-node — our own path — with `"created": true` on the actions
+assertion:
+
+```
+created_assertions  -> ['c2pa.actions.v2', 'c2pa.hash.data']
+gathered_assertions -> ABSENT   (with the auto-thumbnail disabled)
+validation_state: Valid
+```
+
+**2.4 is therefore one field away, not upstream-bound.** The failure was mine
+three times over: I searched for a function name I had guessed at, then tested
+three mechanisms of my own invention, then concluded from their failure that no
+mechanism existed. Failing to find a thing is not evidence that it is absent —
+which is the same lesson the CAWG entry in SPEC-034 records, made the same day.
+
+**A new finding, and it is version-independent.** The `gathered_assertions`
+definition is identical in 2.3 and 2.4: the field "shall contain one or more URI
+references to assertions **that have been provided to the claim generator by
+other components in the workflow**", with a NOTE that placing an assertion there
+declares it "was not sourced from the claim generator and is not attributed to
+the signer".
+
+The thumbnail c2pa-rs generates for us sits in `gathered_assertions`. It was
+sourced from the claim generator, so that placement contradicts what the field
+means — at **2.3 as much as at 2.4**, and therefore in manifests this package
+signs today. It is upstream's default (`contentauth/c2pa-rs` #2106 tracks it, with
+a `// todo: add setting for created added thumbnails` at the point where it
+happens) and it affects every c2pa-rs caller including c2patool. We can suppress
+it: `builder.thumbnail.enabled: false` works through our path and leaves
+`gathered_assertions` absent entirely. Whether to is a product decision — a
+thumbnail inside a credential is useful — and belongs to whichever spec raises
+the declaration, not to this one.
+
+**What this does not change.** The declared value stays `2.3.0`. Nothing has been
+implemented, and raising the version we satisfy is out of scope here by design.
+
+**What it does change.** The out-of-scope entry above says the fix is upstream
+work rather than ours. That is now false: it is one field in the manifest
+definition. A spec that raises the declaration should treat it as ordinary work,
+re-audit against the **normative text** rather than the version histories, and
+decide the thumbnail question.
+
+**On AC2's guard.** It checks seven rows and did not catch the thumbnail
+placement, because its row list was built from the version histories — a scope
+this spec states in three places and the guard's own docblock repeats. The guard
+is behaving as documented; the documentation is what should be read before
+treating a green run as conformance.
+
+**The prepared upstream issue should not be filed.** There is no defect to
+report: the mechanism exists and was being held wrong. The thumbnail placement is
+real but already tracked as #2106.
 
 ## Traceability
 
