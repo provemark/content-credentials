@@ -107,11 +107,15 @@ gathered_assertions -> ['c2pa.thumbnail.claim', 'c2pa.actions.v2']
 ```
 
 The reference implementation does not satisfy that requirement either, so
-**nobody signing through c2pa-rs 0.90.x can honestly declare 2.4.** Nor is there
-a lever we are failing to pull: `ManifestAssertionKind` in c2pa-node is
-`"Cbor" | "Json" | "Binary" | "Uri"` — a serialisation form, not the
-created/gathered distinction — and c2pa-rs exposes no public builder API for
-placing an assertion in `created_assertions`.
+**nobody signing through c2pa-rs 0.90.x can honestly declare 2.4.**
+
+⚠️ **This paragraph originally continued "nor is there a lever we are failing to
+pull". That was too absolute — see the 2026-08-31 amendment below.** A lever
+does exist (`builder.created_assertion_labels`, present in 0.90.16); it could
+not be reached through any of three routes tried. `ManifestAssertionKind` in
+c2pa-node is indeed irrelevant here — it is `"Cbor" | "Json" | "Binary" | "Uri"`,
+a serialisation form rather than the created/gathered distinction — but that
+observation never supported the wider claim it was used for.
 
 **What this audit did not cover.** Only the requirements that touch what this
 package emits, enumerated from the 2.3 and 2.4 version histories — not the full
@@ -331,6 +335,62 @@ $report->declaredSpecVersion();   // '2.2' | null
   for `specVersion` puts them under the cursor. *Non-blocker*, and deliberately
   not folded in: changing the default claim generator name is user-visible and
   belongs in its own change.
+
+## Amendment (2026-08-31, the 2.4 blocker is narrower than stated)
+
+Found by the maintainer asking whether 2.4 was really out of reach. It was the
+right question: the answer below does not change the declared value, but it does
+change what this spec claims to know, and the original wording read as a
+measurement when it was an inference.
+
+**What was written.** The audit section stated that *"c2pa-rs exposes no public
+builder API for placing an assertion in `created_assertions`"*. That is too
+absolute, and the way it was arrived at is the recurring defect this repository
+already has three entries for: it came from a code search for one function name,
+`add_created_assertion`. Searching for the name of a thing you guessed at tests
+your guess, not the claim.
+
+**What is actually true.** The lever exists, and it exists in the version we run.
+`sdk/src/settings/builder.rs:570` at tag `c2pa-v0.90.16` declares
+`created_assertion_labels: Option<Vec<String>>`, and `sdk/src/claim.rs`
+(1436–1451) is the decision point: a label listed there becomes
+`ClaimAssertionType::Created` rather than `Gathered`. So the capability is
+present, not absent.
+
+**What could not be made to work.** Three routes, each producing a validly
+signed asset, each leaving the actions assertion in `gathered_assertions`:
+
+1. `c2patool --settings` with `{"version":1,"builder":{"created_assertion_labels":["c2pa.actions.v2"]}}`.
+2. The **`Create` intent** (`c2patool --create trainedAlgorithmicMedia`). This is
+   the strongest of the three, and it is why the finding is not about who supplies
+   the assertion: c2pa-rs built the actions assertion **itself**, digitalSourceType
+   included, and still placed it in `gathered_assertions`.
+3. `Builder.withJson(manifest, settings)` through `@contentauth/c2pa-node` 0.9.1
+   — our own path — with the same settings object.
+
+The Rust reads `self.context...settings()`, so these are *context* settings, and
+none of the three routes appears to populate that context. That is the shape of
+the gap: plumbing, not capability.
+
+**What this changes, and what it does not.** The declared value stays `2.3.0`,
+because 2.4 remains unreached — AC2 would fail against a raised declaration
+exactly as designed. What changes is the reason recorded for it. It is **not**
+"no lever exists"; it is "the lever exists and could not be reached from here",
+which is a weaker claim and an actionable one. Two open upstream issues describe
+the same placement behaviour from another angle — `contentauth/c2pa-rs` #2106
+(auto-generated thumbnails in `gathered_assertions` instead of `created_assertions`)
+and #2238 — so this is a known area upstream rather than a local mystery.
+
+**What would move it.** An answer to how the builder context is meant to be
+populated, which is a specific and reproducible question rather than a wish. If
+that answer arrives and the placement changes, AC7's engine pin fails on the next
+bump, which is the prompt this spec already has in place — the re-audit path
+needs no new machinery.
+
+**No acceptance criterion changes.** Criteria live in `## Behavior` and this
+amendment adds none, deliberately: `bin/spec-check.php` reads criteria from that
+section only, and a criterion written into an amendment gets a traceability row
+pointing at nothing the tool can find.
 
 ## Traceability
 
