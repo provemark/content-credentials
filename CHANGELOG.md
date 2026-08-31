@@ -19,6 +19,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-08-31
+
+A documentation-only release, tagged rather than held back because of what it
+corrects. The README described this package as the marking "required by the EU
+AI Act, Article 50" — a claim about a regulation that has been **in force since
+2 August 2026**, and one a reader could take to mean that installing this
+discharges their Article 50(2) obligation. Under the Code of Practice published
+on 10 June 2026 it does not: signed metadata is the first of two layers, and the
+second one is not something this package will ever provide. Leaving that
+overstatement on Packagist until the next feature happened along would have sold
+the reason for fixing it.
+
+Nothing in the code, the API or the wire contract changed. Both changed files
+ship in the Composer package, so `composer update` delivers this.
+
 ### Documentation
 
 - **The README implied more coverage than the package delivers.** It opened by
@@ -1493,7 +1508,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.13.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.13.1...main
+[0.13.1]: https://github.com/provemark/content-credentials/releases/tag/v0.13.1
 [0.13.0]: https://github.com/provemark/content-credentials/releases/tag/v0.13.0
 [0.12.0]: https://github.com/provemark/content-credentials/releases/tag/v0.12.0
 [0.11.0]: https://github.com/provemark/content-credentials/releases/tag/v0.11.0
