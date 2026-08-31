@@ -17,6 +17,9 @@ asset** — because C2PA records an edit as a `c2pa.opened` action pointing at a
 ingredient whose hash covers the original's bytes, not a filename or a digest
 you can supply instead. See [What you can mark](docs/marking.md).
 
+Signed metadata is only the **first of two layers** the EU's Code of Practice asks
+for — see [Going to production](docs/production.md) before treating this as compliance.
+
 It ships as two pieces:
 
 - a **framework-agnostic Core** (`Provemark\ContentCredentials\Core\*`) that builds
