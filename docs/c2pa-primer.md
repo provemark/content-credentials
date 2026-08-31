@@ -83,9 +83,15 @@ decoded manifest) and public `GET /health`.
 
 **Deliberate divergence from the CAI wp-plugin contract:** our service does
 NOT inject a hardcoded `c2pa.published` actions assertion. The PHP client
-owns the actions assertion via `extra_assertions`, so the manifest carries
+supplies the actions assertion via `extra_assertions`, so the manifest carries
 exactly one, correct actions assertion. (Upstream's service is unrunnable
 scaffolding anyway — see NOTES.md Step 1 for the four blockers.)
+
+⚠️ **The client supplies it; it does not own it outright.** Since SPEC-036 the
+service adds `created: true` to that assertion (`markActionsAsCreated()` in
+`server.js`) before handing it to the builder. The division is: **contents are
+the client's, placement in the claim is the generator's** — `created` means
+"attributed to the signer", and the signer is the service. See §11.
 
 ## 4. c2pa-node API essentials (`service/src/`)
 
