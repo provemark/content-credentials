@@ -485,6 +485,27 @@ treating a green run as conformance.
 report: the mechanism exists and was being held wrong. The thumbnail placement is
 real but already tracked as #2106.
 
+## Amendment (2026-08-31, the declared value is now 2.4.0)
+
+SPEC-036 raised it, having established that the one thing keeping us at 2.3.0
+was a single field on the assertion rather than the upstream limitation the
+first amendment claimed.
+
+Two things in this spec move with it, and neither is a change of intent:
+
+- **AC1's pinned value is now `2.4.0`.** The criterion is unchanged — it still
+  says the declaration is pinned exact and SemVer — only the constant it pins.
+- **AC2's row list gains a row 8**: the actions assertion carries
+  `"created": true`, which is what places it in `created_assertions` as 2.4
+  §18.15.2 requires. Row 7 did exactly the job it was written for: raising the
+  constant failed the guard until the list was extended, so the declaration
+  could not quietly outrun what had been checked.
+
+Row 8 asserts the **flag** rather than the `created_assertions` array itself,
+because that array is visible only through `c2patool --detailed`, which CI does
+not install. SPEC-036 records the measured mapping between the two, and AC7's
+engine pin here is the alarm that prompts re-measuring it after a bump.
+
 ## Traceability
 
 Filled when status becomes `implemented`. Every acceptance criterion maps to at
