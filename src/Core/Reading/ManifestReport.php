@@ -27,7 +27,27 @@ final readonly class ManifestReport
         private array $validationStatusCodes,
         private ?ValidationState $validationState = null,
         private bool $hasTimestamp = false,
+        private ?string $declaredSpecVersion = null,
     ) {}
+
+    /**
+     * The C2PA specification version this manifest's generator declared, or null
+     * when it declared none (SPEC-035 AC6).
+     *
+     * Reported verbatim, and **not** validated: this says what the manifest
+     * claims, which for an asset you did not produce is the interesting thing.
+     * Absence is absence — a manifest without the field, and an asset without a
+     * manifest, both yield null rather than an error, per the SPEC-003 contract.
+     *
+     * Note what a value here does and does not tell you. It is the generator's
+     * own statement about which rules it followed; nothing in C2PA validates it,
+     * so it is a claim like any other in the manifest rather than a verified
+     * fact.
+     */
+    public function declaredSpecVersion(): ?string
+    {
+        return $this->declaredSpecVersion;
+    }
 
     public function hasManifest(): bool
     {

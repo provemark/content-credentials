@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — while draft                                     |
+| Approved   | Maurice van Loon (maintainer), 2026-08-31         |
 | Supersedes | — (extends SPEC-001 building, SPEC-002 signing)   |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -254,17 +254,28 @@ covered by a Pest test tagged `->group('SPEC-035')`.
   - Then the first reports the declared version verbatim and the second reports
     absence without failing, per the SPEC-003 contract
 
-- **AC7 — the reason we are not on 2.4 is pinned, and alarms when it changes**
-  - Given a manifest signed through this package
-  - When its claim is inspected
-  - Then the actions assertion is **present in `gathered_assertions`** — the
-    measured fact that costs us 2.4, asserted positively rather than as the
-    absence of something
-  - And when that stops being true — because c2pa-rs gained the control it does
-    not currently expose — the test fails, and **its failure is a prompt rather
-    than a defect**: the message says so, and points at the out-of-scope entry
-    for raising the declared version. Without this, the day 2.4 becomes reachable
-    is a day nobody notices
+- **AC7 — the engine the audit was made against is pinned, and alarms on a bump**
+  - Given the engine version pinned in `service/package.json`, and the version
+    this spec's audit was carried out against
+  - When they differ
+  - Then the test fails, and **its failure is a prompt rather than a defect**:
+    the message says so and points at the audit, because a new engine can change
+    what we emit and therefore whether `2.3.0` is still the highest true value
+  - And because it reads a committed file rather than a running service, it needs
+    no profile and no fixture, and **cannot become a test that reports `skipped`
+    everywhere** — which is the failure mode this criterion replaced
+
+  **Why not the more direct check.** The obvious form is to assert the actions
+  assertion sits in `gathered_assertions` — the measured fact that costs us 2.4,
+  and it would alarm the moment c2pa-rs gained the control it does not expose.
+  It was written that way first and **it is not testable here**: measured
+  2026-08-31, neither `POST /v1/read` nor `ExtC2paReader` surfaces
+  `created_assertions` or `gathered_assertions`; only `c2patool --detailed`
+  does, and CI does not install c2patool. A test conditioned on a local binary
+  would report `skipped` everywhere and never go red — which is the SPEC-020
+  failure this repository already paid for once. Pinning the engine is the wider
+  alarm anyway: **any** bump should trigger a re-audit of the declaration, not
+  only the one requirement we happen to be watching.
 
 ## API sketch
 
@@ -328,10 +339,10 @@ least one test; every source file maps back to this spec.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
+| AC1 | `tests/Integration/SpecVersionTest.php` :: it declares the specification version in claim_generator_info | `service/server.js` — `SPEC_VERSION`, `claim_generator_info` |
+| AC2 | `tests/Integration/SpecVersionTest.php` :: it satisfies every requirement of the version it declares | `service/server.js` — `SPEC_VERSION` (the guard is the test) |
+| AC3 | `tests/Integration/SpecVersionTest.php` :: it ignores a specVersion a caller tries to smuggle through the generator name; `tests/Unit/SpecVersionDeclarationTest.php` :: it builds claim_generator_info from fixed keys rather than from caller input | `service/server.js` — the `claim_generator_info` object literal |
+| AC4 | `tests/Unit/SpecVersionDeclarationTest.php` :: it validates the declared version as SemVer, not against a list of known versions; :: it refuses to start on a declared version that is not SemVer | `service/server.js` — `assertSemVerSpecVersion()` and its startup call |
+| AC5 | `tests/Integration/SpecVersionTest.php` :: it reports the declared specification version on /health | `service/server.js` — `spec_version` in the health payload |
+| AC6 | `tests/Integration/SpecVersionTest.php` :: it reports the declared version through the reader, and absence without failing; `tests/Integration/ReaderEquivalenceTest.php` :: `spec019Accessors()` | `ManifestReport::declaredSpecVersion()`, `ManifestStoreParser::parseDeclaredSpecVersion()` |
+| AC7 | `tests/Unit/SpecVersionDeclarationTest.php` :: it still runs on the engine version the specification audit was made against | `service/package.json` — the `@contentauth/c2pa-node` pin |

@@ -61,6 +61,40 @@ const TSA_URL = process.env.CONTENTAUTH_TSA_URL || undefined;
 // `signingCredential.untrusted`, whatever certificate signed it.
 const TRUST_SETTINGS_PATH = process.env.CONTENTAUTH_TRUST_SETTINGS || undefined;
 
+// SPEC-035: the C2PA specification version these manifests declare they follow.
+//
+// A constant rather than configuration, because it is not an operator's choice:
+// it is a signed statement about which rules this software obeys, and the guard
+// that keeps it true (SPEC-035 AC2) is written for this exact value.
+//
+// 2.3.0 and not 2.4 for one measured reason -- 2.4 requires the mandatory
+// actions assertion to appear only in `created_assertions`, and c2pa-rs places
+// ours in `gathered_assertions`. Its own reference tool does the same, so this
+// is the engine's ceiling rather than ours. See the audit in the spec.
+//
+// SemVer, not "2.3": C2PA 2.3 SS10.2.2 says the field "may be present, and if
+// so, shall contain a SemVer formatted specVersion field".
+const SPEC_VERSION = '2.3.0';
+
+/**
+ * Fail startup on a declared version that is not SemVer.
+ *
+ * Shape rather than membership of a list of known versions: a list would need
+ * editing every time C2PA publishes, and would reject a valid declaration for
+ * being unfamiliar. Fails closed, like the trust settings check below -- signing
+ * with a malformed declaration would put a statement in every manifest that
+ * breaks the one rule the field itself is subject to.
+ */
+function assertSemVerSpecVersion(value) {
+  if (typeof value !== 'string' || !/^\d+\.\d+\.\d+$/.test(value)) {
+    throw new Error(
+      `SPEC_VERSION must be a SemVer string such as 2.3.0, got ${JSON.stringify(value)}`,
+    );
+  }
+}
+
+assertSemVerSpecVersion(SPEC_VERSION);
+
 if (!CERT_PATH || !KEY_PATH) {
   console.error('SIGNING_CERT_PATH and SIGNING_KEY_PATH are required');
   process.exit(1);
@@ -803,6 +837,11 @@ app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     signing_alg: SIGN_ALG,
+    // SPEC-035 AC5: the declaration this instance puts in every manifest, so a
+    // rebuild can be confirmed without spending a signature. The declaring half
+    // of SPEC-035 ships through `git pull` plus a rebuild rather than through
+    // Composer, so "did it land" is a question an operator will actually have.
+    spec_version: SPEC_VERSION,
     timestamping: Boolean(TSA_URL),
     trust_verification: Boolean(trustSettings),
     require_ai_marking: REQUIRE_AI_MARKING,
@@ -971,7 +1010,10 @@ app.post('/v1/sign', async (req, res) => {
 
   const manifestDefinition = {
     claim_generator_info: [
-      { name: creator_name || 'c2pa-spike-signer', version: '0.1.0' },
+      // SPEC-035 AC1/AC3: specVersion is ours, not the caller's. Only `name`
+      // comes from the request, and the object is a literal rather than a spread
+      // so there is no path by which a caller can reach the declaration.
+      { name: creator_name || 'c2pa-spike-signer', version: '0.1.0', specVersion: SPEC_VERSION },
     ],
     format: mime_type,
     assertions: Array.isArray(extra_assertions) ? extra_assertions : [],

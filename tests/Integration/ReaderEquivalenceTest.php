@@ -111,6 +111,10 @@ function spec019Accessors(ManifestReport $report): array
             fn (SoftwareAgent $agent) => $agent->toArray(),
             $report->softwareAgents(),
         ),
+        // SPEC-035. Measured before it was added here: the extension, on
+        // c2pa-rs 0.89.0, returns claim_generator_info including specVersion
+        // verbatim for an asset signed by 0.90.x, so the two readers can agree.
+        'declaredSpecVersion' => $report->declaredSpecVersion(),
     ];
 }
 
