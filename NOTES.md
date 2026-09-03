@@ -109,3 +109,5 @@ Follow these before searching; most questions are already answered in one step.
 | **53** | 2026-08-21 | [c2pa-node 0.9.1, and a bump Dependabot never offered](notes/step-53-c2pa-node-0-9-1-measured.md) |
 | **54** | 2026-08-31 | [Declaring a spec version, and who an assertion is attributed to](notes/step-54-spec-version-and-attribution-measured.md) |
 | **55** | 2026-09-03 | [c2pa-node 0.9.3, the qs advisories, and a tripwire that fired](notes/step-55-c2pa-node-0-9-3-and-qs.md) |
+| **56** | 2026-09-03 | [Who signed the Code of Practice, and where the PHP is](notes/step-56-code-signatories-measured.md) |
+| **57** | 2026-09-03 | [The whole PHP C2PA landscape, and who this package is for](notes/step-57-php-c2pa-landscape.md) |
