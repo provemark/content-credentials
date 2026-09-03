@@ -52,6 +52,51 @@ So the adapter is thin. That is the argument for it, and it is measured rather
 than assumed: the decoder is shared, the JSON is the same, and what would be new
 is process handling, not C2PA.
 
+### The minimum version, measured 2026-09-03
+
+Eleven c2patool releases were downloaded and run against the same signed asset,
+with their stdout fed through `ManifestStoreParser`:
+
+| c2patool | date | plain read | `--settings` (trust) |
+|---|---|---|---|
+| 0.20.0 | 2025-08 | `Valid`, but **no `validation_status` key at all** | refused: `Could not configure c2pa-rs` |
+| 0.25.0 | 2025-10 | **`Invalid`, `isSignatureValid() === false`** | refused |
+| 0.26.0 | 2025-11-06 | **`Invalid`, `isSignatureValid() === false`** | refused |
+| 0.26.1 | 2025-11-07 | **`Invalid`** | refused |
+| 0.26.5 | 2025-11-17 | **`Invalid`** | refused |
+| **0.26.6** | **2025-12-04** | **`Valid`, signature valid** | **`Trusted`** |
+| 0.26.8, 0.26.10, 0.26.18, 0.26.36, 0.26.55, 0.26.60, 0.26.65, 0.26.68, 0.26.72 | | `Valid` | `Trusted` |
+| 0.27.0 … 0.27.16 | 2026-07 … 08 | `Valid` | `Trusted` |
+
+**The floor is `0.26.6`**, and the boundary is exactly between 0.26.5 and 0.26.6.
+Two things change there at once:
+
+1. **Up to 0.26.5, `signingCredential.untrusted` counts as a validation
+   *failure*.** The asset the signing service reports as `Valid` with an
+   untrusted certificate is reported `Invalid` with `isSignatureValid() ===
+   false`. That is not a parse error — it is a *different verdict*, produced
+   silently, on the same bytes.
+2. **Up to 0.26.5, our trust settings file is rejected outright** —
+   `Error: Could not configure c2pa-rs` — so trust verification is not merely
+   different, it is unavailable.
+
+⚠️ **The failure direction is a false negative, and newer is not monotonically
+better.** 0.20.0 called the asset `Valid` while emitting no `validation_status`
+key at all; 0.25.0 and 0.26.0 called the same asset `Invalid`. So a version
+ordering cannot be reasoned about from release notes — the floor has to be a
+measured one. And what an under-floor binary produces is a *wrongly rejected*
+asset, not a wrongly trusted one: safer of the two directions, and still wrong,
+because a caller who blocks uploads on this verdict would reject legitimate
+content.
+
+**Below the floor is refused; above it is not automatically recommended.**
+Everything before 0.27 predates the untrusted-input hardening this package took
+into the service (c2pa-rs 0.90.11 through 0.90.16: a GeneralizedTime panic,
+exponential `inputTo` reverification, parent-cycle recursion, a BMFF Merkle u32
+overflow, and RUSTSEC-2026-0258 in `h2`). An operator running 0.26.x is parsing
+assets they did not produce with an engine older than the one we ship. That is a
+documentation duty, not a refusal.
+
 ### What this does NOT solve
 
 **It is not the shared-hosting answer.** A host that forbids `proc_open` or
@@ -150,14 +195,20 @@ rest on are in the Problem section above.
   directory, is created with restrictive permissions, and is removed on every exit
   path including a timeout or an exception.
 
-- **AC7 — the reader says which engine answered**
+- **AC7 — the reader says which engine answered, and refuses one that is too old**
 
-  `c2patool --version` is
-  surfaced. Three c2pa-rs versions now coexist — 0.89.0 in the extension, 0.90.16
-  in the service, and whatever the operator installed here — and SPEC-020's whole
-  argument for not defaulting to `auto` is that an engine change must never be
-  invisible. An unreadable or unparseable version string is itself reported, not
-  guessed.
+  `c2patool --version` is surfaced. Three c2pa-rs versions now coexist — 0.89.0
+  in the extension, 0.90.16 in the service, and whatever the operator installed
+  here — and SPEC-020's whole argument for not defaulting to `auto` is that an
+  engine change must never be invisible. An unreadable or unparseable version
+  string is itself reported, not guessed.
+
+  **A binary below `0.26.6` is refused with a named exception before any asset is
+  read**, for the measured reason above: it does not fail, it disagrees. The
+  refusal names the version found and the minimum required. A version at or above
+  the floor but below `0.27.0` is accepted and reported, because the difference
+  there is engine hardening rather than verdicts — the docs page carries that
+  warning, the code does not enforce it.
 
 - **AC8 — it cannot be made to sign**
 
@@ -216,10 +267,11 @@ No new interface, no change to `ReaderInterface`, no change to
   `continue-on-error` for exactly that reason. *Non-blocker*, leaning a separate
   non-blocking profile — with the price stated in the workflow, as the existing
   comment does: an alarm that does not gate is not an alarm that may be ignored.
-- **Which version floor?** The output shape measured here is 0.27.16. Older
-  c2patool versions predate `validation_state` and would decode to something
-  else. *Blocker for the build*: the spec must name a minimum and AC7 must make a
-  version below it a refusal rather than a surprise.
+- ~~**Which version floor?**~~ **Answered 2026-09-03: `0.26.6`**, measured across
+  eleven releases — see the table above. The premise in the original question was
+  wrong twice: `validation_state` is present as far back as 0.20.0, and the thing
+  that actually breaks is the *meaning* of a verdict rather than the shape of the
+  JSON. AC7 now carries the refusal.
 - **Is a temporary file acceptable for a 20 MB asset?** It doubles the asset in
   storage briefly and puts caller content on disk, which the service path never
   does locally. *Non-blocker*, but the docs page must say it, because it is a
