@@ -76,9 +76,52 @@ Two things change there at once:
    untrusted certificate is reported `Invalid` with `isSignatureValid() ===
    false`. That is not a parse error — it is a *different verdict*, produced
    silently, on the same bytes.
-2. **Up to 0.26.5, our trust settings file is rejected outright** —
-   `Error: Could not configure c2pa-rs` — so trust verification is not merely
-   different, it is unavailable.
+2. **Up to 0.26.5, `--settings` is TOML-only**, so our JSON settings file is
+   rejected with `Could not configure c2pa-rs / bad parameter: could not parse
+   configuration file`. Localised 2026-09-03: even a minimal
+   `{"verify":{"verify_trust":true}}` fails while the TOML equivalent parses, so
+   this is the file format and not our document.
+
+⚠️ **An earlier revision of this spec said that made trust verification
+"unavailable, not merely different" on 0.26.5. That was wrong, and it was wrong
+in the way this repository keeps catching: a conclusion drawn from one refused
+command without trying the alternative.** 0.26.5 carries a `trust` subcommand
+taking `--trust_anchors`, `--allowed_list` and `--trust_config` as **paths or
+URLs** rather than embedded contents. Measured: `c2patool-0.26.5 out/signed.png
+trust --trust_anchors certs/trust_anchors.pem --trust_config certs/store.cfg`
+reports **`Trusted` with no status codes at all**. Trust verification works
+there; it is configured differently.
+
+**And that makes point 1 broader rather than narrower.** With trust configured on
+0.26.5, an asset whose certificate chains into the list reads `Trusted`, and one
+that does not — `truepic-20230212-camera.jpg` against our anchors — still reads
+**`Invalid`**. So the rule at 0.26.5 is *untrusted implies Invalid*, with or
+without a trust list. For a site accepting uploads from the wild, that is every
+asset it has no anchor for, which is most of them unless the production C2PA
+trust list is loaded.
+
+### Verified against assets this package did not sign
+
+The table above rests on one asset signed with our own test certificates. Three
+files from [`c2pa-org/public-testfiles`](https://github.com/c2pa-org/public-testfiles)
+(CC BY-SA), read without any trust settings:
+
+| asset | signer | 0.26.5 | 0.26.6 | 0.27.16 |
+|---|---|---|---|---|
+| `truepic-20230212-camera.jpg` | **Truepic** | **`Invalid`** | `Valid` | `Valid` |
+| `adobe-20220124-C.jpg` | C2PA Test Signing Cert | **`Invalid`** | `Valid` | `Valid` |
+| `nikon-20221019-building.jpeg` | NIKON CORPORATION | `Invalid` | `Invalid` | `Invalid` |
+
+The Truepic file is the one that matters: a real Conforming Generator Product, a
+certificate this package had nothing to do with, and the same bytes flipping
+verdict on nothing but the binary version. Its only status code is
+`signingCredential.untrusted`, in both the `Invalid` and the `Valid` reading.
+
+**The Nikon file is the control, and it is why the table is worth trusting.** It
+stays `Invalid` on all three versions, because it carries a second status —
+`signingCredential.expired`. Old versions therefore do not simply refuse
+everything; the flip is specific to how `untrusted` is weighed. Without that row
+the measurement could not tell the two explanations apart.
 
 ⚠️ **The failure direction is a false negative, and newer is not monotonically
 better.** 0.20.0 called the asset `Valid` while emitting no `validation_status`
