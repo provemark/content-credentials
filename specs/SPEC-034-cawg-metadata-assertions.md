@@ -59,6 +59,58 @@ carries no typed decoder for it. **That asymmetry is this spec's real design
 content**, not a blocker: we would be writing metadata that our own accessors
 must interpret, because the engine beneath will hand it back as an opaque shape.
 
+⚠️ **The paragraph above is superseded — see the measurement below.** The "no
+typed decoder" reading was made from a code-search count and does not survive
+reading what the hits contain. It is left standing because this section exists to
+show how the spec's premises were arrived at, and because a count of search hits
+proving a negative is exactly the shape of reasoning worth being able to
+recognise again.
+
+### Measured 2026-09-03: upstream types it, and it already round-trips
+
+Re-measured against c2pa-rs 0.90.16 (`@contentauth/c2pa-node` 0.9.3) and
+`ext-c2pa` 0.1.0 (c2pa-rs 0.89.0), by signing a PNG carrying a `cawg.metadata`
+assertion and reading it back three ways.
+
+**Upstream does carry typed handling.** `sdk/src/assertions/labels.rs` defines
+`CAWG_METADATA = "cawg.metadata"` (added in c2pa-rs 0.59.0), there is a
+`Metadata` assertion type in `sdk/src/assertions/metadata.rs`, and
+`sdk/tests/test_builder.rs` states outright that `c2pa.metadata` and
+`cawg.metadata` *decode as Metadata* while `c2pa.assertion.metadata` decodes as
+`AssertionMetadata`. A second test there asserts that the created/gathered
+attribution is preserved for metadata assertions specifically. So the third
+trigger below is met, and the "we would be alone with it" framing no longer
+holds.
+
+**What was measured on our own stack:**
+
+| step | result |
+|---|---|
+| `POST /v1/sign` with the assertion in `extra_assertions` | accepted — the envelope check has no label allow-list |
+| `POST /v1/read` | returns it with `kind: "Json"` and every field intact |
+| `SigningServiceReader` (0.90.16) | `Valid`; `assertions()` yields `c2pa.actions.v2` and `cawg.metadata`, `dc:creator` and `dc:rights` complete |
+| `ExtC2paReader` (0.89.0) | identical — the two engines agree |
+| `c2patool --detailed` | `validation_state: Valid` |
+
+**So the gap this spec closes is narrower than it was written to be.** Transport
+worked before and reading back works today, untyped, through the generic
+`assertions()` accessor in both readers. What is missing is interpretation: a
+typed builder and accessor, and a decision about which fields this package is
+willing to let a caller attest to. That is design content, not enablement.
+
+**One finding the API sketch below does not yet account for.** The probe's
+`cawg.metadata` landed in **`gathered_assertions`**, because
+`markActionsAsCreated()` in `service/server.js` sets `created: true` on the
+actions assertion and on nothing else. For metadata the signer itself states —
+creator, rights, licence — `gathered` is the wrong array: it declares the
+assertion *was not sourced from the claim generator and is not attributed to the
+signer* (C2PA 2.4, and see SPEC-035/036 plus primer §11). Whatever this spec
+builds has to decide, per field group, which array the assertion belongs in, and
+say so in an acceptance criterion. Upstream's own test — *"a gathered metadata
+assertion must not read back as created"* — shows the distinction survives the
+round trip, so it is ours to get right rather than something the engine will
+paper over.
+
 ### When this becomes worth building
 
 This spec is correct and deliberately unscheduled. It is written down so the
@@ -83,6 +135,9 @@ Any one of these is the signal to approve it:
 - **c2pa-rs gains a typed decoder for `cawg.metadata`.** That would dissolve the
   asymmetry above: we would no longer be the only thing in the stack able to read
   back what we wrote, and the read half of this spec would get much cheaper.
+  **This one is met** — measured 2026-09-03, see above. It is a signal that the
+  spec may be approved, not that it should be: on its own it says the read half
+  is cheap, and says nothing about whether anyone wants the write half.
 
 Until then the honest position is that we understand this and it is not time.
 **Do not implement it because the spec reads as ready** — that readiness is what
@@ -217,11 +272,11 @@ $report->cawgMetadata()?->creator();   // 'Example Studio'
   context at build time would put a network call in the builder, which the
   architecture does not otherwise have. *Non-blocker*, leaning a pinned local
   list of permitted field names — enough for AC4, no new runtime dependency.
-- **Is the typed accessor ours alone to maintain?** c2pa-rs has no decoder, so
-  unlike every other accessor this one interprets bytes rather than surfacing an
-  engine's interpretation. If c2pa-rs later adds one and the two disagree, ours
-  must yield. *Non-blocker*, but it belongs in the class docblock so the next
-  reader does not assume engine backing.
+- **Is the typed accessor ours alone to maintain?** ~~c2pa-rs has no decoder~~ —
+  it does, measured 2026-09-03. The question therefore inverts: ours must agree
+  with the engine's `Metadata` decoding rather than stand alone, and where they
+  disagree ours yields. *Non-blocker*, and it still belongs in the class docblock
+  — but as engine backing to be matched, not as its absence to be warned about.
 - **Is this personal data?** Almost certainly, and more clearly than
   `creator_name`, which SPEC-012 AC10 already requires the README to flag. A
   creator name and rights statement are signed into an asset that travels, and
