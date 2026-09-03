@@ -160,7 +160,7 @@ echo match (true) {
 //
 // The same signed bytes, read a second way: through ext-c2pa, with no HTTP and
 // no service. Two engines are involved — c2pa-rs 0.89.0 in the extension against
-// 0.90.15 in the service — so agreement is a result, not a given. Skipped rather
+// 0.90.16 in the service — so agreement is a result, not a given. Skipped rather
 // than failed where the extension is absent, which is the normal case.
 if (! ExtC2paReader::isAvailable()) {
     echo '· ext-c2pa not installed — in-process reading not exercised'
@@ -181,7 +181,7 @@ if (! ExtC2paReader::isAvailable()) {
     echo $disagreements === []
         ? "✓ in-process reader agrees with the service reader (SPEC-019 AC2)\n"
         : '✗ readers disagree on: '.implode(', ', $disagreements)
-            ." — c2pa-rs 0.89.0 vs 0.90.15 may have drifted (SPEC-019 AC2)\n";
+            ." — c2pa-rs 0.89.0 vs 0.90.16 may have drifted (SPEC-019 AC2)\n";
 
     // Trust is NOT compared above, and the reason is worth stating: the two are
     // configured separately. The service verifies against CONTENTAUTH_TRUST_SETTINGS;

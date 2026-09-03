@@ -29,7 +29,7 @@ use Symfony\Component\Console\Output\BufferedOutput;
  *
  * The decision that shapes this file: autodetection is a MODE, not the default.
  * Installing an unrelated extension must not silently change which c2pa-rs
- * version — 0.89.0 in the extension, 0.90.15 in the service — decides an
+ * version — 0.89.0 in the extension, 0.90.16 in the service — decides an
  * application's trust verdicts.
  *
  * Bare illuminate/container + illuminate/config harness, matching SPEC-004's
