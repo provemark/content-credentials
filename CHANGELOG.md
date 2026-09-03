@@ -19,6 +19,45 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Service (requires `git pull` + `docker compose up -d --build`)
+
+- **`@contentauth/c2pa-node` 0.9.1 → 0.9.3**, which carries **c2pa-rs 0.90.15 →
+  0.90.16** (confirmed from the running container, not the changelog:
+  `org.contentauth.c2pa_rs` reads `0.90.16`). Two of the engine fixes are on the
+  path that parses assets you did not produce: a BMFF Merkle map location that
+  overflows the u32 chunk index is now rejected (CAI-12884), and the `h2`
+  dependency is updated for **RUSTSEC-2026-0258**. 0.9.3 itself is a packaging
+  fix (an `fs-extra` import), and 0.9.2 also removed redundant
+  archive-metadata assertion filtering.
+- **The `qs` advisories of 2026-09-02 are closed** — `qs` 6.15.3 → 6.16.0 in the
+  service lockfile, which resolves GHSA-x5fp-wj9c-mxmx (array-limit bypass via
+  bracket-key comma parsing) and GHSA-4mjr-xmp4-gh2g (denial of service via an
+  attacker-controlled `isBuffer`). `qs` reaches us transitively through
+  express 5.2.1, whose own range already allows 6.16.0, so `express` is
+  unchanged and `npm audit --omit=dev` reports zero vulnerabilities. Both
+  advisories were published the day before this bump; no Dependabot alert had
+  been raised for either at the time of writing.
+- Verified by hand on the rebuilt container: the single `c2pa.actions.v2`
+  assertion still reads back with `created: true` and still lands in the claim's
+  `created_assertions` array (`c2patool --detailed`), `claim_generator_info`
+  still declares `specVersion: "2.4.0"`, the async TSA timestamp is still present
+  (SPEC-007), `bin/verify.sh` still returns a trusted verdict with
+  `validation_state: Valid`, `/health` reports the same fields and the same
+  thirteen media types, and the integration suite passes 147 / 19 skipped —
+  including the cross-reader equivalence check against `ext-c2pa` (SPEC-019 AC2).
+
+### Changed
+
+- **The engine version pinned by SPEC-035 AC7 moved to 0.9.3.** That test exists
+  to force a re-audit of the declared `specVersion` whenever the engine moves,
+  and it did exactly that: it failed on the bump, the 2.4 declaration was
+  re-measured against the new engine, and only then was the pin updated.
+- Documentation and code comments that named the service engine as c2pa-rs
+  0.90.15 now name 0.90.16 — `docs/c2pa-primer.md`, `docs/readers.md`,
+  `CONTRIBUTING.md`, the reader-selection comments in `config/` and `src/`, and
+  the two CI comments explaining the reader-equivalence alarm. Wording only; the
+  0.89.0 figure for `ext-c2pa` is unchanged, because the extension has not moved.
+
 ## [0.14.0] - 2026-08-31
 
 ### Added

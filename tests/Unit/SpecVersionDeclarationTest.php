@@ -77,15 +77,17 @@ it('still runs on the engine version the specification audit was made against', 
     $dependencies = is_array($package) ? ($package['dependencies'] ?? null) : null;
     $pinned = is_array($dependencies) ? ($dependencies['@contentauth/c2pa-node'] ?? null) : null;
 
-    // A failure here is a PROMPT, not a defect. The SPEC-035 audit established
-    // that 2.3.0 is the highest version we can declare truthfully, and it did so
-    // against this engine. A newer one can change what we emit — including,
-    // eventually, the created_assertions placement that is the single thing
-    // keeping us off 2.4 — so the declaration has to be re-audited before the
-    // bump lands, and this is what says so.
+    // A failure here is a PROMPT, not a defect. The SPEC-035/036 audit
+    // established that 2.4.0 is the highest version we can declare truthfully,
+    // and it did so against this engine. A newer one can change what we emit —
+    // including the created_assertions placement 2.4 §18.15.2 requires — so the
+    // declaration has to be re-audited before the bump lands, and this is what
+    // says so. Re-audited on 2026-09-03 for 0.9.1 -> 0.9.3 (c2pa-rs 0.90.15 ->
+    // 0.90.16): specVersion still emitted as `2.4.0`, the actions assertion
+    // still lands in created_assertions and still reads back `created: true`.
     //
     // Reads a committed file rather than a running service on purpose: a check
     // conditioned on a profile or a local binary would report `skipped`
     // everywhere and never go red, which is the failure this criterion replaced.
-    expect($pinned)->toBe('0.9.1', 'engine bumped — re-run the SPEC-035 audit before declaring 2.3.0 still true');
+    expect($pinned)->toBe('0.9.3', 'engine bumped — re-run the SPEC-035 audit before declaring 2.4.0 still true');
 })->group('SPEC-035');
