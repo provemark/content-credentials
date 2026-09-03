@@ -69,7 +69,7 @@ final class ReadCommand extends Command
         $signer = $report->signer();
 
         // SPEC-020 AC6: two c2pa-rs versions are in play — 0.89.0 in the
-        // extension, 0.90.15 in the service — so which engine produced this report
+        // extension, 0.90.16 in the service — so which engine produced this report
         // has to be visible where someone is already standing when they wonder.
         // Everything below that came out of a manifest is escaped before it is
         // written. `line()` goes through Symfony's OutputFormatter, which reads

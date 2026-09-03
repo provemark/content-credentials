@@ -89,7 +89,7 @@ reader still reports `isTrusted()` false, that is why.
   infrastructure, and its API may move. The adapter is the containment: a break
   is one class to fix, and callers see nothing.
 - **The two readers run different engines.** The extension carries **c2pa-rs
-  0.89.0**; the signing service carries **0.90.15**. They agree today — an
+  0.89.0**; the signing service carries **0.90.16**. They agree today — an
   integration test compares both readers accessor by accessor on the same asset,
   and that test is what would tell us they had stopped. Run it with
   `vendor/bin/pest --group=SPEC-019` before relying on a mixed setup.

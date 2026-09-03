@@ -108,3 +108,4 @@ Follow these before searching; most questions are already answered in one step.
 | **52** | 2026-08-14 | [What the search results actually show, and the half that was missing](notes/step-52-search-visibility-measured.md) |
 | **53** | 2026-08-21 | [c2pa-node 0.9.1, and a bump Dependabot never offered](notes/step-53-c2pa-node-0-9-1-measured.md) |
 | **54** | 2026-08-31 | [Declaring a spec version, and who an assertion is attributed to](notes/step-54-spec-version-and-attribution-measured.md) |
+| **55** | 2026-09-03 | [c2pa-node 0.9.3, the qs advisories, and a tripwire that fired](notes/step-55-c2pa-node-0-9-3-and-qs.md) |

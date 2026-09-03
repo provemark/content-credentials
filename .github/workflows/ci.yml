@@ -108,7 +108,7 @@ jobs:
     # ⚠️ The cost is real, deliberate, and larger than the flake it prevents: a
     # genuine engine divergence caught by SPEC-019 AC2 now reports red WITHOUT
     # stopping a merge. That comparison is the only drift alarm between
-    # c2pa-rs 0.89.0 in the extension and 0.90.15 in the service, so a red leg
+    # c2pa-rs 0.89.0 in the extension and 0.90.16 in the service, so a red leg
     # here must still be read rather than waved through. It is non-blocking, not
     # unimportant.
     #
@@ -300,7 +300,7 @@ jobs:
       # exists to run and report green.
       # Pinned, and the pin is verified. This profile runs SPEC-019's equivalence
       # check, which is the alarm for the two engines drifting apart — c2pa-rs
-      # 0.89.0 in the extension against 0.90.15 in the service. An alarm whose
+      # 0.89.0 in the extension against 0.90.16 in the service. An alarm whose
       # input version can change without anyone deciding is not an alarm: an
       # upstream release would either turn it red for a reason we did not cause,
       # or green against an engine we did not think we were testing.

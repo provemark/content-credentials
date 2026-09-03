@@ -8,7 +8,7 @@
   "engines": { "node": ">=22.0.0" },
   "scripts": { "start": "node server.js" },
   "dependencies": {
-    "@contentauth/c2pa-node": "0.9.1",
+    "@contentauth/c2pa-node": "0.9.3",
     "express": "^5.2.1"
   }
 }
