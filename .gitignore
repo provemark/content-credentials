@@ -1,5 +1,9 @@
 # --- Secrets: NEVER commit ---
 .env
+# Anything derived from it too — a backup or a per-profile copy carries the
+# same API key, and only the exact name `.env` was ignored before.
+.env.*
+!.env.example
 # Private signing keys (c2pa-rs es256 TEST key and any other). Public test CA
 # certs and trust-settings JSON are safe to commit; private keys never are.
 es256_private.key
