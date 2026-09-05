@@ -33,6 +33,18 @@ final class AtomicWrite
             return false;
         }
 
+        // `=== false` already covers the short write, which is the case this
+        // class exists for and the one a reader is most likely to think is
+        // missing. `file_put_contents()` is documented as returning the number
+        // of bytes written, so comparing against `strlen($contents)` looks like
+        // the stricter test — it is not. PHP collapses a partial write to
+        // `false` itself: measured on 8.5.8 through a stream wrapper that
+        // accepts 10 of 5000 bytes, the call warns `Only 10 of 5000 bytes
+        // written, possibly out of free disk space` and returns `false`.
+        //
+        // So a full disk cannot reach the rename below. Do not "tighten" this
+        // to a length comparison; it would add nothing, and the reasoning that
+        // it is needed has already been wrong once.
         if (@file_put_contents($temporary, $contents) === false) {
             @unlink($temporary);
 
