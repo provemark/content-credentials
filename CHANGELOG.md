@@ -19,6 +19,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-09-05
+
+A patch release: behavioural fixes and documentation, no new public API and no
+breaking change. `src/`, `config/` and `docs/` all changed, so the installed
+package is not byte-identical to 0.14.0 — but nothing a caller must adapt to.
+`digitalSourceTypes()`, `softwareAgents()` and every other accessor still return
+manifest values byte-for-byte; a criterion pins that they do.
+
+**Read the Service section as something this tag does not deliver.** The refusal
+of foreign ISOBMFF containers lives in `service/server.js`, which is
+`export-ignore`d, so it reaches you through `git pull` plus a rebuild and never
+through `composer update`. `GET /health` reports `spec_version` and
+`media_types`, so a rebuild is confirmable without spending a signature. The
+same is true of the `@contentauth/c2pa-node` bump and the `qs` fix.
+
+**What this tag does deliver** is the read-command fix under Fixed, and the
+primer correction under Documentation — a claim about how the engine chooses a
+handler that stood in the package for a month and was wrong.
+
 ### Service (requires `git pull` + `docker compose up -d --build`)
 
 - **`POST /v1/sign` now refuses a foreign ISOBMFF container** (SPEC-039). A JPEG
@@ -1667,7 +1686,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.14.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.14.1...main
+[0.14.1]: https://github.com/provemark/content-credentials/releases/tag/v0.14.1
 [0.14.0]: https://github.com/provemark/content-credentials/releases/tag/v0.14.0
 [0.13.1]: https://github.com/provemark/content-credentials/releases/tag/v0.13.1
 [0.13.0]: https://github.com/provemark/content-credentials/releases/tag/v0.13.0
