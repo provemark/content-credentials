@@ -10,7 +10,10 @@ still carries the 0.27.15 verification, which is a difference worth keeping
 visible rather than smoothing over. **The engine moved to
 @contentauth/c2pa-node 0.9.3 / c2pa-rs 0.90.16 on 2026-09-03** (NOTES Step 55);
 the §4, §9 and §11 claims were re-measured against it, the rest was not
-re-run.
+re-run. **§8 was re-measured on 2026-09-05 (NOTES Step 58) and one of its claims
+was wrong**: the declared media type is not advisory and nothing sniffs the
+bytes — it selects a handler, and a handler covers a family. That bullet is
+corrected in place.
 When this page and the log disagree, the log (the raw record) wins; fix this
 page. When neither answers a question, ask — do not guess.
 
@@ -185,17 +188,44 @@ intact, and confirmed with `c2patool` under trust settings:
 - **Not supported, each for its own reason** (NOTES Step 27): `application/pdf` —
   c2pa-rs registers readers and writers separately and PDF is read-only upstream,
   though the C2PA spec does define PDF embedding; `video/webm` — no Matroska
-  handler at all; `image/x-adobe-dng` and JPEG XL — unmeasured.
-- The declared media type is **advisory in both engines**: c2pa-rs recognises
-  the format from the bytes, so a WAV offered as `image/webp` signs as a WAV.
-  The 400 the service returns for e.g. `image/bmp` comes from our own
+  handler at all; `image/x-adobe-dng` — unmeasured. **JPEG XL** is measured as of
+  2026-09-05 and stays unsupported: a bare codestream cannot carry a manifest at
+  all (c2pa-rs says so itself), and the container form only "signs" through the
+  BMFF handler, unreadably — see the warning below.
+- **The declared media type selects a handler; it is not advisory, and nothing
+  sniffs the bytes** (re-measured 2026-09-05, NOTES Step 58 — this bullet said
+  the opposite until then). The type you declare picks the handler, and that
+  handler then validates the container signature and refuses anything else.
+  What is true is that **one handler covers a family of formats**, which is why
+  the old example held: a WAV offered as `image/webp` signs, because WAV and
+  WebP are both RIFF. Offer a JPEG XL codestream as `image/webp` and the same
+  handler answers `error parsing RIFF: expected "RIFF"`. So a type is only
+  interchangeable with its family:
+  - **RIFF** — `audio/wav`, `image/webp`, `video/x-msvideo`
+  - **ISOBMFF** — `video/mp4`, `video/quicktime`, `image/avif`, and see the
+    warning below
+  - everything else answers for itself (`image/png`, `image/jpeg`, `image/gif`,
+    `image/tiff`, `audio/flac`, …)
+
+  The 400 the service returns for e.g. `image/bmp` still comes from our own
   allow-list, not from c2pa.
+- ⚠️ **A JPEG XL *container* signs as `video/mp4`, and the result is
+  unreadable** (measured 2026-09-05). A JXL container is ISOBMFF, so the BMFF
+  handler accepts it: `/v1/sign` returns 200 and a plausible `signed_content`,
+  the file still decodes as an image, and a 21 KB `uuid` box is written. But
+  **nothing reads the manifest back** — c2patool as `.jxl` and as `.mp4` both say
+  `No claim found`, and `/v1/read` returns `{}` under `video/mp4` and under
+  `image/png`. Not even the handler that wrote it. This is a silent wrong
+  success, not an error path, and narrowing it (checking the `ftyp` brand) is a
+  behaviour change that needs its own spec. Do not rely on `video/mp4` refusing
+  non-MP4 ISOBMFF input.
 - **`video/mp4` is a container, not video support.** `MAX_BODY_SIZE` (20 MB) and
   the ~7× memory multiplier apply to every type, and the transport is base64 in
   one HTTP body. Small clips only; the 413 says so.
 - Three lists must agree: `MediaType`, `SUPPORTED_MIME` in `service/server.js`
   (compared through `GET /health`), and the extension map in `InfersMediaType`.
-- Unmeasured, therefore undeclared: DNG, JPEG XL.
+- Unmeasured, therefore undeclared: DNG. **JPEG XL is now measured and stays
+  undeclared** — for the reasons two bullets up, not for lack of a measurement.
 
 ## 9. The two readers, and where parsing happens
 
