@@ -2,13 +2,21 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon                                  |
-| Approved   | — (draft)                                         |
+| Approved   | Maurice van Loon, 2026-09-05                      |
 | Supersedes | —                                                 |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
-> `implemented` (Traceability filled). No implementation code while `draft`.
+> `implemented` (Traceability filled). Only the Traceability section of an
+> `approved` spec may change without a new approval.
+
+> **Approval decision, 2026-09-05.** The open question below was resolved on
+> approval: **deny known foreign brands, do not allow known good ones.** A
+> deny-list cannot refuse a legitimate file, which is the failure mode this
+> project has been bitten by and which AC2 exists to catch. It closes only what
+> it enumerates, and that is accepted: the measured defect is closed, and a new
+> sibling format costs one line.
 
 ## Problem
 
@@ -75,7 +83,7 @@ Acceptance criteria as Given/When/Then, each covered by a Pest test tagged
 `->group('SPEC-039')`.
 
 - **AC1 — a JPEG XL container declared as `video/mp4` is refused**
-  - Given a JPEG XL container asset (first box `JXL `, `ftyp` major brand `jxl `)
+  - Given a JPEG XL container asset (`ftyp` major brand `jxl `)
   - When it is posted to `/v1/sign` with `mime_type: "video/mp4"`
   - Then the response is **400**, no signing takes place, and the reason names
     the brand found and the type declared
@@ -91,34 +99,63 @@ Acceptance criteria as Given/When/Then, each covered by a Pest test tagged
     a worse defect than the one being fixed, so this criterion pins concrete
     measured values rather than asserting "nothing broke".*
 
-- **AC3 — the check applies to the `parent` ingredient too**
+- **AC3 — the deny-list reads the MAJOR brand only, never the compatible brands**
+  - Given `fixture.avif`, whose compatible brands include `mif1`
+  - When it is signed as `image/avif` with `mif1` present in the deny-list
+  - Then it still returns 200
+  - *Measured trap: `mif1` is generic HEIF and a plausible deny-list entry, and
+    it sits in our own AVIF fixture's compatible brands. Denying on compatible
+    brands would refuse a file we support today.*
+
+- **AC4 — the `ftyp` box is located, not assumed to be first**
+  - Given a JPEG XL container, whose box order is `JXL ` / `ftyp` / `jxlc`
+  - When the brand is read
+  - Then the check finds the `ftyp` box at its real position and refuses per AC1
+  - *Measured: a JXL container puts a 12-byte `JXL ` signature box ahead of
+    `ftyp`. An implementation that reads bytes 4..8 of the file finds `JXL `,
+    no `ftyp`, and lets the asset through — the fix would silently not work.*
+
+- **AC5 — an asset with no `ftyp` box at all is accepted, not refused**
+  - Given input declared `video/quicktime` that carries no `ftyp` box
+  - When it is posted to `/v1/sign`
+  - Then the brand check does not refuse it, and the outcome is whatever the
+    BMFF handler decides
+  - *This is the deny-list's own discipline. QuickTime does not require `ftyp`,
+    so "no brand found" must mean "nothing to deny", never "refuse". Reasoned
+    from the QuickTime container format, not measured — our own `fixture.mov`
+    does carry `ftyp`. If a future measurement contradicts it, this criterion is
+    the one to revisit.*
+
+- **AC6 — the check applies to the `parent` ingredient too**
   - Given a valid MP4 as `content` and a JPEG XL container as `parent`, declared
     `video/mp4`, with an edit-intent actions assertion (SPEC-028)
   - When posted to `/v1/sign`
   - Then the response is 400 naming the **parent** as the offending asset, and
     nothing is signed
 
-- **AC4 — malformed container input is refused, not crashed** *(required error path)*
-  - Given input declared `video/mp4` that is truncated before its first box
-    length, or whose first box length is smaller than 8, or which has no `ftyp`
-    box at all
+- **AC7 — malformed container input is refused, not crashed** *(required error path)*
+  - Given input declared `video/mp4` that is truncated inside its first box
+    header, or whose first box length is smaller than 8, or whose declared box
+    length runs past the end of the buffer
   - When posted to `/v1/sign`
   - Then the response is **400** with a stable reason, the process does not
     throw, and no partial asset is written
+  - *A box-length walk is attacker-controlled arithmetic. It must be bounded by
+    the buffer length and by a fixed maximum number of boxes inspected.*
 
-- **AC5 — the refusal is audited and quotes nothing raw**
-  - Given any AC1/AC3/AC4 refusal
+- **AC8 — the refusal is audited and quotes nothing raw**
+  - Given any AC1/AC6/AC7 refusal
   - When the audit record is inspected (SPEC-012)
   - Then it carries the request `cid`, `outcome: failed` and a reason, and the
     reason contains only the four-character brand rendered printably — no raw
     asset bytes, and no control characters (SPEC-006 AC8 reasoning)
 
-- **AC6 — reading is unaffected**
+- **AC9 — reading is unaffected**
   - Given the same JPEG XL container
   - When posted to `/v1/read` as `video/mp4`
   - Then the response is **200** with `{}`, exactly as today
 
-- **AC7 — the three lists still agree**
+- **AC10 — the three lists still agree**
   - Given `GET /health`
   - When `media_types` is compared to `MediaType` and to `InfersMediaType`
   - Then all three still match — this spec narrows what is *accepted*, never
@@ -127,40 +164,46 @@ Acceptance criteria as Given/When/Then, each covered by a Pest test tagged
 ## API sketch
 
 Illustrative only. The check belongs beside the existing `SUPPORTED_MIME` test in
-`service/server.js` (around `server.js:1002`), before any base64 decode of the
-full body is handed to the builder.
+`service/server.js` (around `server.js:1002`), on the sign path only.
 
 ```js
-// ISOBMFF families we declare, and the brands measured as belonging to them.
-// A brand counts if it appears as the major brand OR among the compatible
-// brands — `mif1`-major AVIF is real and must not be refused.
-const BMFF_BRANDS = {
-  'video/mp4':        new Set(['isom', 'iso2', 'iso4', 'iso5', 'iso6', 'mp41', 'mp42', 'avc1', 'dash']),
-  'video/quicktime':  new Set(['qt  ']),
-  'image/avif':       new Set(['avif', 'avis', 'mif1', 'miaf']),
-};
+// Major brands that positively identify a container we do not support. Denying
+// cannot over-refuse: an unknown brand, or no ftyp at all, is let through.
+// `jxl ` is measured (NOTES Step 58). The HEIF/HEVC brands are reasoned — none
+// of them is the major brand of any type in SUPPORTED_MIME — and unmeasured.
+const DENIED_BMFF_BRANDS = new Set([
+  'jxl ',                                     // JPEG XL container  (measured)
+  'heic', 'heix', 'heim', 'heis',             // HEIF still image   (reasoned)
+  'hevc', 'hevx', 'hevm', 'hevs',             // HEVC still image   (reasoned)
+  'crx ',                                     // Canon CR3          (reasoned)
+]);
 
-/** @returns {null|{major: string, compatible: string[]}} null when not ISOBMFF-shaped */
-function readFtyp(buf) { /* first box must be `ftyp`; JXL puts `JXL ` there */ }
+const BMFF_TYPES = new Set(['video/mp4', 'video/quicktime', 'image/avif']);
+
+/**
+ * Major brand of the first `ftyp` box, or null when there is none to find.
+ * Null means "nothing to deny" — see AC5. A JPEG XL container puts a 12-byte
+ * `JXL ` box ahead of `ftyp`, so this walks boxes rather than reading offset 4.
+ * Bounded by the buffer length and by MAX_BOXES_SCANNED — see AC7.
+ */
+function majorBrand(buf) { /* ... */ }
 ```
 
-Note the JPEG XL container is caught twice over: its first box is the 12-byte
-`JXL ` signature box rather than `ftyp`, and its brand is `jxl `. Either test
-alone closes AC1; the brand table is the general form and also closes HEIC and
-any future ISOBMFF sibling.
+Note the deny-list is consulted for the **major** brand only. `mif1` is a
+plausible entry and deliberately absent: it sits among our own AVIF fixture's
+compatible brands (AC3).
 
 ## Open questions
 
-- **Allow-list of brands, or deny-list of known foreigners?** The sketch above
-  allows. That is the general fix, and it is also the one that can refuse a
-  legitimate file if a brand is missing from a set — the failure mode this
-  project has been bitten by before. A deny-list (`jxl `, `heic`, `heix`, `mif1`
-  when declared as mp4) cannot over-refuse but closes only what is enumerated.
-  **Non-blocking**: AC2 makes either choice testable. Maintainer decides.
-- Should `mif1` be accepted for `image/avif`? It is in our own fixture's
-  compatible brands, so yes for compatibility — but `mif1` alone, without
-  `avif`, is generic HEIF and may be a different format. Measure before deciding.
-  **Non-blocking.**
+- ~~Allow-list of brands, or deny-list of known foreigners?~~ **Resolved on
+  approval, 2026-09-05: deny-list.** See the decision note at the top.
+- ~~Should `mif1` be accepted for `image/avif`?~~ **Resolved: yes**, and the
+  deny-list mechanism makes it moot — `mif1` is not denied, and AC3 pins that it
+  stays that way.
+- The HEIF/HEVC/CR3 entries in the deny-list are **reasoned, not measured**. They
+  cost nothing to include and cannot over-refuse, but no test asserts they behave
+  like `jxl ` because no fixture exists for them. Adding one is optional and
+  needs no new approval. **Non-blocking.**
 - This is service-side, so it ships through `git pull` + rebuild and a tag
   delivers it to nobody. Whether that warrants a CHANGELOG entry under a
   `### Service` heading — as the c2pa-node 0.9.3 bump did — or something louder,
@@ -168,14 +211,28 @@ any future ISOBMFF sibling.
 
 ## Traceability
 
-Filled when status becomes `implemented`.
+All fourteen tests carry `->group('SPEC-039', 'integration')` and need the
+service running; they are excluded from `composer check` like every other
+integration test. Verified 2026-09-05: **14 passed** in the group, **161 passed /
+19 skipped** for the whole integration suite (up from 147/19, exactly these
+fourteen), `composer check` green at 354 passed / 7 skipped / 10 deprecated, and
+`php bin/e2e.php` still ends in a trusted `bin/verify.sh` verdict with the
+Article 50 marking intact.
+
+Seen red before green: against the unpatched service the group reported **8
+failed, 6 passed** — the six that pass either way are the AC2/AC3 fixtures, AC5,
+AC9 and AC10, which assert that nothing was broken rather than that something was
+fixed.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
+| AC1 | `tests/Integration/IsobmffBrandTest.php` :: "refuses a JPEG XL container declared as video/mp4", "refuses a JPEG XL container declared as video/quicktime", "refuses a JPEG XL container declared as image/avif" | `service/server.js` `rejectForeignBrand()`, `DENIED_BMFF_BRANDS` |
+| AC2 | `tests/Integration/IsobmffBrandTest.php` :: "still signs fixture.mp4, whose major brand is isom", "still signs fixture.mov, whose major brand is qt" | `service/server.js` `DENIED_BMFF_BRANDS` — a deny-list, so an unlisted brand is never refused |
+| AC3 | `tests/Integration/IsobmffBrandTest.php` :: "still signs fixture.avif, which carries mif1 among its compatible brands" | `service/server.js` `majorBrand()` — reads `offset + 8 .. offset + 12` only, never the compatible brands |
+| AC4 | `tests/Integration/IsobmffBrandTest.php` :: "finds the ftyp box behind the JXL signature box rather than at offset four" | `service/server.js` `majorBrand()`, `MAX_BOXES_SCANNED` |
+| AC5 | `tests/Integration/IsobmffBrandTest.php` :: "leaves an asset with no ftyp box to the engine instead of refusing it" | `service/server.js` `majorBrand()` returns null → `rejectForeignBrand()` returns null |
+| AC6 | `tests/Integration/IsobmffBrandTest.php` :: "refuses a JPEG XL container offered as the parent asset" | `service/server.js` `brandProblem`, parent branch in `POST /v1/sign` |
+| AC7 | `tests/Integration/IsobmffBrandTest.php` :: "refuses a box header that runs past the end of the buffer", "refuses a first box shorter than its own header" | `service/server.js` `majorBrand()` bounds: `size < 8`, `offset + size > buf.length`, `MAX_BOXES_SCANNED` |
+| AC8 | `tests/Integration/IsobmffBrandTest.php` :: "names the brand printably and carries a correlation id" | `service/server.js` `rejectForeignBrand()` printable render, `reject()` audit record |
+| AC9 | `tests/Integration/IsobmffBrandTest.php` :: "still reads a JPEG XL container as an empty manifest report" | `service/server.js` — the check sits on the sign path only |
+| AC10 | `tests/Integration/IsobmffBrandTest.php` :: "narrows what is accepted without narrowing what is declared" | `service/server.js` `SUPPORTED_MIME` unchanged, `GET /health` unchanged |

@@ -250,6 +250,86 @@ const SUPPORTED_MIME = new Set([
 
 const SUPPORTED_MIME_LIST = [...SUPPORTED_MIME].join(', ');
 
+// --- SPEC-039: foreign ISOBMFF containers ----------------------------------
+// A JPEG XL container is ISOBMFF, and so are MP4, QuickTime and AVIF. The
+// declared media type selects a HANDLER, not a format, so the BMFF handler used
+// to accept a JXL container under all three of our BMFF types: HTTP 200, a
+// plausible signed_content, and a credential nothing could read back — not even
+// the handler that wrote it (measured, NOTES Step 58). A silent wrong success.
+const BMFF_TYPES = new Set(['video/mp4', 'video/quicktime', 'image/avif']);
+
+// A DENY-list, not an allow-list. It closes only what it enumerates, and that
+// is the point: it cannot refuse a legitimate file, which is the worse defect.
+// `jxl ` is measured; the rest are reasoned — none is the major brand of any
+// type in SUPPORTED_MIME — and carry no fixture.
+const DENIED_BMFF_BRANDS = new Set([
+  'jxl ',                                     // JPEG XL container  (measured)
+  'heic', 'heix', 'heim', 'heis',             // HEIF still image   (reasoned)
+  'hevc', 'hevx', 'hevm', 'hevs',             // HEVC still image   (reasoned)
+  'crx ',                                     // Canon CR3          (reasoned)
+]);
+
+// How far into the file the ftyp box is looked for. A JPEG XL container puts a
+// 12-byte `JXL ` signature box ahead of ftyp, so reading offset 4 finds the
+// wrong thing and the check would silently never fire (SPEC-039 AC4).
+const MAX_BOXES_SCANNED = 4;
+
+/**
+ * The major brand of the first `ftyp` box, or null when there is none to find.
+ *
+ * Null means "nothing to deny" — a QuickTime file need not carry ftyp at all
+ * (SPEC-039 AC5). Box sizes are attacker-controlled arithmetic, so every step
+ * is bounded by the buffer length and by MAX_BOXES_SCANNED. Sizes 0 (to end of
+ * file) and 1 (64-bit largesize) are not walked: they are legal but rare, and
+ * giving up is the deny-list's correct answer.
+ *
+ * @param {Buffer} buf
+ * @returns {string|null}
+ */
+const majorBrand = (buf) => {
+  let offset = 0;
+
+  for (let box = 0; box < MAX_BOXES_SCANNED; box += 1) {
+    if (offset + 8 > buf.length) return null;
+
+    const size = buf.readUInt32BE(offset);
+
+    if (buf.toString('latin1', offset + 4, offset + 8) === 'ftyp') {
+      return offset + 12 > buf.length ? null : buf.toString('latin1', offset + 8, offset + 12);
+    }
+    if (size < 8 || offset + size > buf.length) return null;
+
+    offset += size;
+  }
+
+  return null;
+};
+
+/**
+ * The refusal reason for a foreign container, or null when there is nothing to
+ * refuse. `label` distinguishes the asset from the SPEC-028 parent, because an
+ * operator has to see which of the two came back wrong.
+ *
+ * @param {Buffer} buf
+ * @param {string} mime
+ * @param {'content'|'parent'} label
+ * @returns {string|null}
+ */
+const rejectForeignBrand = (buf, mime, label) => {
+  if (!BMFF_TYPES.has(mime)) return null;
+
+  const brand = majorBrand(buf);
+  if (brand === null || !DENIED_BMFF_BRANDS.has(brand)) return null;
+
+  // The brand is four bytes off an attacker-supplied asset and ends up in an
+  // operator's terminal. Render it printably (SPEC-006 AC8, one layer earlier).
+  const printable = brand.replace(/[^\x20-\x7E]/g, '?');
+
+  return label === 'parent'
+    ? `parent asset declared "${cap(mime, 64)}" is a "${printable}" container`
+    : `asset declared "${cap(mime, 64)}" is a "${printable}" container`;
+};
+
 // Derived, never restated (SPEC-023 AC3). The oversized-body refusal has to
 // name the video types, and a hand-written list there went stale the moment
 // this set grew past video/mp4.
@@ -1042,6 +1122,13 @@ app.post('/v1/sign', async (req, res) => {
 
   const fileBuffer = Buffer.from(content, 'base64');
   const parentBuffer = parent === undefined ? null : Buffer.from(parent.content, 'base64');
+
+  // SPEC-039: the declared type selected a handler; check it also matches the
+  // container. Both assets, because the parent is signed into the manifest too.
+  const brandProblem = rejectForeignBrand(fileBuffer, mime_type, 'content')
+    ?? (parentBuffer === null ? null : rejectForeignBrand(parentBuffer, parent.mime_type, 'parent'));
+
+  if (brandProblem !== null) return reject(brandProblem);
 
   const manifestDefinition = {
     claim_generator_info: [
