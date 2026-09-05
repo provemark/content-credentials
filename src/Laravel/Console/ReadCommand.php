@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 use Provemark\ContentCredentials\Core\Manifest\Exception\UnsupportedMediaTypeException;
 use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
 use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Core\Support\ContentCredentialsException;
 use Provemark\ContentCredentials\Laravel\ReaderFactory;
 use Symfony\Component\Console\Formatter\OutputFormatter;
 
@@ -65,7 +66,24 @@ final class ReadCommand extends Command
             return self::FAILURE;
         }
 
-        $report = $reader->read(new Asset($bytes, $mediaType));
+        try {
+            $report = $reader->read(new Asset($bytes, $mediaType));
+        } catch (ContentCredentialsException $e) {
+            // SPEC-040 AC2. This call used to sit outside every try, so a
+            // ReadFailedException left handle() and was rendered by the console
+            // — the one route the AC8 filter below does not sit on, and the
+            // route by which an engine's message carries asset bytes to the
+            // terminal. An operator inspecting a suspect file needs a verdict or
+            // a reason, never a stack trace.
+            $this->error(sprintf(
+                'Cannot read the credential of %s: %s',
+                SafeOutput::fromOutside($file),
+                SafeOutput::fromOutside($e->getMessage()),
+            ));
+
+            return self::FAILURE;
+        }
+
         $signer = $report->signer();
 
         // SPEC-020 AC6: two c2pa-rs versions are in play — 0.89.0 in the
@@ -148,9 +166,6 @@ final class ReadCommand extends Command
      */
     private static function fromManifest(string $value): string
     {
-        // C0 except tab and newline, DEL, and the C1 range in its UTF-8 form.
-        $stripped = preg_replace('/[\x00-\x08\x0B-\x1F\x7F]|\xC2[\x80-\x9F]/', '', $value);
-
-        return OutputFormatter::escape($stripped ?? '');
+        return SafeOutput::fromOutside($value);
     }
 }

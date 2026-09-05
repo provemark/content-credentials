@@ -49,6 +49,32 @@ final class ServiceError
     }
 
     /**
+     * Bound a message whose encoding is not guaranteed (SPEC-040 AC5).
+     *
+     * `fromBody()` may assume valid UTF-8 because `json_decode()` rejects
+     * anything else outright. An exception message out of ext-c2pa carries no
+     * such guarantee, and for that input `cap()` answers the fallback — which
+     * would discard the whole message rather than bounding it, including a short
+     * one that was never near the limit.
+     *
+     * So this tries the character-wise cut first and falls back to a byte-wise
+     * one. Cutting bytes can split a codepoint, which is what `cap()` exists to
+     * avoid — but the input reaching this branch is already not valid UTF-8, so
+     * the cut cannot make it less valid, and losing the message entirely is the
+     * worse answer for an operator trying to see why a read failed.
+     */
+    public static function bound(string $text): string
+    {
+        if (preg_match('/^.{0,'.self::MAX_CHARS.'}/us', $text, $matches) === 1) {
+            return $matches[0] === $text ? $text : $matches[0].'… (truncated)';
+        }
+
+        return strlen($text) <= self::MAX_CHARS
+            ? $text
+            : substr($text, 0, self::MAX_CHARS).'… (truncated)';
+    }
+
+    /**
      * Truncate to MAX_CHARS *characters*, never mid-character.
      *
      * `substr()` cuts by bytes, so a UTF-8 message cut at byte 256 can end

@@ -65,6 +65,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   thirteen media types, and the integration suite passes 147 / 19 skipped —
   including the cross-reader equivalence check against `ext-c2pa` (SPEC-019 AC2).
 
+### Fixed
+
+- **A failed read no longer escapes `content-credentials:read` as an exception,
+  and untrusted error text can no longer rewrite your terminal** (SPEC-040).
+  Two problems with one cause, both measured against `ext-c2pa` 0.1.0:
+  - The command called the reader outside every `try` — the only `catch` covered
+    media-type inference — so a file the engine could not parse produced a
+    rendered exception instead of a verdict. It is now a command failure naming
+    the file and the reason.
+  - c2pa-rs quotes four raw bytes of the asset when a container signature does
+    not match (`expected "RIFF", got "…"`), and a **complete ANSI sequence fits
+    in four bytes**: `ESC[2J` clears the screen, `ESC[7m` inverts it. Those bytes
+    reached the terminal intact, because `OutputFormatter::escape()` handles
+    markup and not control characters — the same half-fix this package closed
+    once before for manifest values (SPEC-006 AC8). Both commands now neutralise
+    every externally-sourced string through one shared implementation, keeping
+    the printable remainder so you can still see what failed.
+  - `ExtC2paReader` also bounds the message it wraps, as the HTTP reader already
+    bounded the service's, so an engine error cannot write an unbounded line into
+    your application's log.
+  - **Accessors are unchanged.** `digitalSourceTypes()` and `softwareAgents()`
+    still return manifest values byte-for-byte (SPEC-033 AC4); the neutralising
+    happens where the terminal is, not in the reader.
+
 ### Changed
 
 - **The engine version pinned by SPEC-035 AC7 moved to 0.9.3.** That test exists
