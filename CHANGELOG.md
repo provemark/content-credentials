@@ -101,6 +101,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the two CI comments explaining the reader-equivalence alarm. Wording only; the
   0.89.0 figure for `ext-c2pa` is unchanged, because the extension has not moved.
 
+### Documentation
+
+- **The primer said the engine recognises a format from the bytes. It does not**
+  (`docs/c2pa-primer.md` §8). That sentence had stood for a month, and the
+  example under it — a WAV offered as `image/webp` signs as a WAV — held for a
+  reason the sentence did not give: **WAV and WebP are both RIFF**, so one
+  handler covers them. The declared media type selects a *handler*, and that
+  handler then validates the container signature. Offer a JPEG XL codestream as
+  `image/webp` and the same handler answers `error parsing RIFF: expected
+  "RIFF"` — the line that separates the two readings, and the one never run. §8
+  now names the families (RIFF, ISOBMFF, and the types that answer for
+  themselves) instead of claiming byte sniffing.
+- **§8 carries a new warning about `video/mp4`.** A JPEG XL *container* is
+  ISOBMFF, so the signing service accepts it under that type and returns a
+  credential nothing can read back. Do not rely on `video/mp4` refusing non-MP4
+  ISOBMFF input. The refusal itself is a service change (see above), so it
+  reaches you through `git pull` + rebuild, never through this package.
+- **JPEG XL is no longer listed as "unmeasured".** It is measured and still
+  unsupported, for the reasons §8 now gives: a bare codestream cannot carry a
+  manifest at all, and the container form only "signs" through the BMFF handler.
+- The primer's header records which sections were re-measured against which
+  engine, including that §8's correction came from re-measurement rather than
+  from re-reading.
+
 ## [0.14.0] - 2026-08-31
 
 ### Added
