@@ -94,7 +94,10 @@ final class SignCommand extends Command
         try {
             $signed = $signer->sign(new Asset($bytes, $mediaType), $builder->build());
         } catch (ContentCredentialsException $e) {
-            $this->error('Signing failed: '.OutputFormatter::escape($e->getMessage()));
+            // SPEC-040 AC3: the service's own text, and whatever answers on
+            // the configured URL controls it. escape() stops markup and not a
+            // raw ESC, which is the same half-fix this package has met before.
+            $this->error('Signing failed: '.SafeOutput::fromOutside($e->getMessage()));
 
             return self::FAILURE;
         }

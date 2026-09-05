@@ -2,13 +2,20 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon                                  |
-| Approved   | — (draft)                                         |
+| Approved   | Maurice van Loon, 2026-09-05                      |
 | Supersedes | —                                                 |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
-> `implemented` (Traceability filled). No implementation code while `draft`.
+> `implemented` (Traceability filled). Only the Traceability section of an
+> `approved` spec may change without a new approval.
+
+> **Approval decision, 2026-09-05.** Approved as written. The open question about
+> `ServiceError` stripping as well as capping was **left open, not resolved**: no
+> criterion requires it, AC3 closes the terminal either way, and stripping at the
+> producer changes what a host application records — which is arguably its
+> decision. Implementing it would have been building past the spec.
 
 ## Problem
 
@@ -209,15 +216,32 @@ where the harm is and where AC8 already put it.
 
 ## Traceability
 
-Filled when status becomes `implemented`.
+Twelve tests, all in `tests/Unit/Laravel/UntrustedErrorTextTest.php`, group
+`SPEC-040`. No extension and no running service: the readers are stubbed, so
+they run in every `composer check` leg rather than in one profile.
+
+**Seen red before green.** Against `main` the group reported **11 failed, 1
+passed**; the one that passes either way is AC8, which asserts that nothing was
+broken rather than that something was fixed. With the implementation: **12
+passed**. `composer check` green at 358 passed / 7 skipped / 18 deprecated —
+the deprecation count rises by eight because eight of these tests call
+`$this->error()`, which on Laravel 11 hits the `InteractsWithIO.php:435` vendor
+bug already documented; the Laravel 12 and 13 legs report none.
+
+**One stated gap.** No test covers the *call site* in `ExtC2paReader` — reaching
+it needs the extension loaded, and no real message from ext-c2pa gets near the
+256-character bound, so such a test would assert a length that was never at risk.
+`ServiceError::bound()` itself is covered directly, including the invalid-UTF-8
+branch, which was confirmed to be the branch taken (`preg_match` with `/u`
+returns `false` for that input). This is a known gap, not an assumed one.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
-| AC7                  | —                           | —                    |
-| AC8                  | —                           | —                    |
+| AC1 | `tests/Unit/Laravel/UntrustedErrorTextTest.php` :: "strips control characters out of a failed read before printing", "keeps the printable remainder so the operator can see what failed", group `SPEC-040` | `src/Laravel/Console/SafeOutput.php` `fromOutside()`, `src/Laravel/Console/ReadCommand.php` catch block |
+| AC2 | `tests/Unit/Laravel/UntrustedErrorTextTest.php` :: "reports a failed read as a command failure instead of throwing", group `SPEC-040` | `src/Laravel/Console/ReadCommand.php` — `read()` now inside a `try`, `catch (ContentCredentialsException)` |
+| AC3 | `tests/Unit/Laravel/UntrustedErrorTextTest.php` :: "strips control characters out of a signing failure before printing", group `SPEC-040` | `src/Laravel/Console/SignCommand.php` — `SafeOutput::fromOutside()` replaces `OutputFormatter::escape()` |
+| AC4 | `tests/Unit/Laravel/UntrustedErrorTextTest.php` :: "neutralises identically on the read path and on the sign path", group `SPEC-040` | `src/Laravel/Console/SafeOutput.php`; `ReadCommand::fromManifest()` delegates to it |
+| AC5 | `tests/Unit/Laravel/UntrustedErrorTextTest.php` :: "leaves a message that is already within the bound untouched", "truncates a message past the bound and says that it did", "still bounds a long message that is not valid UTF-8", group `SPEC-040` | `src/Core/Support/ServiceError.php` `bound()`, called from `src/Core/Reading/ExtC2paReader.php` |
+| AC6 | `tests/Unit/Laravel/UntrustedErrorTextTest.php` :: "neutralises an empty message and one that is not valid UTF-8", "survives an empty failure message", group `SPEC-040` | `src/Laravel/Console/SafeOutput.php` — byte-based pattern, no `/u` |
+| AC7 | `tests/Unit/Laravel/UntrustedErrorTextTest.php` :: "reports a service-side read failure in the service own wording", group `SPEC-040` | `src/Core/Reading/SigningServiceReader.php` — unchanged |
+| AC8 | `tests/Unit/Laravel/UntrustedErrorTextTest.php` :: "leaves manifest accessors returning their values byte for byte", group `SPEC-040` | `src/Core/Reading/ManifestReport.php` — unchanged (SPEC-033 AC4) |

@@ -9,6 +9,7 @@ use Automattic\VIP\C2PA\Settings as ExtSettings;
 use Provemark\ContentCredentials\Core\Reading\Exception\ExtensionMissingException;
 use Provemark\ContentCredentials\Core\Reading\Exception\ReadFailedException;
 use Provemark\ContentCredentials\Core\Signing\Asset;
+use Provemark\ContentCredentials\Core\Support\ServiceError;
 
 /**
  * Reads C2PA credentials in-process, through the `ericmann/ext-c2pa` extension
@@ -95,7 +96,17 @@ final class ExtC2paReader implements ReaderInterface
             // Mapped to the same type SigningServiceReader raises, so a caller
             // can swap readers without touching its error handling — otherwise
             // ReaderInterface is a shape rather than a contract.
-            throw new ReadFailedException('Could not read the asset: '.$e->getMessage(), previous: $e);
+            // SPEC-040 AC5: bounded here, where the string is created. The
+            // extension's message can carry bytes c2pa-rs echoed out of the
+            // asset it refused, and it reaches an application's log as well as
+            // a terminal — so the length bound belongs at the producer, as
+            // ServiceError already does for the service's own text. Making it
+            // safe to PRINT is the command's job (SafeOutput), because the
+            // accessors must keep returning values verbatim (SPEC-033 AC4).
+            throw new ReadFailedException(
+                'Could not read the asset: '.ServiceError::bound($e->getMessage()),
+                previous: $e,
+            );
         }
 
         // An asset with no C2PA data is an empty report, not an error
