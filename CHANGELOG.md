@@ -21,6 +21,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Service (requires `git pull` + `docker compose up -d --build`)
 
+- **`POST /v1/sign` now refuses a foreign ISOBMFF container** (SPEC-039). A JPEG
+  XL container is ISOBMFF, and so are MP4, QuickTime and AVIF — and the declared
+  media type selects a *handler*, not a format. So a JPEG XL file declared as
+  `video/mp4` used to sign: HTTP 200, a plausible `signed_content`, a file that
+  still opened as an image, and a credential **nothing could read back** — not
+  c2patool, not `/v1/read`, not even the handler that wrote it. The caller was
+  told the asset was signed, and the result was indistinguishable from a stripped
+  manifest. It is now a 400 naming the brand found and the type declared, for the
+  asset and for the SPEC-028 `parent` alike.
+  - Reaching it takes a deliberately mislabelled file, so this is a correctness
+    and diagnostics fix rather than a security fix, and it is reported as one.
+  - The check is a **deny-list of known foreign brands**, deliberately: it closes
+    only what it enumerates and can never refuse a legitimate file. `jxl ` is
+    measured; HEIF, HEVC and CR3 brands are included by reasoning. The brand is
+    read from the **major brand only** — `mif1` sits among a normal AVIF file's
+    compatible brands, and denying on those would refuse assets that work today.
+  - Nothing about what you may declare changed. `GET /health` reports the same
+    thirteen media types.
+
 - **`@contentauth/c2pa-node` 0.9.1 → 0.9.3**, which carries **c2pa-rs 0.90.15 →
   0.90.16** (confirmed from the running container, not the changelog:
   `org.contentauth.c2pa_rs` reads `0.90.16`). Two of the engine fixes are on the
