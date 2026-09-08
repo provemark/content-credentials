@@ -52,10 +52,10 @@ in it was wrong — `7319cd3` is where "the one leg that reaches outside this
 repository" was written down and then retracted in place. A block written to
 correct a claim is not thereby immune from ageing.
 
-`CLAUDE.md` had the same count, and next to it a survivor of that same revert:
-it still called `ext-c2pa` "the only leg that downloads a prebuilt binary from a
-third party". The workflow comment had already refuted that; the project file
-had not been brought along. Both fixed — and the list of profile names there now
+The maintainer's own brief had the same count, and next to it a survivor of that
+same revert: it still called `ext-c2pa` "the only leg that downloads a prebuilt
+binary from a third party". The workflow comment had already refuted that; the
+brief had not been brought along. Both fixed — and the list of profile names there now
 points at the matrix, so the next addition is one `grep` away rather than a
 silent divergence.
 

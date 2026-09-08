@@ -32,7 +32,8 @@ tests-first again.
 AC8's implementation added `parent_bytes` / `parent_sha256` to the success path
 only. Both of its tests exercised that path, so nothing caught it — and the
 traceability row read as covered. **The spec was marked `implemented` with a
-criterion unmet**, which CLAUDE.md names explicitly as the thing not to do.
+criterion unmet**, which the spec-driven process names explicitly as the thing
+not to do.
 
 Deliberately scoped when fixing: the fields are recorded on every 400, and NOT
 on a 429. A load-shedding refusal exists to avoid spending work, and

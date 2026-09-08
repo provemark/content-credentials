@@ -6,11 +6,12 @@ Went looking for where to record why WebAssembly, browser-held keys and
 in-process signing all get declined, and found that **ADR-0003 decision 3 still
 says "plan an `ExtC2paSigner` adapter"**. NOTES Step 23 found the extension
 cannot timestamp (`tsa_url = None`), Step 24 corrected the reach argument, and
-CLAUDE.md says the adapter stays unbuilt — but the artefact whose entire job is
+and the adapter was already settled as unbuilt — but the artefact whose job is
 to hold architectural decisions held the superseded one.
 
 That is worth noticing as a class: this repository keeps its reasoning in four
-places (specs, ADRs, NOTES, CLAUDE.md), and only specs have a lifecycle that
+places (specs, ADRs, this log, and the maintainer's own brief), and only specs
+have a lifecycle that
 forces them to be revisited. An ADR can quietly go stale because nothing ever
 reads it back.
 

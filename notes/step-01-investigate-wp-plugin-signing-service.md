@@ -116,3 +116,28 @@ assertion — avoiding the upstream double-actions friction.
 ---
 
 [index](../NOTES.md) · [Step 2/3 →](step-02-03-build-service-and-client.md)
+
+---
+
+### Re-measured 2026-09-08 — all four blockers still stand
+
+Checked because this step's conclusion is quoted in `docs/c2pa-primer.md` §3,
+which ships in the Composer dist, and it had not been re-run since the spike.
+Against `contentauth/wp-plugin` `main`, last pushed **2026-05-29** and not
+archived — so the repository has not moved since before the original
+measurement:
+
+1. `signing-service/package.json` still pins `"c2pa-node": "^1.0.0"`; npm's
+   `c2pa-node` still tops out at **0.5.26**, so the range still cannot resolve.
+2. Still superseded by `@contentauth/c2pa-node`. **One correction to the wording
+   above**: the package carries no npm deprecation flag (`npm view c2pa-node
+   deprecated` is empty). It is unmaintained and superseded, not formally
+   deprecated. This blocker was always a consequence of blocker 1 anyway.
+3. Still no `package-lock.json` under `signing-service/`, and the Dockerfile
+   still runs `npm ci --omit=dev` (line 14), which requires one.
+4. `signer.js:57` still calls `createC2pa({ signer: { type: algorithm,
+   certificate, privateKey } })` — `type` holding the algorithm rather than
+   `'local'`, exactly as recorded.
+
+So "aspirational scaffolding, almost certainly never run" is still supported by
+measurement: the install cannot resolve and the build cannot run `npm ci`.

@@ -55,7 +55,7 @@ the next time the adoption question comes up, this is the honest map.
 
 SPEC-019 is `implemented` and frozen outside Traceability, and its Problem
 section is what was believed when it was approved. The correction lives here,
-where NOTES.md is authoritative per CLAUDE.md. The README never made the claim,
+where this log, not the frozen spec, is the record. The README never made the claim,
 so nothing shipped to users needs fixing — which is the one piece of luck in
 this.
 

@@ -60,7 +60,7 @@ before implementation rather than found during it.
 `InteractsWithQueue` lives there, and only `config`, `console`, `container` and
 `support` were declared. Added to `require-dev` and to the four `--with=` lines
 in the CI matrix, which is the thing that would have gone stale silently — the
-matrix is what makes the supported Laravel range real (CLAUDE.md, Architecture).
+matrix is what makes the supported Laravel range real.
 Not a runtime dependency; consumers are unaffected.
 
 ### ⚠️ PHPStan level max versus a queue-job double
@@ -74,7 +74,7 @@ Settled with one nullable property the nullable members return, which keeps the
 declared unions genuinely inhabited — and it has to be `public`, because PHPStan
 narrows a private one the same way. Recorded because the next person writing an
 interface double at level max will meet this within minutes, and the instinct
-(add an ignore) is the wrong one: CLAUDE.md forbids un-annotated ignores, and the
+(add an ignore) is the wrong one: this project forbids un-annotated ignores, and the
 property costs three lines.
 
 ### Verified
