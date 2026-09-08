@@ -113,3 +113,4 @@ Follow these before searching; most questions are already answered in one step.
 | **57** | 2026-09-03 | [The whole PHP C2PA landscape, and who this package is for](notes/step-57-php-c2pa-landscape.md) |
 | **58** | 2026-09-05 | [Is the JPEG XL parser reachable through the service?](notes/step-58-jpeg-xl-reachability-measured.md) |
 | **59** | 2026-09-08 | [The ai_disclosure maintainer answered, and what he did not settle](notes/step-59-ai-disclosure-issue-32.md) |
+| **60** | 2026-09-08 | [The hosting question had no answer to give](notes/step-60-ai-disclosure-hosting-unanswerable.md) |
