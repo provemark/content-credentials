@@ -36,7 +36,7 @@ failure, and the moment the budget runs out. 15 attempts and 15 000 both produce
 two.
 
 Worth noting the process: SPEC-030 was `approved`, so this went back through an
-amendment rather than being fixed quietly. CLAUDE.md's "spec contradiction found
+amendment rather than being fixed quietly. The rule "spec contradiction found
 mid-implementation → STOP, amend, back to step 2" is not ceremony; the wrong
 reading was the one already written down.
 

@@ -97,7 +97,7 @@ eleven targeted, roughly twenty bare), the flake is now known to occur well unde
 **1 in 80** `composer check` runs. Five sightings, zero reproductions on demand.
 
 **So stop reproducing and start capturing.** Built, on the maintainer's decision,
-because it changes what CLAUDE.md calls "the single definition of green":
+because it changes the single definition of green in this project:
 
 - `bin/check.sh` runs the sequence, tees to `out/check-<stamp>.log`, and **keeps
   that file only when the exit code is non-zero**. A green run leaves nothing.

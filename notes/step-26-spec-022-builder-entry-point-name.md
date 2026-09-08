@@ -84,7 +84,7 @@ with AI" is plausibly `c2pa.opened` plus an edit action — which would make it 
 different assertion shape, not a different constant. If so, form A was the right
 call for a second reason: one parameter would have implied a symmetry that does
 not exist. Do not write that spec from memory; check it against the C2PA spec
-first (CLAUDE.md: ask rather than guess).
+first, and ask rather than guess.
 
 ### Also recorded: an upgrade note SPEC-021 needed and did not have
 

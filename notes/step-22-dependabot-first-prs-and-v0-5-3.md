@@ -14,8 +14,7 @@ if checkout v7 did not work, nothing downstream of it would have. Merged.
 A major, and one earlier sessions deliberately left alone. What changed is that
 there is now evidence: since Step 17 the three CI integration profiles build and
 run the real service, so express 5 arrived already exercised by ~48 tests. That
-does not remove the local step (CLAUDE.md: any `service/` change is verified by
-hand), so:
+does not remove the local step — any `service/` change is verified by hand — so:
 
 - container reports `express 5.2.1`, `/health` intact including the new
   `signing_cert` block;

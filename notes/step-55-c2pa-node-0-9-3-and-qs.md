@@ -6,8 +6,8 @@ it was written for.
 ## What moved
 
 `@contentauth/c2pa-node` 0.9.1 → **0.9.3**, carrying c2pa-rs **0.90.15 →
-0.90.16**. This is the bump CLAUDE.md had been carrying as the single open watch
-item since 2026-08-27: the engine fix existed, and could only reach us through a
+0.90.16**. This is the bump that had stood as the single open watch item since
+2026-08-27: the engine fix existed, and could only reach us through a
 c2pa-node release that had not been published yet. It published on 2026-08-31
 (0.9.2) and 2026-09-01 (0.9.3).
 
@@ -52,8 +52,8 @@ audit before declaring 2.4.0 still true"*.
 That is a guard whose whole purpose is to fail exactly once, on exactly this
 event, and it had never been seen red on a real bump before. It was written to
 read a committed file rather than a running service precisely so it could not
-report `skipped` and quietly never fire — the failure mode CLAUDE.md's "do not
-trust a green test you have not seen go red" section collects. It fired.
+report `skipped` and quietly never fire — the "do not trust a green test you have
+not seen go red" failure mode this log keeps collecting. It fired.
 
 So the audit was re-run against 0.90.16 before the pin moved:
 

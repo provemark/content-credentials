@@ -17,7 +17,7 @@ Environment (verified 2026-07-27):
 **This page is an index.** The log itself lives in `notes/`, one file per step,
 copied verbatim from what used to be this file. It was split on 2026-08-10
 because the whole log was ~190 KB and loaded into every session, which is the
-most expensive possible position for context (see the cost note in `CLAUDE.md`).
+most expensive possible position for context.
 
 Read the row you need, not the log. To search across all steps:
 

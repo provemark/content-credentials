@@ -58,7 +58,7 @@ that turn out to be wrong.
 
 ### ⚠️ `bin/verify.sh` gave a wrong answer, and it is the authoritative check
 
-CLAUDE.md names it as the authoritative verification. It reported a correctly
+It is the authoritative verification in this project. It reported a correctly
 marked manipulated asset as `AI Art.50 mark : FAIL`, because it tested for
 `trainedAlgorithmicMedia` alone — while Article 50(2) covers generated **or**
 manipulated. So the one tool the project trusts to arbitrate would have said no
