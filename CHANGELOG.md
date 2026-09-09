@@ -19,6 +19,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `audio/x-wav` accepted as an input spelling of `audio/wav` (SPEC-041). It is
+  what PHP's own `mime_content_type()` and `finfo` return, what
+  `file --mime-type` returns, and what Drupal core's MIME guesser maps every
+  `.wav` to — so a caller passing the type its framework detected could not sign
+  or read a WAV at all. Normalised to the registered type like the three aliases
+  before it; nothing about `MediaType::cases()` changes, and the service still
+  receives `audio/wav`.
+
+  Found from outside: `provemark/content-credentials-drupal` gates uploads on
+  what this library accepts, and every `.wav` uploaded to a Drupal site was
+  being skipped silently.
+
 ## [0.14.1] - 2026-09-05
 
 A patch release: behavioural fixes and documentation, no new public API and no

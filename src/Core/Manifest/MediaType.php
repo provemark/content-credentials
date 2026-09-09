@@ -53,12 +53,18 @@ enum MediaType: string
      * software emits. An alias is an accepted input only — the value carried
      * into the manifest and to the service is always the registered type.
      *
+     * `audio/x-wav` is the strongest of them and was the last to arrive: PHP's
+     * own `mime_content_type()` and `finfo` both return it, `file --mime-type`
+     * returns it, and Drupal core maps every `.wav` to it. A caller passing the
+     * type its framework detected could not read a WAV at all until SPEC-041.
+     *
      * @var array<string, string>
      */
     private const ALIASES = [
         'audio/mp3' => 'audio/mpeg',        // SPEC-021
         'audio/x-flac' => 'audio/flac',     // SPEC-023: predates registration
         'video/avi' => 'video/x-msvideo',   // SPEC-023: common, unregistered
+        'audio/x-wav' => 'audio/wav',       // SPEC-041: what finfo itself emits
     ];
 
     /**

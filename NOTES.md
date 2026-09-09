@@ -114,3 +114,4 @@ Follow these before searching; most questions are already answered in one step.
 | **58** | 2026-09-05 | [Is the JPEG XL parser reachable through the service?](notes/step-58-jpeg-xl-reachability-measured.md) |
 | **59** | 2026-09-08 | [The ai_disclosure maintainer answered, and what he did not settle](notes/step-59-ai-disclosure-issue-32.md) |
 | **60** | 2026-09-08 | [The hosting question had no answer to give](notes/step-60-ai-disclosure-hosting-unanswerable.md) |
+| **61** | 2026-09-09 | [`audio/x-wav`, found from outside](notes/step-61-the-audio-x-wav-alias.md) |
