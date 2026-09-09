@@ -19,6 +19,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-09-09
+
+A minor release for one accepted input spelling. No API changes, nothing to
+adapt to, and the same precedent as 0.8.0, which is where the three aliases
+before this one arrived.
+
+Worth reading even if you do not handle WAV: it is the first defect in this
+library found by a *consumer* rather than by its own suite, and the reason
+neither suite could see it is recorded in NOTES Step 61.
+
 ### Added
 
 - `audio/x-wav` accepted as an input spelling of `audio/wav` (SPEC-041). It is
@@ -1700,7 +1710,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.14.1...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.15.0...main
+[0.15.0]: https://github.com/provemark/content-credentials/releases/tag/v0.15.0
 [0.14.1]: https://github.com/provemark/content-credentials/releases/tag/v0.14.1
 [0.14.0]: https://github.com/provemark/content-credentials/releases/tag/v0.14.0
 [0.13.1]: https://github.com/provemark/content-credentials/releases/tag/v0.13.1
