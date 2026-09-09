@@ -181,8 +181,10 @@ intact, and confirmed with `c2patool` under trust settings:
 `image/tiff`, `image/svg+xml`, `audio/wav`, `audio/mpeg`, `audio/flac`,
 `video/mp4`, `video/quicktime`, `video/x-msvideo`.
 
-- `audio/mp3`, `audio/x-flac` and `video/avi` are accepted as input spellings,
-  normalised to the registered types.
+- `audio/mp3`, `audio/x-flac`, `video/avi` and `audio/x-wav` are accepted as
+  input spellings, normalised to the registered types. The last is the one you
+  are most likely to meet without looking for it: PHP's `finfo` and Drupal core
+  both report every `.wav` as `audio/x-wav` (SPEC-041, measured).
 - **SVG is signable but fragile**: SVGO's default preset removes the manifest
   silently, and re-serialising the XML makes the file unparseable as C2PA. Sign
   it as a deliverable, never as a build asset (SPEC-023, measured).

@@ -23,8 +23,9 @@ rather than a style error, so each is given with its definition. Back to the
 | `video/quicktime` | `Mov` | `.mov` |
 | `video/x-msvideo` | `Avi` | `.avi` |
 
-`audio/mp3`, `audio/x-flac` and `video/avi` are accepted as input spellings and
-normalised to the registered `audio/mpeg`, `audio/flac` and `video/x-msvideo`.
+`audio/mp3`, `audio/x-flac`, `video/avi` and `audio/x-wav` are accepted as input
+spellings and normalised to the registered `audio/mpeg`, `audio/flac`,
+`video/x-msvideo` and `audio/wav`.
 **That normalisation happens in the PHP client**, which then sends the
 registered type — so if you call `/v1/sign` directly rather than through this
 package, use the registered spelling: the service's own allow-list holds those
