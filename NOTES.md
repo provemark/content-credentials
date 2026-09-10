@@ -116,3 +116,4 @@ Follow these before searching; most questions are already answered in one step.
 | **60** | 2026-09-08 | [The hosting question had no answer to give](notes/step-60-ai-disclosure-hosting-unanswerable.md) |
 | **61** | 2026-09-09 | [`audio/x-wav`, found from outside](notes/step-61-the-audio-x-wav-alias.md) |
 | **62** | 2026-09-10 | [What lowering the floor to PHP 8.2 would actually cost](notes/step-62-what-php-8-2-would-cost.md) |
+| **63** | 2026-09-10 | [The head-and-tail probe, measured on large files](notes/step-63-the-head-and-tail-probe-measured.md) |
