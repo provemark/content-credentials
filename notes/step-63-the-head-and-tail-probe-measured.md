@@ -117,6 +117,36 @@ disagreement to resolve against that file, not as a correction of it.
 Nothing is implemented, and no spec exists. A probe in this library would be new
 public behaviour and needs one, and the spec has a real design question in it
 rather than a formality: whether the window is a constant or a setting, given
-that the number is a property of whoever signed the file. The saving is only
-worth having on the reading path of a host that processes many files it did not
-create — which is the case the question came from.
+that the number is a property of whoever signed the file.
+
+## The trigger, and why it has not fired
+
+**Do not build this yet.** The measurement is worth having on its own — a 16 KiB
+tail window looked reasonable and would have failed on this repository's own
+output — but a measured saving is not the same as a needed one. Three things
+stand between the two.
+
+- **The expensive cases are already excluded.** The module that asked the
+  question skips any file above its `read_ceiling_bytes`, 15 MiB by default,
+  because raising it costs roughly 3.7× the file in queue-worker memory. So the
+  probe could only ever run on files at or below that ceiling. The 148 MB AVI
+  that makes the saving look dramatic never reaches it.
+- **What is left is throughput, not latency.** The reading happens in a queued
+  worker on cron, not while an editor saves. Not base64-ing a few megabytes is a
+  real saving and nobody is waiting for it.
+- **It buys a new silent failure mode.** Today a signed asset cannot be skipped
+  unnoticed. With a probe it can: one false negative and the file counts as
+  carrying no credential — no error, no log entry. That is the shape this
+  project rates worse than a hard failure, and the measurement above says the
+  window depends on the reserve size of whoever signed the file, which for
+  uploads is exactly the parameter a host does not control.
+
+**The trigger is a site reporting the reading cost as a real problem** — many
+uploads, few credentials, a queue that does not keep up — with numbers from that
+site rather than from a fixture. Then the spec has something to size the window
+against, including the third-party reserve sizes this step could not measure.
+
+**Not the trigger:** that the finding is measured and written down, that a probe
+would be easy to write, or that this library is the right place for it. All
+three are true and none of them is a reason. Subject-matter fit is the
+temptation these sections exist to refuse.
