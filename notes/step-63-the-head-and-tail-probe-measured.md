@@ -103,14 +103,37 @@ reserving more space than the window covers.
   nothing would go red — which is an argument for asserting the window against a
   freshly signed fixture rather than pinning a number.
 
-## ⚠️ One disagreement with the downstream table
+## The WebP that looked head-side, and was not
 
-That table lists WebP as head-side, first hit at 336 in a 108,674-byte file.
-This service produces no such file at any size: WebP signed small (13,560 →
-2,558,256 bytes) has its first hit at 13,584, and signed large at 34,710,208 —
-appended after the payload both times, like the other RIFF types. The fixture
-behind the 336 could not be inspected from here, so this is recorded as a
-disagreement to resolve against that file, not as a correction of it.
+The downstream table lists WebP as head-side, first hit at 336 in a
+108,674-byte file, which is why that measurement counted two tail-side types
+and this one counts four. The fixture behind it turned out to be readable from
+here, so the disagreement is settled rather than recorded. Its RIFF layout:
+
+```
+VP8L   offset      12   size       292   ends at      312
+C2PA   offset     312   size   108,353   ends at  108,673
+```
+
+**The image is 292 bytes and the manifest store is 108 KB.** So the store does
+sit after the payload, exactly as in every other RIFF file measured here — the
+payload is simply so short that "after the payload" and "at the head" are the
+same place. The first hit at 336 is 24 bytes into the `C2PA` chunk, the same
+offset into the chunk as the 34 MB WebP's first hit at 34,710,208, which is its
+own unsigned size plus 24.
+
+The rest of the file agrees too: hits cluster at 336–519 and 87,597–88,650, and
+then 20,024 bytes run to EOF — the same constant as `spec021.wav` (20,023) and
+`spec023.avi` (20,023) in that same directory, and the same one measured
+independently against this repository's service. One mechanism, no exception.
+
+**This is the step's own lesson one level down.** At that size you cannot tell
+"the manifest is at the head" apart from "the file is small enough that
+everything is at the head". In this fixture 99.7% of the bytes *are* the
+manifest — a consequence of the auto-generated claim thumbnail, which took a
+13,560-byte WebP to 2,558,256 bytes when signed here. A probe designed against
+files like that would have used a head-only window for WebP and missed every
+real one.
 
 ## What this does not settle
 
