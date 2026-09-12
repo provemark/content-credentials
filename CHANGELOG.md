@@ -19,10 +19,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-**Read the two sections below as different deliveries.** `### Fixed` ships with
-the package — `README.md` and `docs/` are both in the dist. `### Service` does
-not: `service/` is `export-ignore`d, so it reaches you through `git pull` plus a
-rebuild and never through `composer update`.
+## [0.15.1] - 2026-09-12
+
+A patch release for one broken instruction. No new public API, no behavioural
+change in `src/`, and nothing to adapt to — the reason to take it is that the
+setup command in the README you already have does not work any more.
+
+**Read the two sections below as different deliveries.** `### Fixed` is what
+this tag delivers: `README.md` and `docs/` are both in the dist. `### Service`
+is not — `service/` is `export-ignore`d, so it reaches you through `git pull`
+plus a rebuild and never through `composer update`. It is described here because
+it happened in this range, not because a tag carries it.
+
+On tagging a documentation change at all: `CONTRIBUTING.md` says docs-only work
+stays under `[Unreleased]` rather than earning a tag, and it also says to tag
+when a consumer gains a bug fix. This is the second. The `curl` command that
+fetches the test signing key is the first thing a new deployment runs, and until
+this release it returned 404 — so the package as installed could not be set up
+by following its own instructions. That is a defect in the dist, not a
+typographical fix.
 
 ### Fixed
 
@@ -1765,7 +1780,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.15.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.15.1...main
+[0.15.1]: https://github.com/provemark/content-credentials/releases/tag/v0.15.1
 [0.15.0]: https://github.com/provemark/content-credentials/releases/tag/v0.15.0
 [0.14.1]: https://github.com/provemark/content-credentials/releases/tag/v0.14.1
 [0.14.0]: https://github.com/provemark/content-credentials/releases/tag/v0.14.0
