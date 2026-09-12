@@ -8,12 +8,13 @@ tool versions on 2026-08-21 — none of it is from model memory. **§11 was adde
 on 2026-08-31 and is measured against c2patool 0.27.16**; the rest of the page
 still carries the 0.27.15 verification, which is a difference worth keeping
 visible rather than smoothing over. **The engine moved to
-@contentauth/c2pa-node 0.9.3 / c2pa-rs 0.90.16 on 2026-09-03** (NOTES Step 55);
-the §4, §9 and §11 claims were re-measured against it, the rest was not
-re-run. **§8 was re-measured on 2026-09-05 (NOTES Step 58) and one of its claims
-was wrong**: the declared media type is not advisory and nothing sniffs the
-bytes — it selects a handler, and a handler covers a family. That bullet is
-corrected in place.
+@contentauth/c2pa-node 0.9.5 / c2pa-rs 0.90.22 on 2026-09-12** (NOTES Step 64,
+and before that to 0.9.3 / 0.90.16 on 2026-09-03, NOTES Step 55); the §4, §9 and
+§11 claims were re-measured against it, the rest was not re-run. **§8 was
+re-measured on 2026-09-05 (NOTES Step 58) and one of its claims was wrong**:
+the declared media type is not advisory and nothing sniffs the bytes — it
+selects a handler, and a handler covers a family. That bullet is corrected in
+place.
 When this page and the log disagree, the log (the raw record) wins; fix this
 page. When neither answers a question, ask — do not guess.
 
@@ -102,8 +103,8 @@ the client's, placement in the claim is the generator's** — `created` means
 
 ## 4. c2pa-node API essentials (`service/src/`)
 
-- Maintained package: **`@contentauth/c2pa-node`** (currently 0.9.3, carrying
-  c2pa-rs 0.90.16). The old unscoped `c2pa-node` is EOL at 0.5.26 — never depend
+- Maintained package: **`@contentauth/c2pa-node`** (currently 0.9.5, carrying
+  c2pa-rs 0.90.22). The old unscoped `c2pa-node` is EOL at 0.5.26 — never depend
   on it. The
   `contentauth/c2pa-node-v2` repo was archived ~2026-06-08; development and the
   real CHANGELOG moved to the `contentauth/c2pa-js` monorepo under
@@ -235,7 +236,7 @@ intact, and confirmed with `c2patool` under trust settings:
 
 ## 9. The two readers, and where parsing happens
 
-`SigningServiceReader` (HTTP, c2pa-rs 0.90.16) and `ExtC2paReader` (in-process,
+`SigningServiceReader` (HTTP, c2pa-rs 0.90.22) and `ExtC2paReader` (in-process,
 0.89.0) answer the same questions. Two differences matter when choosing:
 
 - **Engine version.** The extension lags the service, which is why `auto` is not
@@ -274,9 +275,10 @@ hearsay into attestation.
 
 Measured 2026-08-31 against `c2patool` 0.27.16 (c2pa-rs 0.90.16) and
 `@contentauth/c2pa-node` 0.9.1, re-measured unchanged on 2026-09-03 against
-0.9.3 (which carries that same engine), and read against the **normative text**
-of the 2.3 and 2.4 specifications rather than their change logs — the
-distinction mattered, see below.
+0.9.3 (which carries that same engine) and again on 2026-09-12 against 0.9.5
+(c2pa-rs 0.90.22 — six engine releases, and none of it moved), and read against
+the **normative text** of the 2.3 and 2.4 specifications rather than their change
+logs — the distinction mattered, see below.
 
 **A claim v2 has two assertion arrays, and the difference is attribution.**
 `created_assertions` holds what the claim generator made and stands behind:

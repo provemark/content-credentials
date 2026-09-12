@@ -19,6 +19,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+**Read the two sections below as different deliveries.** `### Fixed` ships with
+the package — `README.md` and `docs/` are both in the dist. `### Service` does
+not: `service/` is `export-ignore`d, so it reaches you through `git pull` plus a
+rebuild and never through `composer update`.
+
 ### Fixed
 
 - **The setup instruction for the test signing key no longer 404s.** Upstream
@@ -30,6 +35,44 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `allowed_list.pem`, `store.cfg`) are byte-identical to what the old path
   served, so nothing about the certificates or the trust settings changed —
   only where they are fetched from.
+
+### Service
+
+- **`@contentauth/c2pa-node` 0.9.3 → 0.9.5**, which carries **c2pa-rs 0.90.16 →
+  0.90.22** — six engine releases in one bump. Confirmed from the running
+  container rather than from the changelog: a freshly signed manifest reports
+  `org.contentauth.c2pa_rs: 0.90.22`.
+
+  The fix worth naming is **CAI-12751** in 0.90.17, *"Prevent ingredient
+  assertions from canceling active-manifest failures"*: a validation failure in
+  the **active** manifest could be suppressed by an ingredient assertion — a
+  wrong `Valid` on an asset you did not produce. The same release also fixes a
+  path traversal in `Reader::to_folder` (never called here) and an unbounded
+  allocation in the JPEG XL parser (measured unreachable through this service —
+  NOTES Step 58). 0.90.18 hardens CAWG identity hard bindings, 0.90.19 handles
+  ingredient manifest label collisions (2.4 §18.16.12), 0.90.21 makes identity
+  assertion validation use the caller's CAWG trust settings, and 0.90.22
+  normalises path URIs on collection hash.
+
+  None of this produced a security advisory: there is no GHSA, `composer audit`
+  and `npm audit --omit=dev` are both clean, and Dependabot reported nothing. It
+  was found by reading upstream release notes, which is the only signal that
+  carries it.
+
+- **Nothing about what you may sign or declare changed.** 0.90.20 adds
+  ZIP/EPUB/OOXML/ODF support upstream; `SUPPORTED_MIME` gates before the engine
+  is reached, so `GET /health` reports the same thirteen media types. The
+  declared `specVersion` is still `2.4.0`, the actions assertion still lands in
+  `created_assertions` with `created: true`, and the auto thumbnail still lands
+  in `gathered_assertions` (upstream c2pa-rs #2106, unmoved). RFC 3161
+  timestamping still works — `hasTimestamp` is true on the async signing path,
+  which is the main regression risk in any engine bump and was verified rather
+  than assumed.
+
+- **The engine pinned by SPEC-035 AC7 moved to 0.9.5.** That test failed on the
+  bump, as it is written to, and the pin was moved only after the 2.4.0
+  declaration had been re-audited against the new engine. The re-audit is in
+  NOTES Step 64.
 
 ## [0.15.0] - 2026-09-09
 

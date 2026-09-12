@@ -83,11 +83,14 @@ it('still runs on the engine version the specification audit was made against', 
     // including the created_assertions placement 2.4 §18.15.2 requires — so the
     // declaration has to be re-audited before the bump lands, and this is what
     // says so. Re-audited on 2026-09-03 for 0.9.1 -> 0.9.3 (c2pa-rs 0.90.15 ->
-    // 0.90.16): specVersion still emitted as `2.4.0`, the actions assertion
-    // still lands in created_assertions and still reads back `created: true`.
+    // 0.90.16) and again on 2026-09-12 for 0.9.3 -> 0.9.5 (c2pa-rs 0.90.16 ->
+    // 0.90.22, six engine releases in one bump): specVersion still emitted as
+    // `2.4.0`, the actions assertion still lands in created_assertions and
+    // still reads back `created: true`, and the auto thumbnail still lands in
+    // gathered_assertions (upstream c2pa-rs #2106, unchanged).
     //
     // Reads a committed file rather than a running service on purpose: a check
     // conditioned on a profile or a local binary would report `skipped`
     // everywhere and never go red, which is the failure this criterion replaced.
-    expect($pinned)->toBe('0.9.3', 'engine bumped — re-run the SPEC-035 audit before declaring 2.4.0 still true');
+    expect($pinned)->toBe('0.9.5', 'engine bumped — re-run the SPEC-035 audit before declaring 2.4.0 still true');
 })->group('SPEC-035');

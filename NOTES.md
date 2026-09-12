@@ -117,3 +117,4 @@ Follow these before searching; most questions are already answered in one step.
 | **61** | 2026-09-09 | [`audio/x-wav`, found from outside](notes/step-61-the-audio-x-wav-alias.md) |
 | **62** | 2026-09-10 | [What lowering the floor to PHP 8.2 would actually cost](notes/step-62-what-php-8-2-would-cost.md) |
 | **63** | 2026-09-10 | [The head-and-tail probe, measured on large files](notes/step-63-the-head-and-tail-probe-measured.md) |
+| **64** | 2026-09-12 | [c2pa-node 0.9.5, and the gap that had been open since 5 September](notes/step-64-c2pa-node-0-9-5-closes-the-gap.md) |
