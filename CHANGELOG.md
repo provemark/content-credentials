@@ -19,6 +19,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The setup instruction for the test signing key no longer 404s.** Upstream
+  split the CLI out of `c2pa-rs` into its own `contentauth/c2patool` repository,
+  which took `cli/sample/` with it — so the `curl` command in the README and in
+  `docs/service.md` had stopped working for anyone setting the service up from
+  scratch. Both now point at `contentauth/c2patool`, `sample/`. All five files
+  there (`es256_private.key`, `es256_certs.pem`, `trust_anchors.pem`,
+  `allowed_list.pem`, `store.cfg`) are byte-identical to what the old path
+  served, so nothing about the certificates or the trust settings changed —
+  only where they are fetched from.
+
 ## [0.15.0] - 2026-09-09
 
 A minor release for one accepted input spelling. No API changes, nothing to

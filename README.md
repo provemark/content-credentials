@@ -86,7 +86,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 # The private test key is deliberately not committed. Fetch the c2pa-rs sample —
 # test material only, never a real key:
-curl -sfSL https://raw.githubusercontent.com/contentauth/c2pa-rs/main/cli/sample/es256_private.key \
+curl -sfSL https://raw.githubusercontent.com/contentauth/c2patool/main/sample/es256_private.key \
   -o certs/es256_private.key
 
 docker compose up -d --build

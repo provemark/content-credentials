@@ -135,7 +135,10 @@ the client's, placement in the claim is the generator's** — `created` means
 
 ## 5. Certificates & trust
 
-- Test material comes from c2pa-rs `cli/sample/`: `es256_certs.pem` +
+- Test material comes from **`contentauth/c2patool`, `sample/`** — it lived in
+  c2pa-rs `cli/sample/` until upstream split the CLI into its own repository
+  (measured 2026-09-12: the old path 404s, the file at the new one is
+  byte-identical). It holds `es256_certs.pem` +
   `es256_private.key` (**ES256**, so `CONTENTAUTH_SIGN_ALG=es256`), plus
   `trust_anchors.pem`, `allowed_list.pem`, `store.cfg`.
 - **"Valid signature" ≠ "trusted cert".** Test certs always produce
