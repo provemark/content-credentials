@@ -21,7 +21,7 @@ cp .env.example .env          # set a CONTENTAUTH_API_KEY value
 
 # The private test key is intentionally NOT committed. Fetch the c2pa-rs sample
 # key for local development (test material only — never a real key):
-curl -sfSL https://raw.githubusercontent.com/contentauth/c2pa-rs/main/cli/sample/es256_private.key \
+curl -sfSL https://raw.githubusercontent.com/contentauth/c2patool/main/sample/es256_private.key \
   -o certs/es256_private.key
 
 docker compose up -d --build  # service on http://localhost:3000
