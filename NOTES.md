@@ -120,3 +120,4 @@ Follow these before searching; most questions are already answered in one step.
 | **63** | 2026-09-10 | [The head-and-tail probe, measured on large files](notes/step-63-the-head-and-tail-probe-measured.md) |
 | **64** | 2026-09-12 | [c2pa-node 0.9.5, and the gap that had been open since 5 September](notes/step-64-c2pa-node-0-9-5-closes-the-gap.md) |
 | **65** | 2026-08-10 | [Recent c2pa developments, and the SSRF that is not one](notes/step-65-recent-c2pa-developments-and-the-ssrf-that-is-not-one.md) — measured 08-10, landed 09-12 |
+| **66** | 2026-09-14 | [A currency check that changed nothing, and the c2patool refresh that came out of it](notes/step-66-a-currency-check-that-changed-nothing.md) |
