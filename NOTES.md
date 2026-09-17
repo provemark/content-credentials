@@ -36,7 +36,7 @@ Follow these before searching; most questions are already answered in one step.
 
 | Subject | Steps |
 |---|---|
-| Trust verification and settings documents | [11](notes/step-11-c2pa-node-trust-settings.md), [12](notes/step-12-spec-014-trust-verification-in-read.md), [13](notes/step-13-spec-013-istrusted-fails-closed.md), [19](notes/step-19-official-c2pa-trust-list.md), [47](notes/step-47-equivalence-test-configurations.md) |
+| Trust verification and settings documents | [11](notes/step-11-c2pa-node-trust-settings.md), [12](notes/step-12-spec-014-trust-verification-in-read.md), [13](notes/step-13-spec-013-istrusted-fails-closed.md), [19](notes/step-19-official-c2pa-trust-list.md), [47](notes/step-47-equivalence-test-configurations.md), [68](notes/step-68-the-dutch-trust-list-measured.md) |
 | TSA timestamping (async path, fails closed) | [6](notes/step-06-spec-007-tsa-timestamping.md), [23](notes/step-23-spec-019-ext-c2pa-reader.md) |
 | Memory multipliers and body-size limits | [20](notes/step-20-spec-017-body-size-default.md), [30](notes/step-30-spec-024-bounding-the-read-path.md), [37](notes/step-37-spec-028-implemented-article-50-2.md), [43](notes/step-43-spec-029-and-spec-030-implemented.md) |
 | Media types: what works, what does not, and why | [25](notes/step-25-spec-021-seven-more-media-types.md), [27](notes/step-27-measuring-remaining-formats-and-pdf.md), [28](notes/step-28-spec-023-thirteen-media-types.md) |
@@ -122,3 +122,4 @@ Follow these before searching; most questions are already answered in one step.
 | **65** | 2026-08-10 | [Recent c2pa developments, and the SSRF that is not one](notes/step-65-recent-c2pa-developments-and-the-ssrf-that-is-not-one.md) — measured 08-10, landed 09-12 |
 | **66** | 2026-09-14 | [A currency check that changed nothing, and the c2patool refresh that came out of it](notes/step-66-a-currency-check-that-changed-nothing.md) |
 | **67** | 2026-09-17 | [c2pa-node 0.9.6 deprecates the path the service reads trust through](notes/step-67-c2pa-node-0-9-6-deprecates-the-settings-path.md) |
+| **68** | 2026-09-17 | [The Dutch trust list (verifieermij.nl), measured before joining it](notes/step-68-the-dutch-trust-list-measured.md) |
