@@ -19,6 +19,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- `docs/production.md` now says how to build the trust-settings document from a
+  published trust list: signing and TSA anchors go into the same
+  `trust.trust_anchors` field (c2pa-rs has no separate TSA trust setting), the
+  EKU list in `trust.trust_config` is the deployer's to supply, and one `jq`
+  command turns the official `conformance-public` bundles into the file
+  `CONTENTAUTH_TRUST_SETTINGS` expects. Verified against c2pa-rs 0.90.22 and
+  c2patool 0.27.22.
+
+### Fixed
+
+- `docs/production.md` described a timestamp from the public
+  `http://timestamp.digicert.com` endpoint as "a trusted timestamp". Measured
+  against the official C2PA TSA trust list it is validated but **untrusted** —
+  that responder does not chain to the DigiCert roots on the list. The
+  paragraph now separates a timestamp's presence from its trust and says where
+  a trusted one comes from.
+
 ## [0.15.1] - 2026-09-12
 
 A patch release for one broken instruction. No new public API, no behavioural

@@ -18,14 +18,22 @@ distinction, see the write-up:
 Whichever certificate you use, the private key stays isolated behind the signing
 service — it never enters your web application.
 
-**Trusted timestamps.** Set `CONTENTAUTH_TSA_URL` on the signing service to an
-RFC 3161 Time Stamping Authority (e.g. `http://timestamp.digicert.com`) and every
-signature carries a trusted timestamp, so its validity survives certificate
-expiry. Unset, no timestamp is added (the default); if the TSA is unreachable the
-signing request **fails closed** rather than producing an untimestamped
-signature. `GET /health` reports `timestamping`, and
-`ManifestReport::hasTimestamp()` confirms a read manifest is timestamped. A
-timestamp's *trust* still depends on the TSA's own certificate chain.
+**Timestamps.** Set `CONTENTAUTH_TSA_URL` on the signing service to an
+RFC 3161 Time Stamping Authority and every signature carries a timestamp, so its
+validity survives certificate expiry. Unset, no timestamp is added (the default);
+if the TSA is unreachable the signing request **fails closed** rather than
+producing an untimestamped signature. `GET /health` reports `timestamping`, and
+`ManifestReport::hasTimestamp()` confirms a read manifest is timestamped.
+
+A timestamp's *trust* is a separate question from its presence, and it depends
+on the TSA's own certificate chain being on the verifier's TSA trust list. The
+public `http://timestamp.digicert.com` endpoint is fine for testing, but its
+responder does **not** chain to the DigiCert roots on the official C2PA TSA
+list: verified against that list, a timestamp from it reads `timeStamp.validated`
+and `timeStamp.untrusted` (measured 2026-09-17, c2patool 0.27.22). For a
+timestamp a public verifier trusts, use the TSA your certificate issuer provides
+for C2PA — SSL.com's tier above includes one — and check for
+`timeStamp.trusted` in the read-back rather than assuming it.
 
 ## Trust-list verification
 
@@ -54,6 +62,48 @@ startup is what stops you believing trust is on when it is not.
 
 The bundled anchors trust only the c2pa-rs **test** certificates. Replace them
 with the trust list your verifier uses before production.
+
+### Building the settings document from a trust list
+
+Trust lists are published as PEM bundles; the settings document wants their
+**contents as strings**, not paths. Three things about the layout are easy to
+get wrong, each verified against c2pa-rs 0.90.22 and c2patool 0.27.22:
+
+- **Signing anchors and TSA anchors go into the same field.** c2pa-rs checks
+  timestamp certificate chains against `trust.trust_anchors` too
+  (`verify.verify_timestamp_trust`, on by default); there is no separate TSA
+  setting. Lists that ship a separate TSA bundle are concatenated in.
+- **The EKU configuration is yours to supply.** `trust.trust_config` names the
+  extended key usages a signing certificate may carry; no published list
+  includes it. `certs/store.cfg` holds the set c2patool ships (e-mail
+  protection, document signing, time stamping, OCSP signing) and is a sound
+  default.
+- **`verify.verify_trust` must be `true`**, or the anchors are loaded and never
+  consulted — the service refuses to start on that, as described above.
+
+The official list lives at
+[`c2pa-org/conformance-public`](https://github.com/c2pa-org/conformance-public/tree/main/trust-list)
+as `C2PA-TRUST-LIST.pem` and `C2PA-TSA-TRUST-LIST.pem`. From those two files
+and an EKU list, `jq` builds the document in one command:
+
+```bash
+cat C2PA-TRUST-LIST.pem C2PA-TSA-TRUST-LIST.pem > anchors.pem
+jq -n --rawfile anchors anchors.pem --rawfile eku certs/store.cfg \
+  '{trust: {trust_anchors: $anchors, trust_config: $eku}, verify: {verify_trust: true}}' \
+  > c2pa-trust.settings.json
+```
+
+Point `CONTENTAUTH_TRUST_SETTINGS` at the result. The same document works with
+`c2patool --settings`, which is the quickest way to check a certificate before
+deploying: a signature from a certificate the anchors cover reads
+`signingCredential.trusted`; one they do not cover reads `Valid` with
+`signingCredential.untrusted` — the bundled test certificate does exactly that
+against the official list, which is the expected answer, not a fault.
+
+Other verifiers may publish their own policy in the same layout. Whatever the
+list, look at what it contains before trusting it: `grep -c 'BEGIN CERTIFICATE'`
+on each bundle, and `openssl x509 -noout -subject -issuer -enddate` on the
+entries.
 
 ## Marking under the AI Act: one layer of two
 
