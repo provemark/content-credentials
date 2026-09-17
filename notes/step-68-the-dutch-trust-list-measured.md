@@ -120,3 +120,29 @@ not fired.
 Nothing in `src/`, `service/` or `specs/` changed. The settings file lives in
 a scratch directory and is not committed; it is three lines of Python to
 rebuild from the repository's two PEMs.
+
+## Addendum, same day: the official list, and a wrong sentence in our own docs
+
+Writing the settings-document instructions into `docs/production.md` meant
+running them first. Built with the `jq` command now in that page, from the
+official `c2pa-org/conformance-public` bundles (30 signing anchors, 22 TSA
+anchors on 2026-09-17) plus `certs/store.cfg`, against `out/signed.png`:
+
+| anchors in `trust_anchors` | signing credential | timestamp |
+|---|---|---|
+| official signing list only | `signingCredential.untrusted` | `timeStamp.validated`, `timeStamp.untrusted` |
+| official signing + TSA lists | `signingCredential.untrusted` | `timeStamp.validated`, **`timeStamp.untrusted`** |
+
+The first column is Step 19 again. The second is the finding: adding all 22
+official TSA anchors changes nothing, because the responder behind
+`http://timestamp.digicert.com` — `DigiCert SHA256 RSA4096 Timestamp Responder
+2026 1` — does not chain to the four DigiCert entries on that list (`DigiCert
+RSA4096 TSA ICA for C2PA G1` and its ECC and root siblings). DigiCert's public
+TSA and DigiCert's C2PA TSA are different chains.
+
+`docs/production.md` said that with `CONTENTAUTH_TSA_URL` set to that endpoint
+"every signature carries a trusted timestamp". Presence, yes; trust, no. The
+sentence was in the dist since the paragraph was written, and nothing in the
+suite could have caught it: SPEC-007 asserts `hasTimestamp()`, and
+`timeStamp.untrusted` is informational, which `bin/verify.sh` does not print.
+Corrected in the same change, with the measurement date.
