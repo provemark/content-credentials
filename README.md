@@ -161,10 +161,7 @@ Informational  : none
 `Cert trusted: PASS` here means the bundled **test** anchors trust the bundled
 **test** certificate — `bin/verify.sh` passes them to c2patool deliberately. A
 public verifier, using the production trust list, will say untrusted. That is
-correct and expected; see below. With `CONTENTAUTH_TSA_URL` set, the last line
-reads `['timeStamp.untrusted']` instead: the timestamp is present and valid,
-but the bundled anchors carry no TSA chain — see
-[Going to production](docs/production.md) for what a *trusted* timestamp takes.
+correct and expected; see below.
 
 ### What you have, and what you do not
 
@@ -223,8 +220,7 @@ page, so this one stays readable:
 | [Stability and support](docs/stability.md) | What is public API, which PHP and Laravel versions are supported, the deprecation policy, and what 1.0 would require |
 
 Deeper background: [`docs/c2pa-primer.md`](docs/c2pa-primer.md) for the domain
-rules this package is built on, and [`docs/adr/`](docs/adr/) for the decisions
-that shaped it.
+rules this package is built on, [`docs/adr/`](docs/adr/) for the decisions behind it.
 
 ## Verifying the output
 
