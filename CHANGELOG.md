@@ -40,6 +40,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   that responder does not chain to the DigiCert roots on the list. The
   paragraph now separates a timestamp's presence from its trust and says where
   a trusted one comes from.
+- The README's sample `bin/verify.sh` output matches what the script prints:
+  `AI Art.50 mark : PASS (generated)` rather than a `digitalSourceType=` form
+  the script never emitted, plus the new `Informational` line (`none` without
+  a TSA, `['timeStamp.untrusted']` with the public DigiCert one). Both outputs
+  measured on a freshly signed test asset.
 
 ## [0.15.1] - 2026-09-12
 

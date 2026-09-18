@@ -153,14 +153,18 @@ bin/verify.sh signed.png
 Signed by      : C2PA Test Signing Cert / CN=C2PA Signer [Es256]
 Signature valid: PASS (claimSignature.validated)
 Cert trusted   : PASS (signingCredential.trusted)
-AI Art.50 mark : PASS (digitalSourceType=trainedAlgorithmicMedia)
+AI Art.50 mark : PASS (generated)
 Remaining status/failures: none
+Informational  : none
 ```
 
 `Cert trusted: PASS` here means the bundled **test** anchors trust the bundled
 **test** certificate — `bin/verify.sh` passes them to c2patool deliberately. A
 public verifier, using the production trust list, will say untrusted. That is
-correct and expected; see below.
+correct and expected; see below. With `CONTENTAUTH_TSA_URL` set, the last line
+reads `['timeStamp.untrusted']` instead: the timestamp is present and valid,
+but the bundled anchors carry no TSA chain — see
+[Going to production](docs/production.md) for what a *trusted* timestamp takes.
 
 ### What you have, and what you do not
 
