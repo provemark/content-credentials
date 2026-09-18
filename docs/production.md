@@ -100,6 +100,19 @@ deploying: a signature from a certificate the anchors cover reads
 `signingCredential.untrusted` — the bundled test certificate does exactly that
 against the official list, which is the expected answer, not a fault.
 
+**End-entity lists go in `trust.allowed_list`, not `trust_anchors`.** Some
+lists name signing certificates directly rather than the CAs above them — the
+IPTC [Origin Verified News Publishers List](https://iptc.org/verified-news-publishers-list/)
+(`https://trust.iptc.org/end-entity-list.pem`, one certificate per publisher)
+is the current example. `allowed_list` trusts each certificate in it as-is: no
+chain is built, so it needs neither anchors nor an EKU configuration, and it
+combines with `trust_anchors` in the same document. Measured with c2patool
+0.27.22: a signing certificate placed in `allowed_list` reads
+`signingCredential.trusted` with `trust_anchors` empty, and still does with the
+official anchors loaded beside it; a certificate on neither reads
+`signingCredential.untrusted`. Add `--rawfile publishers end-entity-list.pem`
+to the command above and `allowed_list: $publishers` to the `trust` object.
+
 Other verifiers may publish their own policy in the same layout. Whatever the
 list, look at what it contains before trusting it: `grep -c 'BEGIN CERTIFICATE'`
 on each bundle, and `openssl x509 -noout -subject -issuer -enddate` on the

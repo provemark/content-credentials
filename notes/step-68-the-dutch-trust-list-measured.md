@@ -243,11 +243,27 @@ from this repository: loading the IPTC end-entity list beside their own is one
 verifieermij.nl at no cost; and a Dutch signature is unrecognised abroad for as
 long as no Dutch organisation is on any list a foreign verifier reads.
 
-For this package nothing changes. Trust lists are configuration (SPEC-014),
-the settings document now documents `allowed_list` by implication of the
-c2pa-rs `Trust` struct, and `ManifestReport` surfaces X.509 signer identity
-only — a CAWG identity assertion, X.509 or VC, would need its own reading spec
-and a user asking for it.
+For this package one paragraph changes. Trust lists are configuration
+(SPEC-014), but `docs/production.md` named only `trust_anchors` and
+`trust_config`; an end-entity list like IPTC's needs `trust.allowed_list`, and
+that field was documented nowhere but in the SPEC-014 startup check. Measured
+before writing it, c2patool 0.27.22 against `out/signed.png` (our test leaf):
+
+| `trust_anchors` | `allowed_list` | verdict |
+|---|---|---|
+| empty | our leaf certificate | `Trusted`, `signingCredential.trusted` |
+| empty | our leaf + `trust_config` | `Trusted` |
+| official list (30) | our leaf | `Trusted` — the IPTC shape, anchors and end-entities side by side |
+| official list (30) | the real IPTC file (20 certificates, ours not among them) | `Valid`, `signingCredential.untrusted` |
+
+So `allowed_list` needs neither anchors nor an EKU configuration (no chain is
+built for an end-entity), combines with `trust_anchors` in one document, and
+the fourth row shows it is not "trust everything". The service side is read,
+not run: `loadTrustSettings()` in `server.js` accepts `trust_anchors` or
+`allowed_list` as trust material, so a document with only an `allowed_list`
+starts. `ManifestReport` still surfaces X.509 signer identity only — a CAWG
+identity assertion, X.509 or VC, would need its own reading spec and a user
+asking for it.
 
 Sources: CAI, *Trust lists* (opensource.contentauthenticity.org/docs/conformance/trust-lists);
 IPTC, *Verified News Publisher Credential Policy* and *Certificate Policy*

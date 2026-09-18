@@ -27,7 +27,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   EKU list in `trust.trust_config` is the deployer's to supply, and one `jq`
   command turns the official `conformance-public` bundles into the file
   `CONTENTAUTH_TRUST_SETTINGS` expects. Verified against c2pa-rs 0.90.22 and
-  c2patool 0.27.22.
+  c2patool 0.27.22. A second paragraph covers end-entity lists such as IPTC's
+  Origin Verified News Publishers List, which go in `trust.allowed_list`:
+  measured to trust a listed certificate with no anchors and no EKU
+  configuration, and to combine with `trust_anchors` in the same document.
 
 ### Fixed
 
