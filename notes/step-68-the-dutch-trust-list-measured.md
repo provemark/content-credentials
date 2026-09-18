@@ -349,3 +349,60 @@ use by the broadcasters they would want to resemble, a dependency on a frozen
 list for trusting those broadcasters, an unloaded end-entity list that would
 remove that dependency, and one unknown on the signing side. None of it
 changes this package; `allowed_list` is documented since #142.
+
+## Addendum, 2026-09-18 (evening): looking for a VPRO-signed image, and why the cloud cannot
+
+The open question above — which certificate the VPRO signs with — needs one
+signed VPRO file. Two attempts to find one, both empty, and one finding about
+where such a check can run at all.
+
+### Measured
+
+- **Where the signed content is supposed to appear.** VPRO Medialab
+  (vpro.nl, 2026-06-11): "Dawn Technology bouwt een signeertool, waarmee we
+  vanaf dit najaar Tegenlicht-artikelen en afbeeldingen op onze website
+  zullen ondertekenen volgens de C2PA standaard." The pilot was announced on
+  2026-09-15 (Emerce, Fonk, Broadcast Magazine); none of the three articles
+  names a sample file, a URL or a certificate authority.
+- **Two local sweeps, zero manifests.** Every image URL on `vpro.nl/` and
+  `vpro.nl/programmas/tegenlicht.html` (thumbnail variants `w_160/320/480`
+  excluded, capped at 80 per page), downloaded and tested for the byte string
+  `c2pa`:
+
+  | run | homepage | Tegenlicht | hits |
+  |---|---|---|---|
+  | 2026-09-18 morning | 40 | 68 | 0 |
+  | 2026-09-18 07:13 | 80 | 68 | 0 |
+
+- **The CDN would strip a manifest anyway.** Every image is served through
+  `images.vpro.nl/<id>/<transform>/<name>.webp`, resized and re-encoded; a
+  request without the transform segment returns a 48-byte GIF, so no
+  untransformed original is exposed. Under the immutability rule
+  (`docs/c2pa-primer.md` §6) nothing that passes through that CDN can carry a
+  valid manifest. So "afbeeldingen op onze website ondertekenen" requires
+  either a CDN bypass for signed assets or a separate download path, and that
+  is the first practical obstacle the pilot meets — which may be why nothing
+  is visible yet.
+- **The placeholder root is their generator's README example.**
+  `tools/cert-generator/README.md` in `c2pa-mcnl` documents
+  `--country NL --state "Zuid-Holland" --organization "My Company"`, and the
+  signing webapp asks the user to upload a leaf certificate and key made with
+  that tool. The certificate in the published trust list is that example.
+  It says what the June proof-of-concept signed with; it says nothing about
+  September production.
+- **This check cannot run from the cloud routine.** A test run of the weekly
+  routine with a VPRO part added got `connect_rejected` on `www.vpro.nl:443`
+  from the sandbox's egress proxy ("organization policy"), both attempts. The
+  routine reported it as unreachable rather than as "no manifest" — the
+  right behaviour — and the VPRO part was removed the same day. The check is
+  local-only: fetch the two pages, download the images, `grep -a c2pa`; a hit
+  is read with `c2patool <file> -d | grep -i issuer`, which is the one line
+  that would close this question.
+
+### Not measured
+
+Whether any VPRO content is signed through another channel (a press download,
+a social original). No such file was found in any article about the pilot.
+The question stays open; the search summary's mention of "a Bureau Buitenland
+header image" as first test could not be traced to any page actually read and
+is not used.
