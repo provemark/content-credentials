@@ -146,3 +146,113 @@ sentence was in the dist since the paragraph was written, and nothing in the
 suite could have caught it: SPEC-007 asserts `hasTimestamp()`, and
 `timeStamp.untrusted` is informational, which `bin/verify.sh` does not print.
 Corrected in the same change, with the measurement date.
+
+## Addendum, 2026-09-18: where the Dutch list sits, and why it looks the way it does
+
+The question that followed the measurement was whether a *Dutch* list is the
+wrong scale — should it not be European? Answering it meant looking at what
+already exists at that scale, and at MCNL's own stated reasons. Measured and
+reasoned are kept apart below.
+
+### Measured
+
+- **The interim C2PA list is frozen; the official one is not.** CAI's
+  documentation: the Interim Trust List (ITL) was frozen on 2026-01-01 — "No
+  new certificates will be added to the list, and no updates will be made" —
+  with existing entries kept for legacy validation. The official list in
+  `c2pa-org/conformance-public` is the replacement, and it is live: 30 signing
+  anchors and 22 TSA anchors on 2026-09-17, `log.txt` showing updates daily
+  through that evening, the word "interim" absent from the repository. A
+  sentence like "the official list is barely usable" conflates the two.
+- **A European layer exists: IPTC's Origin Verified News Publishers List.**
+  `https://trust.iptc.org/end-entity-list.pem` held **20 certificates** on
+  2026-09-18 — BBC, CBC/Radio-Canada, AFP, France Télévisions, Deutsche Welle,
+  WDR, NTB, RTÉ, Radio New Zealand and IPTC itself — issued by Truepic
+  (first round), GlobalSign and DigiCert. No Dutch organisation. It is an
+  **end-entity** list, which is exactly what c2pa-rs's `trust.allowed_list`
+  field takes: a verifier loads the official anchors in `trust_anchors` and
+  this file in `allowed_list`, in the same settings document. The EBU and
+  CBC/Radio-Canada won this year's NAB Technology Innovation Award for an
+  open-source C2PA video player that combines precisely those two lists
+  (tech.ebu.ch, 2026).
+- **IPTC's door is not open.** Its Credential Policy: "Applications to the IPTC
+  Verified News Publisher programme are not currently 'open'" — a phased
+  roll-out judged on "internal priorities", among them "ease of identity
+  proofing (which may be easier for IPTC members)" and whether the applicant's
+  market is already served. So "why is the NPO not simply on the IPTC list" has
+  a first answer before any architecture: it could not simply apply.
+- **MCNL's stated reason, in their own words, is independence from big tech;
+  IPTC is never weighed.** The `c2pa-mcnl` README: the list is separate from
+  the Conformance Program "ensuring independence and flexibility from big tech
+  organizations for Dutch media corporations regarding the entities included
+  in the list." The report the project builds on, *C2PA n'est pas une pipe*
+  (June 2025, commissioned by NPO Innovatie, Media Campus NL and Beeld &
+  Geluid), argues a power relation in the C2PA coalition and recommends an own
+  verification tool so that usage data does not leak to contentcredentials.org,
+  which "stelt de mediapartij ook in staat om een eigen 'trust list' te
+  bepalen". IPTC's list appears once in that report, in an interview appendix,
+  as a fact about Origin Verify ("adds certificates from six news agencies"),
+  not as an option. Broadcast Magazine (11 September 2026) quotes VPRO: "Wij
+  gebruiken een gedeelde specificatie, maar bouwen daar een eigen architectuur
+  en trustlist omheen. Zo krijgt de Nederlandse mediasector een klein stukje
+  autonomie terug." Searched and empty: `iptc` in the `c2pa-mcnl` code, its
+  commits, PRs and issues; the Media Campus and SIDN pages.
+
+### Reasoned: why the architecture is different, and what that costs
+
+The report explains the choice better than the README does. The Dutch
+precursor, *Proof of Provenance* (2022), signed with an identity from the IRMA
+wallet (now Yivi), a third party confirming who signs. Measured against that,
+the report finds C2PA lacking: "the (current) lack of a mandatory link to a
+verifiable digital identity", one can sign as "NOS" in Photoshop with no check
+on the name, and — quoting Tom Demeyer — "De meeste mensen hebben geen eigen
+x.509 certificaat." It also records that C2PA 1.x carried W3C Verifiable
+Credentials in the manifest, that 2.0 removed them, and that the replacement,
+the CAWG identity assertion, was still being drafted.
+
+So there are two ways of saying who signed, and MCNL picked the second:
+
+| | X.509 organisational certificate (IPTC, Conformance Program) | Verifiable Credential + DID in a CAWG identity assertion (MCNL) |
+|---|---|---|
+| who is identified | the organisation | an organisation or a person |
+| who issues the identity | a CA, on application | a wallet issuer — Yivi today, the EU Digital Identity Wallet under eIDAS 2.0 |
+| where it lives | in the signing certificate itself | in a separate assertion; the X.509 certificate only signs |
+| understood by every verifier | yes — c2pa-rs checks X.509 trust natively | no — each verifier must validate the credential itself |
+
+The last row explains the rest of their design. An identity the engine does
+not check itself needs a verifier that does (verifieermij.nl) and a list of who
+may issue such identities (the DID allowlist). Both follow from the choice;
+neither is the choice. And it explains why IPTC was not in view: IPTC improves
+the certificate, MCNL wanted something other than a certificate.
+
+What the choice buys: continuity with what the Netherlands already runs
+(Yivi), alignment with what the EU will mandate (the EUDI wallet), and reach
+down to an individual maker, which a publisher certificate never has. What it
+costs, and what their README concedes ("a feature currently absent from the
+specification"): outside verifieermij.nl the credential is invisible. c2pa-rs
+validates the X.509 flavour of the CAWG identity assertion, not the VC flavour;
+Adobe's Verify, the EBU player and every other verifier see a VPRO signature as
+an unknown certificate. The identity so carefully attached is seen by one site.
+
+None of this makes the two approaches rivals. A broadcaster can hold a
+certificate a public verifier recognises **and** attach a credential for what
+the Dutch sector wants to know on top. MCNL currently does only the second.
+Two things follow for anyone talking to them, neither of which is a proposal
+from this repository: loading the IPTC end-entity list beside their own is one
+`allowed_list` entry and would make European broadcasters trusted on
+verifieermij.nl at no cost; and a Dutch signature is unrecognised abroad for as
+long as no Dutch organisation is on any list a foreign verifier reads.
+
+For this package nothing changes. Trust lists are configuration (SPEC-014),
+the settings document now documents `allowed_list` by implication of the
+c2pa-rs `Trust` struct, and `ManifestReport` surfaces X.509 signer identity
+only — a CAWG identity assertion, X.509 or VC, would need its own reading spec
+and a user asking for it.
+
+Sources: CAI, *Trust lists* (opensource.contentauthenticity.org/docs/conformance/trust-lists);
+IPTC, *Verified News Publisher Credential Policy* and *Certificate Policy*
+(iptc.org/media-provenance); tech.ebu.ch, *EBU and CBC/Radio-Canada win NAB
+Technology Innovation Award for C2PA-enabled video player* (2026); Media
+Campus NL, *C2PA n'est pas une pipe* (June 2025, PDF); Broadcast Magazine,
+*Digitale lakmoesproef* (11 September 2026); `Dawn-Technology/c2pa-mcnl`
+README.
