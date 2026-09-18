@@ -175,12 +175,23 @@ reasoned are kept apart below.
   CBC/Radio-Canada won this year's NAB Technology Innovation Award for an
   open-source C2PA video player that combines precisely those two lists
   (tech.ebu.ch, 2026).
-- **IPTC's door is not open.** Its Credential Policy: "Applications to the IPTC
-  Verified News Publisher programme are not currently 'open'" — a phased
-  roll-out judged on "internal priorities", among them "ease of identity
-  proofing (which may be easier for IPTC members)" and whether the applicant's
-  market is already served. So "why is the NPO not simply on the IPTC list" has
-  a first answer before any architecture: it could not simply apply.
+- **IPTC's door is half open, and open for the NPO.** Its Credential Policy:
+  "Applications to the IPTC Verified News Publisher programme are not currently
+  'open'" — a phased roll-out judged on "internal priorities", among them "ease
+  of identity proofing (which may be easier for IPTC members)" and whether the
+  applicant's market is already served. But the Application Procedure has a
+  short-cut: "Organizations that are members of IPTC or the **European
+  Broadcasting Union** may fill in the self-certification form and email the
+  IPTC Verified News Publisher contact point, using an email address that is
+  already proofed as coming from a member." The NPO is an EBU member. So the
+  organisation that commissioned the 2025 report had the cheapest route there
+  is to a certificate every verifier recognises, and "it could not simply
+  apply" — which this addendum said until 2026-09-18 — is wrong for the one
+  party that matters. It holds for a non-member (a technology partner, a
+  publisher outside the EBU, a freelancer). The timeline is softer than
+  "closed" too: IPTC announced the list on 2024-04-14 as a BBC/CBC trial via
+  Truepic, and in June 2025 it held six agencies — a pilot among large
+  broadcasters, not a counter, but not shut.
 - **MCNL's stated reason, in their own words, is independence from big tech;
   IPTC is never weighed.** The `c2pa-mcnl` README: the list is separate from
   the Conformance Program "ensuring independence and flexibility from big tech
@@ -224,6 +235,10 @@ not check itself needs a verifier that does (verifieermij.nl) and a list of who
 may issue such identities (the DID allowlist). Both follow from the choice;
 neither is the choice. And it explains why IPTC was not in view: IPTC improves
 the certificate, MCNL wanted something other than a certificate.
+
+With the IPTC route open to the NPO, "unreachable" drops out of the list of
+reasons; what remains is the wallet model, the identity tradition, autonomy and
+the funding shape — and that nobody looked.
 
 What the choice buys: continuity with what the Netherlands already runs
 (Yivi), alignment with what the EU will mandate (the EUDI wallet), and reach
