@@ -153,8 +153,9 @@ bin/verify.sh signed.png
 Signed by      : C2PA Test Signing Cert / CN=C2PA Signer [Es256]
 Signature valid: PASS (claimSignature.validated)
 Cert trusted   : PASS (signingCredential.trusted)
-AI Art.50 mark : PASS (digitalSourceType=trainedAlgorithmicMedia)
+AI Art.50 mark : PASS (generated)
 Remaining status/failures: none
+Informational  : none
 ```
 
 `Cert trusted: PASS` here means the bundled **test** anchors trust the bundled
@@ -219,8 +220,7 @@ page, so this one stays readable:
 | [Stability and support](docs/stability.md) | What is public API, which PHP and Laravel versions are supported, the deprecation policy, and what 1.0 would require |
 
 Deeper background: [`docs/c2pa-primer.md`](docs/c2pa-primer.md) for the domain
-rules this package is built on, and [`docs/adr/`](docs/adr/) for the decisions
-that shaped it.
+rules this package is built on, [`docs/adr/`](docs/adr/) for the decisions behind it.
 
 ## Verifying the output
 
