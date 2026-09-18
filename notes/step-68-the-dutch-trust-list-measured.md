@@ -287,3 +287,65 @@ Technology Innovation Award for C2PA-enabled video player* (2026); Media
 Campus NL, *C2PA n'est pas une pipe* (June 2025, PDF); Broadcast Magazine,
 *Digitale lakmoesproef* (11 September 2026); `Dawn-Technology/c2pa-mcnl`
 README.
+
+## Addendum, 2026-09-18 (later): their verifier loads the official list too, and the stated reason is a misreading
+
+The previous addendum framed MCNL as running an own root *instead of* a
+recognised certificate. Reading their production configuration and their
+own "why" page corrects that in one direction and sharpens it in another.
+
+### Measured
+
+- **verifieermij.nl loads three anchor sources, not one.**
+  `libs/verify-webapp/shared/environments/src/lib/environment.prod.ts` in
+  `Dawn-Technology/c2pa-mcnl` lists, for signing anchors: their own
+  `C2PA-TRUST-LIST.pem`, the official `c2pa-org/conformance-public` list, and
+  Adobe's `https://verify.contentauthenticity.org/trust/anchors.pem`. The same
+  three for TSA anchors; only their own file for DID issuers. So on the
+  verifying side the official layer is present, beside their own — which is
+  what the VPRO's "een Nederlandse vertrouwenslijst *ernaast*" (Broadcast
+  Magazine) meant. "Continuing without the first layer" was overstated.
+- **The stated reason for an own list is on verifieermij.nl/why**, an Angular
+  route whose text sits in a JS chunk. Verbatim: "Bij C2PA worden deze
+  certificaten uitgegeven door het C2PA-consortium dat gedomineerd wordt door
+  Amerikaanse big-tech." and "Verifieer Mij vertrouwt de standaard
+  C2PA-certificaten, maar schept ook de mogelijkheid om externe certificaten
+  te vertrouwen. Hierdoor zijn we niet uitsluitend afhankelijk van de
+  Amerikaanse techgiganten en behouden we onze digitale soevereiniteit."
+- **The first sentence is wrong on the facts.** The consortium issues no
+  certificates; it publishes a list of CAs that passed the Conformance
+  Program. Certificates come from CAs, and the CA behind most IPTC-listed
+  broadcasters (AFP, DW, WDR, France Télévisions, NTB, RTÉ) is GlobalSign
+  nv-sa, Leuven. A European sovereignty argument does not need an own root;
+  a Belgian CA reached through the EBU short-cut satisfies it, and every
+  verifier recognises the result.
+- **GlobalSign and Truepic are NOT on the official list.** Read from
+  `C2PA-TRUST-LIST.pem` on 2026-09-17: Adobe, Castlabs, DigiCert (4),
+  Encypher, Google (6), Huanyu, Huawei, Irdeto, SSL Corporation (2),
+  Snowball, Tauth, Trufo, TrustAsia, Verimago, Whole Earth Labs, Xiaomi,
+  vivo. No GlobalSign, no Truepic. Adobe's `anchors.pem` (27 certificates,
+  20 organisations) has both: 2× GlobalSign nv-sa, 1× Truepic, 3× DigiCert.
+  So the IPTC broadcasters are trusted on verifieermij.nl **only through the
+  third source, the frozen interim list.** When those anchors expire or the
+  file goes, the BBC and AFP read as unknown there. Loading IPTC's
+  end-entity list into `allowed_list` would cover it; it is not loaded.
+  (This is also a fact about IPTC: a verifier on the official list alone does
+  not trust its publishers today. IPTC passed the Conformance Program in
+  spring 2026, so its own CA may appear; GlobalSign's has not.)
+
+### Not measured, and the only layer-1 question that still matters
+
+Which certificate the VPRO signs with. Under MCNL's own root, no verifier
+outside the Netherlands recognises it; under a listed CA, all of them do.
+There is no public source for this — a signed VPRO asset would settle it in
+one `c2patool` call, and none has been found.
+
+### What this does to the earlier reading
+
+"Why is layer 1 absent" was the wrong question; on the verifier it is not
+absent. The remaining findings are narrower and all verifiable: a factual
+error on the public "why" page (consortium ≠ CA), a European CA already in
+use by the broadcasters they would want to resemble, a dependency on a frozen
+list for trusting those broadcasters, an unloaded end-entity list that would
+remove that dependency, and one unknown on the signing side. None of it
+changes this package; `allowed_list` is documented since #142.
