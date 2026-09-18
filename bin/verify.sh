@@ -22,6 +22,10 @@ am = d['active_manifest']; m = d['manifests'][am]
 vr = d.get('validation_results', {}).get('activeManifest', {})
 succ = [s['code'] for s in vr.get('success', [])]
 fail = [s['code'] for s in vr.get('failure', [])]
+# c2pa-rs files codes that are neither success nor failure here — e.g.
+# timeStamp.untrusted when the TSA chain is not among the anchors. They never
+# affect the verdict, but they went unseen until 2026-09-17 (NOTES Step 68).
+info = [s['code'] for s in vr.get('informational', [])]
 status = [s['code'] for s in d.get('validation_status', [])]
 
 sig_valid = 'claimSignature.validated' in succ
@@ -49,5 +53,6 @@ print('Signature valid:', 'PASS' if sig_valid else 'FAIL', '(claimSignature.vali
 print('Cert trusted   :', 'PASS' if trusted else 'FAIL', '(signingCredential.trusted)')
 print('AI Art.50 mark :', 'PASS' if ai else 'FAIL', '(' + (mark or 'none') + ')')
 print('Remaining status/failures:', status or fail or 'none')
+print('Informational  :', info or 'none')
 sys.exit(0 if (sig_valid and trusted and ai) else 2)
 "
