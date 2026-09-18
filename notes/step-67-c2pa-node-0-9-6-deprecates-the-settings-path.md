@@ -93,3 +93,78 @@ Note the shape, because Step 64 recorded the opposite one: **there is no
 tripwire for this either.** A deprecation is not an advisory, `npm audit` does
 not see it, and SPEC-035 AC7 only fires on an engine change. It is visible only
 by reading the changelog, which is what the currency check is for.
+
+## Addendum, 2026-09-18: #204 read, the migrated lines drafted
+
+Read `contentauth/c2pa-js` #204 (merged 2026-09-15, shipped in c2pa-node
+0.9.6) and the 0.9.6 sources it touched — `Reader.ts`, `Builder.ts`,
+`Settings.ts`, `c2pa-utilities/src/{context,settings,caseConversion}.ts` —
+so the bump that closes this item starts from a known shape. Nothing here is
+run; it is read, and the ritual above stays the measurement.
+
+### What #204 actually does
+
+- `Context` (from `c2pa-utilities`, re-exported by `c2pa-node` via
+  `export * from '@contentauth/c2pa-utilities'`) is a thin holder: `new
+  Context(settings)` stores a `Settings` object; `Reader.fromAsset()` and the
+  new `Builder.newAsync()` / `Builder.withJsonAsync()` take it. Inside,
+  `resolveSettingsForNeon(ctx)` = `settingsToJson(withDefaultSettings(ctx.settings))`,
+  i.e. merge defaults, then `snakeCaseify`, then `JSON.stringify` — and that
+  string goes to the same Neon call as before. The raw path is unchanged:
+  a string is passed through, an object is `JSON.stringify`'d, no defaults.
+- **The deprecation reaches the signing side too**, which the entry above
+  read too narrowly. `Builder.withJson()` — `server.js:1149` — is `@deprecated`
+  in favour of `withJsonAsync(json, context = new Context())`. So the bump
+  migrates two call sites, not one.
+- **`Settings` is camelCase** (`verify.verifyTrust`, `trust.trustAnchors`,
+  `trust.trustConfig`, `trust.allowedList`); our SPEC-014 document is the
+  c2pa-rs native snake_case shape, on purpose — the same file feeds
+  `c2patool --settings` and is what `docs/production.md` teaches. `snakeCase()`
+  in `caseConversion.ts` is `str.replace(/[A-Z]/g, …)`: a key with no capitals
+  passes through untouched, so a snake_case document handed to `new Context()`
+  serialises to exactly what we send today. That is a property of a regex, not
+  a documented contract. Two options at bump time, in order of preference:
+  1. keep the file format, map the three-or-four known keys to camelCase in
+     `loadTrustSettings()` before constructing the `Context` — explicit, and
+     the AC5 validation already reads those exact keys;
+  2. rely on the passthrough and let SPEC-014's trust verdicts prove it.
+  Either way the SPEC-014 integration tests are the proof; option 1 just does
+  not depend on the regex staying as it is.
+- **The only default `Context` adds is `builder.generateC2paArchive: true`**
+  (`DEFAULT_SETTINGS` in `settings.ts`), serialised as
+  `builder.generate_c2pa_archive`. c2pa-rs 0.90.22 already defaults that to
+  `Some(true)` (`sdk/src/settings/builder.rs`), so it is behaviour-neutral
+  for both the Reader and the Builder — but the Builder currently receives
+  *no* settings string and would then receive one, which is a reason to re-run
+  the SPEC-035/036 placement audit rather than assume.
+- `c2pa-node` does not yet resolve trust-anchor URLs inside a `Context`
+  (README note); ours are inline PEM, so irrelevant.
+
+### The migrated lines, as a draft
+
+```js
+const { LocalSigner, CallbackSigner, Builder, Reader, Context } = require('@contentauth/c2pa-node');
+
+// after loadTrustSettings(): one Context for the life of the process
+const trustContext = trustSettings ? new Context(toCamelSettings(trustSettings)) : undefined;
+
+// /v1/read — the line SPEC-014 hangs on
+const reader = await Reader.fromAsset({ buffer: fileBuffer, mimeType: mime_type }, trustContext);
+
+// /v1/sign — was Builder.withJson(manifestDefinition)
+const builder = await Builder.withJsonAsync(manifestDefinition);
+```
+
+where `toCamelSettings` maps `verify.verify_trust → verify.verifyTrust`,
+`trust.trust_anchors → trust.trustAnchors`, `trust.trust_config →
+trust.trustConfig`, `trust.allowed_list → trust.allowedList` (option 1 above),
+or is the identity (option 2). `Reader.fromAsset(asset, undefined)` is the
+untrusted path as before; `null` is documented as equivalent.
+
+### What stays in the ritual, unchanged
+
+The four checks listed under "The watch item" above, plus, because the Builder
+now receives a settings string it never had: the SPEC-035 AC7 spec-version
+audit and the `created: true` placement check on a freshly signed asset. None
+of this moves the pin today — 0.9.6 carries the same engine, and the item
+closes on the first c2pa-node release that carries c2pa-rs 0.91.
