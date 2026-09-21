@@ -168,3 +168,26 @@ now receives a settings string it never had: the SPEC-035 AC7 spec-version
 audit and the `created: true` placement check on a freshly signed asset. None
 of this moves the pin today — 0.9.6 carries the same engine, and the item
 closes on the first c2pa-node release that carries c2pa-rs 0.91.
+
+## Addendum, 2026-09-21: 0.9.7 published, same engine, item stays open
+
+`@contentauth/c2pa-node` 0.9.7 appeared on npm on 2026-09-18, three days
+after 0.9.6. Checked whether it is the release that closes this item. It is
+not.
+
+- **Engine unchanged.** The workspace `Cargo.toml` at the `0.9.7` tag still
+  pins `c2pa = "=0.90.22"`, the engine our 0.9.5 already runs.
+- **What it changes** (commit `c0aa55c`, PR #222 in `contentauth/c2pa-js`):
+  a CAWG credential holder for `c2pa-web`, and in `c2pa-node` a dependency
+  swap from `c2pa_cbor` to `ciborium` — one line in `Cargo.toml`, three in
+  `neon_identity_assertion_builder.rs`. That file is the CAWG identity
+  assertion builder, which `service/server.js` never calls. Nothing on the
+  signing, reading or trust path moved.
+- **Upstream c2pa-rs** is at `0.91.0-rc.3` (2026-09-17), still a release
+  candidate. No c2pa-node release carries 0.91 yet.
+
+So the decision from the top of this step holds: the pin stays at 0.9.5, the
+`Context` migration drafted in the previous addendum waits for the first
+c2pa-node release that carries c2pa-rs 0.91, and the bump ritual is unchanged.
+Also checked the same day: `composer audit`, `npm audit --omit=dev` and
+Dependabot all clean.
