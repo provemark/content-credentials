@@ -168,3 +168,26 @@ installed.
 That is also why `reader` defaults to `service` and why `auto` has to be chosen
 explicitly (SPEC-020): installing the extension for an unrelated reason should
 not silently move where hostile input is parsed.
+
+### A third route, for hosts that can run neither
+
+[`provemark/c2pa-verifier`](https://github.com/provemark/c2pa-verifier) verifies
+in pure PHP: no second process, no native extension, no binary. It exists for
+the hosts where neither reader above can run — cheap shared hosting, where most
+WordPress and Drupal sites live — and it reads and verifies only. It never
+signs, so it replaces nothing in this package.
+
+It answers this section's question a third way. Parsing happens in the PHP
+worker, as with the extension, but in PHP rather than native code: a
+memory-safety bug is not the failure mode there, a logic bug is, and what a
+logic bug costs is a wrong verdict rather than a compromised process. Every
+parser in it is bounded, and it opens no network connection while verifying.
+
+What it gives back is `c2patool`'s answer — the same `validation_state` and the
+same C2PA 2.4 §15 status codes — over the claim signature, the hash binding, the
+certificate chain against a trust list you supply, the RFC 3161 timestamp and
+the OCSP responses stapled into the signature.
+
+It is a first version: thoroughly tested and not yet used by anyone. Treat a
+verdict as something to check, and see its own README for what is known to be
+missing.
