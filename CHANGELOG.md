@@ -19,6 +19,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-09-23
+
+A documentation and metadata release: `src/` and `service/` are unchanged
+from 0.15.1.
+
+### Added
+
+- A pointer to [`provemark/c2pa-verifier`](https://github.com/provemark/c2pa-verifier),
+  a verifier for C2PA Content Credentials in pure PHP, as a third reading
+  route for hosts that can run neither the signing service nor `ext-c2pa` —
+  cheap shared hosting, where most WordPress and Drupal sites live. It sits at
+  the end of *Which reader, and what it costs* in `docs/readers.md`, framed by
+  that section's own question: it parses in the PHP worker as the extension
+  does, but in PHP rather than native code, so a logic bug costs a wrong
+  verdict rather than a compromised process. One `suggest` entry in
+  `composer.json` says the same in a line. It reads and verifies only and
+  never signs, so it replaces nothing here.
+
 ### Changed
 
 - `docs/production.md` now says how to build the trust-settings document from a
@@ -1806,7 +1824,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.15.1...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.15.2...main
+[0.15.2]: https://github.com/provemark/content-credentials/releases/tag/v0.15.2
 [0.15.1]: https://github.com/provemark/content-credentials/releases/tag/v0.15.1
 [0.15.0]: https://github.com/provemark/content-credentials/releases/tag/v0.15.0
 [0.14.1]: https://github.com/provemark/content-credentials/releases/tag/v0.14.1
