@@ -205,6 +205,17 @@ call, plus `php artisan content-credentials:read <file>`. Which engine answers,
 how to check the certificate against a trust list, and what each route costs is
 on [Reading and verifying](docs/readers.md).
 
+A third route needs neither the extension nor the service:
+[`provemark/c2pa-verifier`](https://github.com/provemark/c2pa-verifier) is a
+verifier written in pure PHP — no second process, no native extension, no
+binary — for the hosts where neither of the two above can run, which is most
+shared hosting. It reads and verifies only: the claim signature, the hash
+binding to the asset, the certificate chain against a trust list you supply,
+the RFC 3161 timestamp and the revocation responses stapled into the
+signature, returning `c2patool`'s `validation_state` and status codes. It is
+a first version — thoroughly tested and not yet used by anyone — so treat a
+verdict as something to check rather than an answer.
+
 ## Where the rest lives
 
 The quickstart above is the whole of the happy path. Everything else has its own
