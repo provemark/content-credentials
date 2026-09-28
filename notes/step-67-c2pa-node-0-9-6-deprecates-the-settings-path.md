@@ -191,3 +191,116 @@ So the decision from the top of this step holds: the pin stays at 0.9.5, the
 c2pa-node release that carries c2pa-rs 0.91, and the bump ritual is unchanged.
 Also checked the same day: `composer audit`, `npm audit --omit=dev` and
 Dependabot all clean.
+
+## Addendum, 2026-09-28: 0.9.8 carries c2pa-rs 0.91.0, and cannot be taken
+
+`@contentauth/c2pa-node` 0.9.8 (2026-09-24) is the release this item was
+waiting for: its changelog says "Update to c2pa-rs v0.91.0" and the workspace
+`Cargo.toml` at that tag pins `c2pa = "=0.91.0"`. The bump was started on a
+branch, the ritual was begun, and it stopped at the first signature. The pin
+stays at 0.9.5. Dependabot's #153 (0.9.5 → 0.9.7, same engine) was closed the
+same day, for the reason given at the top of this step.
+
+SPEC-035 AC7 went red before anything else moved, as it should: locally, and
+on all nine `composer check` legs of #153.
+
+### Every signature the service makes is unreadable (measured)
+
+With 0.9.8 in the container, `/v1/sign` returns HTTP 200 and a plausible
+`signed_content`, on the sync path and on the async TSA path alike, with and
+without trust settings. Nothing reads the result back:
+
+- `POST /v1/read` on the same service: HTTP 500, logged as
+  `claim could not be converted from CBOR: claim_cbor: Syntax error:
+  unexpected trailing data: 18 bytes remaining`;
+- `tools/c2patool` 0.27.22 (c2pa-rs 0.90.22): `Error: claim could not be
+  converted from CBOR`.
+
+Isolated with a probe inside the container that signs a minimal manifest and
+reads it back, varying one thing at a time. Old `Builder.withJson()` and new
+`Builder.withJsonAsync()` behave the same. `"created": true` on the actions
+assertion is harmless. **The trigger is `specVersion` in
+`claim_generator_info`**, with any value (`2.4.0` and `2.3.0` both fail). The
+18 bytes are exactly one CBOR text key `specVersion` (12) plus the value
+`2.4.0` (6).
+
+Upstream knows: **c2pa-rs #2731** (opened 2026-09-25, open and unreviewed on
+2026-09-28), *"Don't write claim_generator_info specVersion as a claim
+field"*. The Claim V2 serializer sizes the map from the legacy claim-level
+field (unset) and then writes the `claim_generator_info` value anyway, so the
+map holds one entry more than its header declares. That PR is not in
+c2pa-rs 0.91.1 (2026-09-27, backports only).
+
+This is the silent-wrong-success shape, and the worst place for it: every
+asset signed after such a bump would carry the Article 50 marking in a
+manifest no verifier can open. c2pa-rs 0.91's new default,
+`verify_after_sign: true`, does not catch it. Dropping `specVersion` to get
+around it is not an option either, because it is SPEC-035's whole point.
+**The trigger for this item therefore moves**: the first c2pa-node release
+whose engine contains the #2731 fix, not merely the first with c2pa-rs 0.91.
+
+### The trust settings moved underneath us (measured, and read)
+
+A manifest without `specVersion` does sign and read on 0.91.0, which made it
+possible to measure the read side now. The same probe signed a minimal asset
+and read it with six settings shapes:
+
+| settings passed to `Reader.fromAsset()` | 0.91.0 verdict |
+|---|---|
+| none | `Valid`, `signingCredential.untrusted` |
+| raw, our snake_case file (today's `server.js`) | `Trusted` |
+| `new Context(...)` with keys mapped to camelCase (draft option 1) | `Trusted` |
+| `new Context(...)` with the snake_case file as-is (draft option 2) | **`Valid`, `signingCredential.untrusted`** |
+| raw, `trust.allowed_list` only | **`Valid`, `signingCredential.untrusted`** |
+| `new Context(...)`, `trust.allowedList` only | **`Valid`, `signingCredential.untrusted`** |
+
+Control for the last two rows: the same asset with the same allowed-list
+file under `tools/c2patool` 0.27.22 (c2pa-rs 0.90.22) reads `Trusted`. The
+allowed list was `certs/es256_certs.pem`, with a SHA-256 identical to the
+container's `/run/secrets/signing.crt`.
+
+What the sources say about why (read, not run):
+
+- **c2pa-rs 0.91.0 restructured `Trust`** (`sdk/src/settings/mod.rs`) into
+  `anchors: Vec<TrustAnchor>`, each carrying its own `trust_anchors`,
+  `trust_config`, `allowed_list` and `trust_kind`. The flat
+  `trust.trust_anchors` / `trust.user_anchors` are `#[deprecated]` with
+  *"Will be removed in 0.92.0 (scheduled for mid-November 2026)"* and are
+  folded into `anchors` on load. **A flat `trust.allowed_list` has no field
+  any more and is not folded**, so it is dropped without an error. That
+  matches the measurement.
+- **`c2pa-utilities` 0.3.1's `toWireSettings()` rebuilds the `trust` block**
+  from the camelCase keys only (`trustAnchors`, `userAnchors`, `trustConfig`,
+  `allowedList`) into `trust.anchors[]`. A snake_case document therefore
+  loses its trust material entirely, while `verify.verify_trust` survives.
+  That is option 2's row above: the service believes trust is on and verifies
+  nothing, which is the exact failure SPEC-014 AC5 exists to prevent, and AC5
+  cannot see it because the keys it checks are still there. **The draft's
+  option 2 is now wrong, not merely less preferred.**
+- `toWireSettings()` only emits an `allowedList` inside an anchor entry,
+  which exists only when `trustAnchors` or `userAnchors` is set. So an
+  allowed-list-only configuration cannot be expressed through a `Context` at
+  all.
+- `Context.toJson()` now fetches any `trustAnchors` value that starts with
+  `http`. Ours are inline PEM, so this is not reached.
+
+Consequences for when the bump does happen:
+
+1. The migration takes option 1 (camelCase mapping in
+   `loadTrustSettings()`), and SPEC-014's trusted and untrusted verdicts are
+   the proof. Option 2 must not be used.
+2. An allowed-list-only settings file, which is how `docs/production.md` tells
+   an operator to load an end-entity list such as IPTC's (Step 68 addendum),
+   stops conferring trust on 0.91.0. This is silent, not an error. It needs a
+   decision before that bump: either the service writes
+   `trust.anchors[]` itself for that case, or the docs change and the bump
+   waits for upstream. Either way this is a SPEC-014 amendment, not a patch.
+3. c2patool 0.28.0 carries the same engine, so `bin/verify.sh` and
+   `certs/c2pa-trust.settings.json` face the same questions when
+   `tools/c2patool` is refreshed. Not measured yet.
+4. `reader.json()` now returns an object rather than a string.
+   `server.js:1316` already accepts both.
+
+The local service was rebuilt on 0.9.5 afterwards: `php bin/e2e.php` gives a
+trusted verdict, the Article 50 mark intact, and `timeStamp.untrusted` as the
+only informational code, as before.
