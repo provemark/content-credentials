@@ -129,8 +129,9 @@ is a divergence from c2patool inside the verifier, to be fixed there, and
 - **Media types the verifier reads and `MediaType` does not** (HEIC, fragmented
   DASH, plain text). `Asset` cannot carry them; widening `MediaType` is
   SPEC-021's territory and needs three lists to move together.
-- **`FragmentedVerifier`, remote manifests and the verifier's
+- **`FragmentedVerifier`, fetching remote manifests and the verifier's
   `checks_performed`.** A reader answers the questions `ReaderInterface` asks.
+  A remote manifest is refused by name (AC4, Amendment 2), never fetched.
 - **A new accessor on `ManifestReport`** for anything the verifier reports and
   the others do not (`signature_info.time`, `format`, revocation checked).
 - **Changing `auto`.** It keeps resolving to `extension` or `service`
@@ -194,6 +195,18 @@ is a divergence from c2patool inside the verifier, to be fixed there, and
     pixel data: `assertion.dataHash.mismatch`) is a report, not an exception:
     `hasManifest() === true`, `validationState() === Invalid`. A broken
     signature is an answer, not a read failure.
+  - And a file whose only manifest is remote is `ReadFailedException`,
+    naming the URL (bounded) and saying this reader never fetches. The
+    verifier reports such a file as `has_manifest: false` with the URL in
+    `remote_manifest`, and an empty report would tell the caller "no Content
+    Credentials" for a file that declares them (Amendment 2). Measured
+    2026-10-07 on `c2pa-rs/cloud.jpg` and an Adobe Photoshop file:
+    ExtC2paReader also throws, naming the URL ("must fetch remote manifests
+    from url …"); SigningServiceReader fetches the manifest from
+    `cai-manifests.adobe.com` and reads `Valid`. Recorded divergence from the
+    service, the same shape as the extension's.
+  - A file with an embedded manifest AND a remote URL is read from the
+    embedded one; the URL changes nothing.
   - And any `\Throwable` escaping the verifier itself is wrapped in
     `ReadFailedException` with the original as `previous`, so a caller can swap
     readers without touching its error handling.
@@ -260,6 +273,16 @@ The rule now keys on whether an active manifest was decoded. Problem item 3
 is corrected in place, and AC4 gains the manifest-chunk case and the
 divergence it creates.
 
+## Amendment 2 (2026-10-07, approved by Maurice van Loon the same day)
+
+Found after the merge of #159, when the three readers were run over 482 files
+signed elsewhere (the verifier's own test corpus). Two files declare their
+manifest only by URL. The scope had put remote manifests out, but had not said
+what the reader does when it meets one, and the mapping turned the verifier's
+`has_manifest: false` into an empty report: "no Content Credentials" for a
+file that declares them, the silent wrong answer AC3 refuses for TIFF. AC4
+now raises instead, as the extension does. Fetching stays out of scope.
+
 ## API sketch
 
 ```php
@@ -306,8 +329,8 @@ library); the ADR records it.
 
 ## Traceability
 
-Implemented 2026-10-07. `composer check`: 419 passed, 7 skipped, 18 deprecated,
-deptrac 0. Integration: 195 passed / 19 skipped with the service in its default
+Implemented 2026-10-07; Amendment 2 the same day. `composer check`: 423 passed,
+7 skipped, 18 deprecated, deptrac 0 (419 before Amendment 2). Integration: 195 passed / 19 skipped with the service in its default
 configuration, 194 / 20 with the `hardened` configuration (trust on, AI marking
 required); 11 verifier comparisons ran in each.
 
@@ -316,7 +339,7 @@ required); 11 verifier comparisons ran in each.
 | AC1 | `tests/Integration/VerifierReaderEquivalenceTest.php` :: "agrees with the service reader through the verifier", "finds the marking it was given, through the verifier", "agrees with the service reader on an unsigned asset", "agrees with the in-process reader through the verifier"; `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "reads the signed fixture as trusted, AI-generated and timestamped" | `src/Core/Reading/C2paVerifierReader.php` `read()`; `tests/Integration/ServiceHarness.php` `accessors()` |
 | AC2 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "returns an empty report for an asset with no C2PA data", "reports no validation state for an unsigned asset, as the other readers do", "returns exactly the report ExtC2paReader returns for no manifest"; `tests/Unit/Reading/VerifierOutcomeTest.php` :: "maps no manifest and no failure to an empty report", "treats a report with no has_manifest key as a failure, not as empty" | `src/Core/Reading/VerifierOutcome.php` `toManifestReport()` |
 | AC3 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "refuses a media type the verifier cannot read", "accepts every other media type", "knows of thirteen media types, eleven of them readable here" | `src/Core/Reading/C2paVerifierReader.php` `UNSUPPORTED`, `read()` |
-| AC4 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "throws ReadFailedException on input the verifier cannot parse", "throws ReadFailedException for a store the verifier reached but could not decode", "carries the verifier explanation in the message", "reports a broken hard binding as an Invalid report, not an exception"; `tests/Unit/Reading/VerifierOutcomeTest.php` :: "treats a reached but undecoded store as a failure", "does not call a reached store empty when it decoded nothing and said nothing" | `src/Core/Reading/VerifierOutcome.php` `toManifestReport()` (Amendment 1); `src/Core/Reading/C2paVerifierReader.php` `read()` |
+| AC4 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "throws ReadFailedException on input the verifier cannot parse", "throws ReadFailedException for a store the verifier reached but could not decode", "refuses a file whose only manifest is remote, naming the URL", "carries the verifier explanation in the message", "reports a broken hard binding as an Invalid report, not an exception"; `tests/Unit/Reading/VerifierOutcomeTest.php` :: "treats a reached but undecoded store as a failure", "does not call a reached store empty when it decoded nothing and said nothing", "refuses a report whose only manifest is remote", "bounds a remote manifest URL, which comes from the file", "reads the embedded manifest when a remote URL is declared beside it" | `src/Core/Reading/VerifierOutcome.php` `toManifestReport()` (Amendments 1 and 2); `tests/Fixtures/remote-manifest-spec042.jpg`; `src/Core/Reading/C2paVerifierReader.php` `read()` |
 | AC5 | `tests/Unit/Reading/VerifierOutcomeTest.php` :: "bounds a long explanation where it enters this package", "bounds an explanation that is not valid UTF-8 without discarding it", "keeps a short explanation verbatim" | `src/Core/Reading/VerifierOutcome.php` via `ServiceError::bound()` |
 | AC6 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "refuses trust settings the verifier refuses, at construction", "verifies without trust when no settings are given", "treats empty settings as no settings" | `src/Core/Reading/C2paVerifierReader.php` `buildSettings()`; `src/Core/Reading/Exception/TrustSettingsRejectedException.php` |
 | AC7 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "reports itself available when the verifier is installed", "names the package to install when the verifier is absent" | `src/Core/Reading/C2paVerifierReader.php` `isAvailable()`, `__construct()`; `src/Core/Reading/Exception/VerifierMissingException.php` |

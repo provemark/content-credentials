@@ -182,6 +182,22 @@ it('throws ReadFailedException for a store the verifier reached but could not de
         ->and($message)->toContain('CRC');
 })->group('SPEC-042');
 
+it('refuses a file whose only manifest is remote, naming the URL', function () {
+    // Amendment 2. The fixture is the unsigned JPEG with one XMP segment
+    // declaring `dcterms:provenance` — synthetic, so no third-party file is
+    // committed. Measured on it and on two real files (c2pa-rs cloud.jpg, an
+    // Adobe Photoshop export): the verifier says has_manifest false with the
+    // URL in remote_manifest, and ExtC2paReader throws naming the URL. Mapped
+    // as an empty report, that read "no Content Credentials".
+    $asset = new Asset(spec042Fixture('remote-manifest-spec042.jpg'), MediaType::Jpeg);
+
+    $message = spec042Message(fn () => (new C2paVerifierReader)->read($asset));
+
+    expect($message)->toStartWith('Could not read the asset: ')
+        ->and($message)->toContain('https://manifests.example.invalid/spec042-remote.c2pa')
+        ->and($message)->toContain('never fetches');
+})->group('SPEC-042');
+
 it('carries the verifier explanation in the message', function () {
     // The operator must be able to see WHY, as with the extension's message.
     $message = spec042Message(fn () => (new C2paVerifierReader)->read(spec042Png('not a media file')));

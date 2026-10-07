@@ -37,7 +37,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   checked. TIFF and
   SVG are refused with `ReadFailedException`, because the verifier does not
   read them yet. A manifest chunk that fails its CRC is an exception here
-  where the other readers report `Invalid`. `docs/readers.md` lists every
+  where the other readers report `Invalid`. So is a file whose manifest is
+  declared only by URL: this reader never fetches one, and says so with the
+  URL rather than reporting no credentials. `docs/readers.md` lists every
   difference, and `docs/production.md` shows the `trust.anchors[]` form that
   this reader needs for an end-entity list such as IPTC's.
 - Two exceptions in `Reading\Exception`: `VerifierMissingException` (the

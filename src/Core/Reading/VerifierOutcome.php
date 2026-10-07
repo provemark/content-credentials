@@ -25,6 +25,8 @@ use Provemark\ContentCredentials\Core\Support\ServiceError;
  *   the verifier sets it once it reaches the store, so a store cut short or
  *   with a bad chunk CRC reports true while nothing was decoded, and parsed
  *   as is that would read `hasManifest() === false` with `Invalid`.
+ * - no active manifest and a remote manifest URL: ReadFailedException naming
+ *   the URL (Amendment 2). This reader never fetches.
  *
  * A seam rather than inline code, as TrustAnchorsGuard is for SPEC-032: no
  * message a real file produces reaches the bound, so AC5 is tested here with
@@ -53,6 +55,18 @@ final class VerifierOutcome
 
         if ($hasManifest && is_string($active) && $active !== '') {
             return ManifestStoreParser::fromArray($report);
+        }
+
+        // SPEC-042 Amendment 2: a manifest declared only by URL. The verifier
+        // never fetches, and says has_manifest false; an empty report would be
+        // "no Content Credentials" for a file that declares them. Checked after
+        // the embedded case, so a file carrying both is read from the store.
+        $remote = $report['remote_manifest'] ?? null;
+
+        if (is_string($remote) && $remote !== '') {
+            throw new ReadFailedException('Could not read the asset: '.ServiceError::bound(
+                'its manifest is remote, at '.$remote.', and this reader never fetches one',
+            ));
         }
 
         $failures = self::failures($report);

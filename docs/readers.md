@@ -247,6 +247,11 @@ else differs:
   byte changed inside a PNG's manifest chunk fails its CRC: this reader throws
   `ReadFailedException`, the other two report `Invalid` with
   `hasManifest() === true`. None of the three says `Valid`.
+- **A manifest declared only by URL is an exception, never fetched.** A file
+  can point at its manifest instead of carrying it (XMP `dcterms:provenance`).
+  This reader raises `ReadFailedException` naming the URL, as `ExtC2paReader`
+  does. The service reader fetches it and reports the verdict, which means the
+  service makes a request to a URL taken from the uploaded file.
 - **Trust settings: a top-level `trust.allowed_list` is refused** when the
   reader is constructed. Put it inside a `trust.anchors[]` entry instead; see
   [`production.md`](production.md).

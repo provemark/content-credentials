@@ -113,3 +113,45 @@ it('does not call a reached store empty when it decoded nothing and said nothing
         'validation_state' => 'Invalid',
     ]))->toThrow(ReadFailedException::class, 'decoded no active manifest');
 })->group('SPEC-042');
+
+it('refuses a report whose only manifest is remote', function () {
+    // Amendment 2, the shape verbatim from the verifier on the fixture.
+    $message = spec042MappingMessage([
+        'active_manifest' => null,
+        'manifests' => [],
+        'validation_results' => ['activeManifest' => ['success' => [], 'informational' => [], 'failure' => []]],
+        'validation_state' => 'Invalid',
+        'format' => 'jpeg',
+        'has_manifest' => false,
+        'remote_manifest' => 'https://manifests.example.invalid/a.c2pa',
+    ]);
+
+    expect($message)->toContain('https://manifests.example.invalid/a.c2pa')
+        ->and($message)->toContain('never fetches');
+})->group('SPEC-042');
+
+it('bounds a remote manifest URL, which comes from the file', function () {
+    $message = spec042MappingMessage([
+        'has_manifest' => false,
+        'remote_manifest' => 'https://example.invalid/'.str_repeat('a', 5000),
+    ]);
+
+    expect($message)->toEndWith('… (truncated)')
+        ->and(strlen($message))->toBeLessThan(400);
+})->group('SPEC-042');
+
+it('reads the embedded manifest when a remote URL is declared beside it', function () {
+    // Amendment 2's second half: the URL changes nothing when there is an
+    // embedded store to read. A minimal decoded store, as the parser takes it.
+    $report = VerifierOutcome::toManifestReport([
+        'active_manifest' => 'urn:c2pa:spec042',
+        'manifests' => ['urn:c2pa:spec042' => ['assertions' => []]],
+        'validation_state' => 'Valid',
+        'has_manifest' => true,
+        'remote_manifest' => 'https://example.invalid/a.c2pa',
+    ]);
+
+    expect($report->hasManifest())->toBeTrue()
+        ->and($report->activeManifestLabel())->toBe('urn:c2pa:spec042')
+        ->and($report->validationState()?->value)->toBe('Valid');
+})->group('SPEC-042');
