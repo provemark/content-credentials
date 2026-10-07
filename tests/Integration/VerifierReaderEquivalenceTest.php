@@ -108,7 +108,10 @@ it('finds the marking it was given, through the verifier', function (MediaType $
         ])
         ->and(array_map(fn ($agent) => $agent->name, $report->softwareAgents()))
         ->toBe(['SPEC-042 equivalence'])
-        ->and($report->hasTimestamp())->toBeTrue();
+        // Pinned to what the service says it does, not to `true`: CI runs the
+        // service without a TSA, and a first version that assumed one went red
+        // in three profiles on the PR that introduced it.
+        ->and($report->hasTimestamp())->toBe(ServiceHarness::health()['timestamping'] ?? null);
 
     if (ServiceHarness::trustVerificationActive() === true) {
         expect($report->isVerifiedAiGenerated())->toBeTrue()
