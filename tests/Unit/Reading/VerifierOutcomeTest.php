@@ -34,6 +34,7 @@ function spec042Failure(string $explanation): array
     ];
 }
 
+/** @param array<string, mixed> $report */
 function spec042MappingMessage(array $report): string
 {
     try {

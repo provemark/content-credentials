@@ -52,7 +52,11 @@ function spec042SignedAsset(MediaType $type): Asset
     return new Asset($signed, $type);
 }
 
-/** The eleven types measured readable by both on 2026-10-07. */
+/**
+ * The eleven types measured readable by both on 2026-10-07.
+ *
+ * @return array<string, array{MediaType}>
+ */
 function spec042ComparableTypes(): array
 {
     return [

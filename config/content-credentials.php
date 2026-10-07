@@ -13,6 +13,8 @@ return [
     |   service    (default) read over HTTP via the signing service
     |   extension  read in-process via ext-c2pa; throws if it is not loaded
     |   auto       use the extension when loaded, the service otherwise
+    |   verifier   read in pure PHP via provemark/c2pa-verifier (composer
+    |              require it); never chosen by `auto`
     |
     | `auto` is what most people want, and it is deliberately NOT the default:
     | the two readers carry different c2pa-rs versions (0.89.0 in the extension,
@@ -39,6 +41,19 @@ return [
     | the service reader still reports isTrusted() false, that is why.
     */
     'trust_anchors' => env('CONTENTAUTH_TRUST_ANCHORS'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Trust settings (verifier reader only)
+    |--------------------------------------------------------------------------
+    |
+    | A PATH to a trust settings file in c2patool's JSON shape — the same
+    | document as certs/c2pa-trust.settings.json. Empty verifies without trust.
+    | A path that does not resolve is an error, not "no trust". A top-level
+    | `trust.allowed_list` is refused by the verifier: put it inside a
+    | `trust.anchors[]` entry. See docs/readers.md.
+    */
+    'verifier_settings' => env('CONTENTAUTH_VERIFIER_SETTINGS'),
 
     /*
     |--------------------------------------------------------------------------
