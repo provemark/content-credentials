@@ -7,6 +7,8 @@ namespace Provemark\ContentCredentials\Tests\Integration;
 use GuzzleHttp\Client;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Manifest\SoftwareAgent;
+use Provemark\ContentCredentials\Core\Reading\ManifestReport;
 use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
 use Provemark\ContentCredentials\Core\Reading\SigningServiceReader;
 use Provemark\ContentCredentials\Core\Signing\SignerInterface;
@@ -146,5 +148,37 @@ final class ServiceHarness
     public static function trustSettingsPath(): string
     {
         return dirname(__DIR__, 2).'/certs/c2pa-trust.settings.json';
+    }
+
+    /**
+     * Every public accessor of a report, as a comparable map (SPEC-019 AC2,
+     * SPEC-042 AC1). Its promise is "every public accessor": adding one to
+     * ManifestReport means adding it here.
+     *
+     * @return array<string, mixed>
+     */
+    public static function accessors(ManifestReport $report): array
+    {
+        return [
+            'hasManifest' => $report->hasManifest(),
+            'isSignatureValid' => $report->isSignatureValid(),
+            'isTrusted' => $report->isTrusted(),
+            'validationState' => $report->validationState()?->value,
+            'isAiGenerated' => $report->isAiGenerated(),
+            'isVerifiedAiGenerated' => $report->isVerifiedAiGenerated(),
+            'hasTimestamp' => $report->hasTimestamp(),
+            'digitalSourceTypes' => $report->digitalSourceTypes(),
+            // SPEC-033. Flattened through toArray() because the comparison is a
+            // strict one and two readers necessarily build distinct objects; what
+            // must agree is the name and version, not the instance.
+            'softwareAgents' => array_map(
+                fn (SoftwareAgent $agent) => $agent->toArray(),
+                $report->softwareAgents(),
+            ),
+            // SPEC-035. Measured before it was added here: the extension, on
+            // c2pa-rs 0.89.0, returns claim_generator_info including specVersion
+            // verbatim for an asset signed by 0.90.x, so the two readers can agree.
+            'declaredSpecVersion' => $report->declaredSpecVersion(),
+        ];
     }
 }

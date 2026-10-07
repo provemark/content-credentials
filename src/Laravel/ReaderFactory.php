@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Provemark\ContentCredentials\Laravel;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
+use Provemark\ContentCredentials\Core\Reading\C2paVerifierReader;
 use Provemark\ContentCredentials\Core\Reading\Exception\ExtensionMissingException;
+use Provemark\ContentCredentials\Core\Reading\Exception\TrustSettingsRejectedException;
+use Provemark\ContentCredentials\Core\Reading\Exception\VerifierMissingException;
 use Provemark\ContentCredentials\Core\Reading\ExtC2paReader;
 use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
 use Provemark\ContentCredentials\Core\Reading\SigningServiceReader;
@@ -30,7 +33,12 @@ use Provemark\ContentCredentials\Laravel\Exception\MissingConfigurationException
  */
 final readonly class ReaderFactory
 {
-    private const MODES = ['auto', 'service', 'extension'];
+    /**
+     * `verifier` (SPEC-042) is selectable but never what `auto` resolves to:
+     * installing the package for an unrelated reason must change no verdict,
+     * the same argument that keeps `auto` from being the default.
+     */
+    private const MODES = ['auto', 'service', 'extension', 'verifier'];
 
     public function __construct(
         private ConfigRepository $config,
@@ -91,6 +99,8 @@ final readonly class ReaderFactory
 
     /**
      * @throws MissingConfigurationException on an unrecognised mode
+     * @throws VerifierMissingException when `verifier` is requested and the package is not installed
+     * @throws TrustSettingsRejectedException when the verifier refuses the configured settings file
      * @throws ExtensionMissingException
      *                                   when `extension` is requested and ext-c2pa is not loaded — never a
      *                                   fallback to HTTP, because a caller who asked for in-process reading
@@ -98,9 +108,41 @@ final readonly class ReaderFactory
      */
     public function make(): ReaderInterface
     {
-        return $this->mode() === 'extension'
-            ? new ExtC2paReader($this->trustAnchors())
-            : $this->serviceReader;
+        return match ($this->mode()) {
+            'extension' => new ExtC2paReader($this->trustAnchors()),
+            'verifier' => new C2paVerifierReader($this->verifierSettings()),
+            default => $this->serviceReader,
+        };
+    }
+
+    /**
+     * The verifier's trust settings file, read (SPEC-042 AC8).
+     *
+     * A path, because the settings are a JSON document and a JSON document in
+     * an env var is a quoting problem. Blank means no trust. A path that does
+     * not resolve is refused rather than read as "no trust": that would report
+     * every asset as merely Valid while trust appears configured.
+     *
+     * @throws MissingConfigurationException when the path is not a readable file
+     */
+    private function verifierSettings(): ?string
+    {
+        $configured = $this->config->get('content-credentials.verifier_settings');
+
+        if (! is_string($configured) || trim($configured) === '') {
+            return null;
+        }
+
+        $contents = is_file($configured) && is_readable($configured) ? file_get_contents($configured) : false;
+
+        if (! is_string($contents) || $contents === '') {
+            throw new MissingConfigurationException(sprintf(
+                'Configuration "content-credentials.verifier_settings" is not a readable, non-empty file: %s',
+                $configured,
+            ));
+        }
+
+        return $contents;
     }
 
     /**

@@ -113,6 +113,22 @@ official anchors loaded beside it; a certificate on neither reads
 `signingCredential.untrusted`. Add `--rawfile publishers end-entity-list.pem`
 to the command above and `allowed_list: $publishers` to the `trust` object.
 
+With the pure-PHP reader (`CONTENTAUTH_READER=verifier`, SPEC-042) the flat
+`trust.allowed_list` above is **refused**: `c2patool` 0.28 and c2pa-rs 0.91 moved
+it into an entry of `trust.anchors`, and drop a loose one without a word, so
+the verifier refuses it with a message instead. The same list, in the form it
+accepts:
+
+```json
+{ "verify": { "verify_trust": true },
+  "trust": { "anchors": [ { "trust_kind": "manifest", "trust_anchors": "",
+                            "allowed_list": "-----BEGIN CERTIFICATE-----\n…" } ] } }
+```
+
+Measured 2026-10-07 with verifier v0.5.0: a signing certificate in that
+`allowed_list` reads `Trusted`, and so does the flat `trust_anchors` +
+`trust_config` document this repository ships.
+
 Other verifiers may publish their own policy in the same layout. Whatever the
 list, look at what it contains before trusting it: `grep -c 'BEGIN CERTIFICATE'`
 on each bundle, and `openssl x509 -noout -subject -issuer -enddate` on the
