@@ -91,3 +91,25 @@ it('treats a report with no has_manifest key as a failure, not as empty', functi
     expect(fn () => VerifierOutcome::toManifestReport(['validation_state' => 'Invalid']))
         ->toThrow(ReadFailedException::class);
 })->group('SPEC-042');
+
+it('treats a reached but undecoded store as a failure', function () {
+    // Amendment 1: has_manifest is true once the verifier reaches the store,
+    // decoded or not. What decides is whether an active manifest came out.
+    $report = spec042Failure('unexpected end of file while reading the data of the chunk at offset 33');
+    $report['has_manifest'] = true;
+    $report['active_manifest'] = null;
+
+    expect(spec042MappingMessage($report))
+        ->toBe('Could not read the asset: unexpected end of file while reading the data of the chunk at offset 33');
+})->group('SPEC-042');
+
+it('does not call a reached store empty when it decoded nothing and said nothing', function () {
+    // Outside the spec's letter, and failing closed for the reason the
+    // missing-key case does: a store was found, so "no credentials" is not
+    // provably true. No real file has been seen to produce this.
+    expect(fn () => VerifierOutcome::toManifestReport([
+        'has_manifest' => true,
+        'active_manifest' => null,
+        'validation_state' => 'Invalid',
+    ]))->toThrow(ReadFailedException::class, 'decoded no active manifest');
+})->group('SPEC-042');

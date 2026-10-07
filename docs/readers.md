@@ -177,6 +177,28 @@ the hosts where neither reader above can run — cheap shared hosting, where mos
 WordPress and Drupal sites live — and it reads and verifies only. It never
 signs, so it replaces nothing in this package.
 
+Since SPEC-042 it is a reader like the other two. It is optional: install it
+yourself, and nothing changes until you select it.
+
+```bash
+composer require provemark/c2pa-verifier
+```
+
+```php
+use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Reading\C2paVerifierReader;
+use Provemark\ContentCredentials\Core\Signing\Asset;
+
+$reader = new C2paVerifierReader(file_get_contents('/path/to/c2pa-trust.settings.json')); // or no argument
+$report = $reader->read(new Asset($bytes, MediaType::Png));
+```
+
+In Laravel, `CONTENTAUTH_READER=verifier` selects it, and
+`CONTENTAUTH_VERIFIER_SETTINGS` is the **path** to a trust settings file in
+`c2patool`'s JSON shape — the same document as `certs/c2pa-trust.settings.json`.
+Empty verifies without trust; a path that does not resolve is an error, not
+"no trust". `auto` never picks this reader.
+
 It answers this section's question a third way. Parsing happens in the PHP
 worker, as with the extension, but in PHP rather than native code: a
 memory-safety bug is not the failure mode there, a logic bug is, and what a
@@ -186,7 +208,28 @@ parser in it is bounded, and it opens no network connection while verifying.
 What it gives back is `c2patool`'s answer — the same `validation_state` and the
 same C2PA 2.4 §15 status codes — over the claim signature, the hash binding, the
 certificate chain against a trust list you supply, the RFC 3161 timestamp and
-the OCSP responses stapled into the signature.
+the OCSP responses stapled into the signature. Measured against verifier
+v0.5.0 on 2026-10-07, for an asset signed by the service, every accessor of the
+report agrees with both other readers on eleven of the thirteen media types,
+trust and timestamp included. The rest of what differs:
+
+- **TIFF and SVG are refused** with `ReadFailedException`. The verifier does
+  not read them yet, and would otherwise report a signed file as carrying no
+  credentials.
+- **The declared media type plays no part.** The verifier identifies the
+  container from its bytes; the other two readers pick a handler by the type
+  you declare.
+- **A damaged manifest is an exception here, an `Invalid` report there.** A
+  byte changed inside a PNG's manifest chunk fails its CRC: this reader throws
+  `ReadFailedException`, the other two report `Invalid` with
+  `hasManifest() === true`. None of the three says `Valid`.
+- **Trust settings: a top-level `trust.allowed_list` is refused** when the
+  reader is constructed. Put it inside a `trust.anchors[]` entry instead; see
+  [`production.md`](production.md).
+- **Memory.** The asset is already a string in `Asset`, and the reader copies
+  it into a memory stream, so a file is briefly held twice. The service path
+  caps a body at 20 MB; this path has no cap of its own, so bound uploads
+  before they reach it.
 
 It is a first version: thoroughly tested and not yet used by anyone. Treat a
 verdict as something to check, and see its own README for what is known to be

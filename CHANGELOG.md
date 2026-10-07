@@ -19,6 +19,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `C2paVerifierReader`, a third `ReaderInterface` implementation that reads and
+  verifies in pure PHP through `provemark/c2pa-verifier` (SPEC-042, ADR-0007).
+  For hosts that can run neither the signing service nor `ext-c2pa`. The
+  package is optional: it stays in `suggest`, and nothing changes until you
+  `composer require provemark/c2pa-verifier` and select it. In Laravel,
+  `CONTENTAUTH_READER=verifier` selects it and `CONTENTAUTH_VERIFIER_SETTINGS`
+  is the path to a trust settings file; `auto` never picks it. Measured against
+  verifier v0.5.0, every report accessor agrees with both other readers on
+  eleven of the thirteen media types, trust and timestamp included. TIFF and
+  SVG are refused with `ReadFailedException`, because the verifier does not
+  read them yet. A manifest chunk that fails its CRC is an exception here
+  where the other readers report `Invalid`. `docs/readers.md` lists every
+  difference, and `docs/production.md` shows the `trust.anchors[]` form that
+  this reader needs for an end-entity list such as IPTC's.
+- Two exceptions in `Reading\Exception`: `VerifierMissingException` (the
+  package is not installed) and `TrustSettingsRejectedException` (settings the
+  verifier refuses, raised when the reader is built).
+
 ## [0.15.2] - 2026-09-23
 
 A documentation and metadata release: `src/` and `service/` are unchanged

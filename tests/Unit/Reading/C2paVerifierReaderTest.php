@@ -167,6 +167,21 @@ it('throws ReadFailedException on input the verifier cannot parse', function (st
     'signed PNG cut in half' => [fn () => substr(spec042Signed(), 0, intdiv(strlen(spec042Signed()), 2))],
 ])->group('SPEC-042');
 
+it('throws ReadFailedException for a store the verifier reached but could not decode', function () {
+    // Amendment 1. A byte flipped INSIDE the PNG manifest chunk (caBX starts
+    // at byte 37 and runs past byte 53,000): the verifier reports
+    // has_manifest true and a chunk-CRC general.error, and decodes no
+    // manifest. Mapped as it first was, that read hasManifest() === false
+    // with Invalid — "no credentials" to a caller asking only that.
+    $bytes = spec042Signed();
+    $bytes[1000] = chr(ord($bytes[1000]) ^ 0xFF);
+
+    $message = spec042Message(fn () => (new C2paVerifierReader(spec042TrustSettings()))->read(spec042Png($bytes)));
+
+    expect($message)->toStartWith('Could not read the asset: ')
+        ->and($message)->toContain('CRC');
+})->group('SPEC-042');
+
 it('carries the verifier explanation in the message', function () {
     // The operator must be able to see WHY, as with the extension's message.
     $message = spec042Message(fn () => (new C2paVerifierReader)->read(spec042Png('not a media file')));
