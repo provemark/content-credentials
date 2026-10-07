@@ -208,10 +208,34 @@ parser in it is bounded, and it opens no network connection while verifying.
 What it gives back is `c2patool`'s answer — the same `validation_state` and the
 same C2PA 2.4 §15 status codes — over the claim signature, the hash binding, the
 certificate chain against a trust list you supply, the RFC 3161 timestamp and
-the OCSP responses stapled into the signature. Measured against verifier
-v0.5.0 on 2026-10-07, for an asset signed by the service, every accessor of the
-report agrees with both other readers on eleven of the thirteen media types,
-trust and timestamp included. The rest of what differs:
+the OCSP responses stapled into the signature.
+
+**On assets this package signs, the three readers agree. On other files, this
+one is stricter.** Measured on 2026-10-07 against verifier v0.5.0:
+
+- For an asset signed by the service, every accessor of the report agrees with
+  both other readers on eleven of the thirteen media types, trust and timestamp
+  included.
+- On 482 files signed elsewhere, from the verifier's own test corpus (c2pa-rs
+  test files, published files from Adobe, Amazon, Truepic and Microsoft, and
+  deliberately damaged files), 47 that c2pa-rs 0.90.22 calls `Valid` do not
+  read `Valid` here: 29 are `Invalid`, 16 raise `ReadFailedException`, and 2
+  declare a remote manifest, which this reader never fetches (below). Among
+  them are files from Adobe Lightroom, Amazon Titan, Truepic and Microsoft
+  Bing. The verifier documents its deliberate differences from c2pa-rs in its
+  [`docs/comparison.md`](https://github.com/provemark/c2pa-verifier/blob/main/docs/comparison.md).
+  Checked there for the published files: a timestamp authority counts only
+  when your trust settings anchor it, so a signer whose certificate has since
+  expired is `signingCredential.expired` here and `Valid` there (Amazon,
+  Truepic); Truepic's hash exclusions are refused; and Bing's stores are
+  read differently. The rest of the 47 were not traced one by one.
+- The other way round, two files read `Valid` here and `Invalid` with c2pa-rs
+  0.90.22. Both carry certificate names in T61String encoding, and the newer
+  `c2patool` 0.28.1 agrees with the verifier on both.
+
+So switching an existing site to this reader can turn verdicts on uploaded files
+from `Valid` to `Invalid`. Try it on your own files before relying on it. What
+else differs:
 
 - **TIFF and SVG are refused** with `ReadFailedException`. The verifier does
   not read them yet, and would otherwise report a signed file as carrying no
