@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | approved                                          |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — while draft                                     |
+| Approved   | Maurice van Loon, 2026-10-07                      |
 | Supersedes | — (extends SPEC-003 reading, SPEC-019 the second reader, SPEC-020 selection, SPEC-040 bounded error text) |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →

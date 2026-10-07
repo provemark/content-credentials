@@ -91,31 +91,16 @@ function spec019SignedAsset(): string
 /**
  * Every public accessor, as a comparable map.
  *
+ * The list itself lives in ServiceHarness::accessors() since SPEC-042, because a
+ * third reader is compared against the same list and a helper defined in a test
+ * file is only loaded when Pest collects that file. One list, so adding an
+ * accessor there covers every reader.
+ *
  * @return array<string, mixed>
  */
 function spec019Accessors(ManifestReport $report): array
 {
-    return [
-        'hasManifest' => $report->hasManifest(),
-        'isSignatureValid' => $report->isSignatureValid(),
-        'isTrusted' => $report->isTrusted(),
-        'validationState' => $report->validationState()?->value,
-        'isAiGenerated' => $report->isAiGenerated(),
-        'isVerifiedAiGenerated' => $report->isVerifiedAiGenerated(),
-        'hasTimestamp' => $report->hasTimestamp(),
-        'digitalSourceTypes' => $report->digitalSourceTypes(),
-        // SPEC-033. Flattened through toArray() because the comparison is a
-        // strict one and two readers necessarily build distinct objects; what
-        // must agree is the name and version, not the instance.
-        'softwareAgents' => array_map(
-            fn (SoftwareAgent $agent) => $agent->toArray(),
-            $report->softwareAgents(),
-        ),
-        // SPEC-035. Measured before it was added here: the extension, on
-        // c2pa-rs 0.89.0, returns claim_generator_info including specVersion
-        // verbatim for an asset signed by 0.90.x, so the two readers can agree.
-        'declaredSpecVersion' => $report->declaredSpecVersion(),
-    ];
+    return ServiceHarness::accessors($report);
 }
 
 // --- AC1: a signed asset reads without any service ---------------------------

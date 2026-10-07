@@ -6,7 +6,9 @@ use Illuminate\Config\Repository;
 use Illuminate\Container\Container;
 use Illuminate\Support\Facades\Facade;
 use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Reading\C2paVerifierReader;
 use Provemark\ContentCredentials\Core\Reading\Exception\ExtensionMissingException;
+use Provemark\ContentCredentials\Core\Reading\Exception\TrustSettingsRejectedException;
 use Provemark\ContentCredentials\Core\Reading\ExtC2paReader;
 use Provemark\ContentCredentials\Core\Reading\ManifestReport;
 use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
@@ -333,3 +335,101 @@ it('names the engine and the configuration when auto falls back', function () {
     // the report still has to say the choice was not made by a human.
     expect(ccReadOutput('auto'))->toContain('reader             : service (configured: auto)');
 })->group('SPEC-020')->skip($skipIfExtension);
+
+// --- SPEC-042 AC8: `verifier` binds the pure-PHP reader ----------------------
+
+/** The committed fixture signed for SPEC-042, as an Asset. */
+function spec042SelectionAsset(): Asset
+{
+    return new Asset(
+        (string) file_get_contents(dirname(__DIR__, 2).'/Fixtures/signed-spec042.png'),
+        MediaType::Png,
+    );
+}
+
+it('binds the pure-PHP reader when the mode is verifier', function () {
+    expect(ccReaderApp('verifier')->make(ReaderInterface::class))
+        ->toBeInstanceOf(C2paVerifierReader::class);
+})->group('SPEC-042');
+
+it('reports verifier as the mode, configured and resolved', function () {
+    $factory = ccReaderApp('verifier')->make(ReaderFactory::class);
+
+    expect($factory->configuredMode())->toBe('verifier')
+        ->and($factory->mode())->toBe('verifier');
+})->group('SPEC-042');
+
+it('passes the configured settings file to the pure-PHP reader', function () {
+    // Through behaviour, as SPEC-020 AC7 does for the extension: the same
+    // asset is trusted with the file and only valid without it. A reader that
+    // accepted the config key and dropped it fails the first half.
+    $path = dirname(__DIR__, 3).'/certs/c2pa-trust.settings.json';
+
+    $with = ccReaderApp('verifier', ['verifier_settings' => $path])
+        ->make(ReaderInterface::class)
+        ->read(spec042SelectionAsset());
+    $without = ccReaderApp('verifier')->make(ReaderInterface::class)->read(spec042SelectionAsset());
+
+    expect($with->validationState()?->value)->toBe('Trusted', 'the settings file did not reach the reader')
+        ->and($without->validationState()?->value)->toBe('Valid', 'trusted without any settings configured');
+})->group('SPEC-042');
+
+it('treats an empty settings value as no trust, not as an error', function () {
+    // What an unset CONTENTAUTH_VERIFIER_SETTINGS produces.
+    $report = ccReaderApp('verifier', ['verifier_settings' => ''])
+        ->make(ReaderInterface::class)
+        ->read(spec042SelectionAsset());
+
+    expect($report->validationState()?->value)->toBe('Valid');
+})->group('SPEC-042');
+
+it('refuses a settings path that does not exist, when the reader is resolved', function () {
+    // A typo in the path must not become "verify without trust" — that reports
+    // every asset as merely Valid while trust appears configured. The message
+    // must name the path: a first version asserted only the exception type and
+    // passed before `verifier` was a mode at all, on the unknown-mode refusal.
+    $path = '/nonexistent/c2pa-trust.settings.json';
+
+    try {
+        ccReaderApp('verifier', ['verifier_settings' => $path])->make(ReaderInterface::class);
+        $thrown = null;
+    } catch (Throwable $e) {
+        $thrown = $e;
+    }
+
+    expect($thrown)->toBeInstanceOf(MissingConfigurationException::class)
+        ->and($thrown?->getMessage())->toContain($path)
+        ->and($thrown?->getMessage())->toContain('verifier_settings');
+})->group('SPEC-042');
+
+it('refuses a settings file the verifier refuses, when the reader is resolved', function () {
+    $file = tempnam(sys_get_temp_dir(), 'spec042');
+    file_put_contents((string) $file, '{');
+
+    try {
+        expect(fn () => ccReaderApp('verifier', ['verifier_settings' => $file])->make(ReaderInterface::class))
+            ->toThrow(TrustSettingsRejectedException::class);
+    } finally {
+        @unlink((string) $file);
+    }
+})->group('SPEC-042');
+
+it('names verifier among the accepted modes when refusing', function () {
+    try {
+        ccReaderApp('ext')->make(ReaderInterface::class);
+        $message = '';
+    } catch (Throwable $e) {
+        $message = $e->getMessage();
+    }
+
+    expect($message)->toContain('verifier');
+})->group('SPEC-042');
+
+it('does not resolve auto to the verifier, though it is installed', function () {
+    // SPEC-042 AC8's second half. The verifier is in require-dev, so it IS
+    // installed wherever this runs — which is the situation the criterion is
+    // about: installing it for an unrelated reason changes no verdict.
+    expect(C2paVerifierReader::isAvailable())->toBeTrue()
+        ->and(ccReaderApp('auto')->make(ReaderFactory::class)->mode())
+        ->toBe(extension_loaded('c2pa') ? 'extension' : 'service');
+})->group('SPEC-042');
