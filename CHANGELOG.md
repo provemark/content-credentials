@@ -33,6 +33,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   manifest is signed as an ingredient without it, and a trust settings file
   that turns fetching back on is refused at startup. `docs/service.md` has the
   details.
+- **The service's lockfile takes `proxy-addr` 2.0.8 and `brace-expansion`
+  1.1.21**, for GHSA-jqcg-44mw-7w3h (critical: IP spoofing when Express's
+  `trust proxy` uses a subnet) and GHSA-q2hr-2g5m-vwhr with two related
+  `brace-expansion` advisories. Neither looks reachable here: the service never
+  sets `trust proxy`, and `brace-expansion` sits only on the install-time path
+  that unpacks c2pa-node's native binary. That is reasoned from the code and
+  the dependency tree, not tested. Like SPEC-043, this is `service/`, so it
+  arrives through `git pull` and a rebuild. The weekly `audit` workflow had
+  reported both since 2026-10-05; it is non-blocking by design, and its red
+  step went unread for three days.
 - `docs/readers.md` now warns that ext-c2pa `v0.1.0` can end the PHP process:
   a malformed MP3 makes a dependency of the extension panic (exit 134), which
   no `catch` can intercept. `ExtC2paReader` is unchanged; the advice is to read
