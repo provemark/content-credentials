@@ -240,17 +240,28 @@ intact, and confirmed with `c2patool` under trust settings:
 - Unmeasured, therefore undeclared: DNG. **JPEG XL is now measured and stays
   undeclared** — for the reasons two bullets up, not for lack of a measurement.
 
-## 9. The two readers, and where parsing happens
+## 9. The three readers, and where parsing happens
 
-`SigningServiceReader` (HTTP, c2pa-rs 0.90.22) and `ExtC2paReader` (in-process,
-0.89.0) answer the same questions. Two differences matter when choosing:
+`SigningServiceReader` (HTTP, c2pa-rs 0.90.22), `ExtC2paReader` (in-process,
+0.89.0) and, since SPEC-042, `C2paVerifierReader` (in-process, pure PHP through
+`provemark/c2pa-verifier` 0.5) answer the same questions. Three differences
+matter when choosing:
 
 - **Engine version.** The extension lags the service, which is why `auto` is not
   the default (SPEC-020).
 - **Process boundary.** The extension parses untrusted assets *inside the
   application process*; the service reader keeps that in a separate one. This is
   the mirror image of ADR-0003's key-isolation argument, and it is a deliberate
-  trade rather than a free operational win (SPEC-025 AC6).
+  trade rather than a free operational win (SPEC-025 AC6). Measured 2026-10-08,
+  the trade has a sharper edge than an exception: a malformed MP3 makes
+  ext-c2pa `v0.1.0` abort the whole PHP process, through a dependency fixed
+  after that release was built (`docs/readers.md`). The verifier parses in
+  PHP, so its failures stay exceptions.
+- **Strictness on files signed elsewhere.** On assets this package signs, all
+  three agree accessor by accessor (SPEC-042 AC1). On a corpus of 482 files
+  signed elsewhere, the verifier did not read `Valid` on 47 that c2pa-rs did,
+  each a documented choice in the verifier (an unanchored timestamp authority
+  is the most common). Measured 2026-10-07 against verifier v0.5.0.
 
 ## 10. digitalSourceType: what can be claimed (SPEC-026)
 

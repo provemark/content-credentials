@@ -70,6 +70,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   of installing it next to a reader that maps v0.5's report. Widening it is a
   release of this package (ADR-0007 addendum).
 
+### Changed
+
+- The README's reading example uses `C2paVerifierReader`
+  (`composer require provemark/c2pa-verifier`) instead of the ext-c2pa
+  extension, which needs a native build and can end the PHP process (see
+  Security). The extension stays documented in `docs/readers.md`, and primer
+  section 9 now covers all three readers.
+- `docker-compose.remote-probe.yml`, a test-only file added with SPEC-043, is
+  excluded from the Composer dist.
+
 ## [0.15.2] - 2026-09-23
 
 A documentation and metadata release: `src/` and `service/` are unchanged
