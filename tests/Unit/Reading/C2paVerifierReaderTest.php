@@ -356,3 +356,73 @@ it('names the package to install when the verifier is absent', function () {
         ->and($output)->toContain('composer require provemark/c2pa-verifier')
         ->and($output)->not->toContain('constructed');
 })->group('SPEC-042');
+
+// --- SPEC-044: the reader says which media types it reads ---------------------
+
+it('says it does not read TIFF or SVG', function (MediaType $type) {
+    expect(C2paVerifierReader::supports($type))->toBeFalse();
+})->with([
+    'TIFF' => [MediaType::Tiff],
+    'SVG' => [MediaType::Svg],
+])->group('SPEC-044');
+
+it('says it reads every other media type', function (MediaType $type) {
+    // Listed by exclusion over MediaType::cases(), so SPEC-042's
+    // thirteen-cases tripwire still forces a measurement for a fourteenth.
+    expect(C2paVerifierReader::supports($type))->toBeTrue();
+})->with(fn () => array_map(
+    fn (MediaType $type) => [$type],
+    array_values(array_filter(
+        MediaType::cases(),
+        fn (MediaType $type) => ! in_array($type, [MediaType::Tiff, MediaType::Svg], true),
+    )),
+))->group('SPEC-044');
+
+it('answers supports() without the verifier installed', function () {
+    // The same child process as SPEC-042 AC7: the verifier's PSR-4 prefix
+    // emptied, which is what a host without the package has. A caller asks
+    // this while deciding whether the route is usable at all.
+    $root = dirname(__DIR__, 3);
+    $script = <<<'PHP'
+        $loader = require $argv[1].'/vendor/autoload.php';
+        $loader->setPsr4('Provemark\\C2paVerifier\\', []);
+        $reader = Provemark\ContentCredentials\Core\Reading\C2paVerifierReader::class;
+        $type = Provemark\ContentCredentials\Core\Manifest\MediaType::class;
+        try {
+            echo json_encode([
+                'available' => $reader::isAvailable(),
+                'png' => $reader::supports($type::Png),
+                'tiff' => $reader::supports($type::Tiff),
+            ]), "\n";
+        } catch (Throwable $e) {
+            echo get_class($e), "\n", $e->getMessage(), "\n";
+        }
+        PHP;
+
+    $output = (string) shell_exec(sprintf(
+        '%s -r %s %s 2>&1',
+        escapeshellarg(PHP_BINARY),
+        escapeshellarg($script),
+        escapeshellarg($root),
+    ));
+
+    expect(trim($output))->toBe('{"available":false,"png":true,"tiff":false}');
+})->group('SPEC-044');
+
+it('refuses up front exactly the types supports() says no to', function (MediaType $type) {
+    // AC3: read() and supports() cannot disagree, in either direction. Garbage
+    // bytes, so a supported type reaches the verifier and fails there with
+    // its own explanation; an unsupported one never gets that far.
+    $message = spec042Message(fn () => (new C2paVerifierReader)->read(new Asset('not a media file', $type)));
+
+    if (C2paVerifierReader::supports($type)) {
+        expect($message)->toStartWith('Could not read the asset: ');
+    } else {
+        expect($message)->toBe(sprintf(
+            'Media type %s is not supported by this reader: provemark/c2pa-verifier cannot read it. '
+            .'Read it with the service or extension reader.',
+            $type->value,
+        ));
+    }
+})->with(fn () => array_map(fn (MediaType $type) => [$type], MediaType::cases()))
+    ->group('SPEC-044');
