@@ -130,13 +130,17 @@ it('refuses a report whose only manifest is remote', function () {
         ->and($message)->toContain('never fetches');
 })->group('SPEC-042');
 
-it('bounds a remote manifest URL, which comes from the file', function () {
+it('bounds a remote manifest URL, which comes from the file, and keeps the reason', function () {
+    // Amendment 3. The first version bounded the whole sentence, so a URL of
+    // more than 256 characters cut off the reason and left mostly
+    // file-controlled text. Only the URL is bounded now.
     $message = spec042MappingMessage([
         'has_manifest' => false,
         'remote_manifest' => 'https://example.invalid/'.str_repeat('a', 5000),
     ]);
 
-    expect($message)->toEndWith('… (truncated)')
+    expect($message)->toContain('… (truncated)')
+        ->and($message)->toEndWith('and this reader never fetches one')
         ->and(strlen($message))->toBeLessThan(400);
 })->group('SPEC-042');
 

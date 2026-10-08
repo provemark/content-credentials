@@ -132,7 +132,13 @@ it('agrees with the service reader on an unsigned asset', function () {
 
 it('agrees with the in-process reader through the verifier', function (MediaType $type) {
     // The third pair, where the extension is installed (the `ext-c2pa` profile
-    // and some developer machines). Both readers get the same anchors.
+    // and some developer machines). Both get the same trust anchors, but not
+    // the same configuration: the verifier also reads the settings file's
+    // `trust_config` EKU list, and ExtC2paReader takes PEM only, so the
+    // extension applies its own default EKU policy. An agreement here is
+    // therefore agreement under the EKUs of these test certificates, not proof
+    // that the two EKU policies are equal; a disagreement may be either.
+    // SPEC-019 learned on 2026-08-08 what an unequal configuration reports.
     $settings = (string) file_get_contents(ServiceHarness::trustSettingsPath());
     $anchors = (string) file_get_contents(dirname(__DIR__, 2).'/certs/trust_anchors.pem');
     $asset = spec042SignedAsset($type);

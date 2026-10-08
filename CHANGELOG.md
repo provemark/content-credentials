@@ -45,6 +45,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Two exceptions in `Reading\Exception`: `VerifierMissingException` (the
   package is not installed) and `TrustSettingsRejectedException` (settings the
   verifier refuses, raised when the reader is built).
+- A `conflict` entry for `provemark/c2pa-verifier`: `<0.5 || >=0.6`. Composer
+  refuses a verifier version this package was not measured against, instead
+  of installing it next to a reader that maps v0.5's report. Widening it is a
+  release of this package (ADR-0007 addendum).
 
 ## [0.15.2] - 2026-09-23
 

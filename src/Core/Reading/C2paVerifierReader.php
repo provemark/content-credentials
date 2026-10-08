@@ -35,6 +35,9 @@ final class C2paVerifierReader implements ReaderInterface
      */
     private const UNSUPPORTED = [MediaType::Tiff, MediaType::Svg];
 
+    /** Above this, the copy of the asset spills to disk (AC10). */
+    private const IN_MEMORY_BYTES = 2 * 1024 * 1024;
+
     private readonly ?TrustSettings $settings;
 
     /**
@@ -72,20 +75,35 @@ final class C2paVerifierReader implements ReaderInterface
             ));
         }
 
-        $stream = fopen('php://memory', 'w+b');
+        // php://temp, not php://memory (SPEC-042 AC10): above 2 MiB the copy
+        // spills to the system temp directory instead of doubling the asset in
+        // memory. Measured on 32 MiB: 33.4 MB over baseline with php://memory,
+        // 1.4 MB with this.
+        $stream = fopen('php://temp/maxmemory:'.self::IN_MEMORY_BYTES, 'w+b');
 
         if ($stream === false) {
-            throw new ReadFailedException('Could not read the asset: no memory stream available.');
+            throw new ReadFailedException('Could not read the asset: no temporary stream available.');
         }
 
         try {
-            fwrite($stream, $asset->bytes);
+            // Checked, because without a writable temp directory fwrite()
+            // returns 0 past the in-memory limit and only warns; the verifier
+            // would then read an empty stream.
+            if (@fwrite($stream, $asset->bytes) !== strlen($asset->bytes)) {
+                throw new ReadFailedException(
+                    'Could not read the asset: it could not be copied to a temporary stream. '
+                    .'Check that the system temp directory ('.sys_get_temp_dir().') is writable.'
+                );
+            }
+
             rewind($stream);
 
             // Through JSON rather than toArray(), so the parser sees exactly
             // what was measured: the report as the verifier serialises it.
             $json = (new Verifier)->verify($stream, $this->settings)->toJson();
             $report = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (ReadFailedException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             throw new ReadFailedException(
                 'Could not read the asset: '.ServiceError::bound($e->getMessage()),

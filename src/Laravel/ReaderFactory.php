@@ -17,8 +17,9 @@ use Provemark\ContentCredentials\Laravel\Exception\MissingConfigurationException
 /**
  * Decides which `ReaderInterface` the container binds (SPEC-020).
  *
- * Three modes, and the default is **`service`**. Autodetection is offered as
- * `auto` but is deliberately not the default: the two readers run different
+ * Four modes, and the default is **`service`**: `service`, `extension`, `auto`
+ * and, since SPEC-042, `verifier`, which `auto` never resolves to.
+ * Autodetection is offered as `auto` but is deliberately not the default: the two readers run different
  * c2pa-rs versions — 0.89.0 in `ext-c2pa`, 0.90.16 in the signing service — so an
  * application that installs the extension for an unrelated reason must not
  * silently change which engine decides its trust verdicts. That choice is made

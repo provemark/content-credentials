@@ -102,9 +102,10 @@ final class ContentCredentialsServiceProvider extends ServiceProvider
             $app->make(SigningServiceReader::class),
         ));
 
-        // SPEC-020: `service` (default), `extension`, or `auto`. Autodetection is
-        // a mode rather than the default, so installing ext-c2pa never changes an
-        // existing application's engine on its own.
+        // SPEC-020: `service` (default), `extension`, or `auto`; SPEC-042 adds
+        // `verifier`, which `auto` never picks. Autodetection is a mode rather
+        // than the default, so installing ext-c2pa never changes an existing
+        // application's engine on its own.
         $container->singleton(
             ReaderInterface::class,
             fn (Container $app): ReaderInterface => $app->make(ReaderFactory::class)->make(),

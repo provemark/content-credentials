@@ -222,6 +222,60 @@ it('reports a broken hard binding as an Invalid report, not an exception', funct
         ->and($report->isVerifiedAiGenerated())->toBeFalse();
 })->group('SPEC-042');
 
+// --- AC10: a copy of the asset does not double its memory (Amendment 3) ----
+
+it('adds little to peak memory when reading a large asset', function () {
+    // Measured 2026-10-08 on 32 MiB: 33.4 MB over baseline with php://memory,
+    // 1.4 MB with php://temp. Garbage bytes make the verifier stop at the
+    // signature, so what is measured is this reader's own copy.
+    $asset = spec042Png(str_repeat("\xA5", 32 * 1024 * 1024));
+    $reader = new C2paVerifierReader;
+
+    gc_collect_cycles();
+    memory_reset_peak_usage();
+    $baseline = memory_get_usage();
+
+    try {
+        $reader->read($asset);
+    } catch (ReadFailedException) {
+        // expected: not a media file
+    }
+
+    expect(memory_get_peak_usage() - $baseline)->toBeLessThan(8 * 1024 * 1024);
+})->group('SPEC-042');
+
+it('fails with ReadFailedException when the copy cannot spill to disk', function () {
+    // Measured: without a writable temp directory, fwrite() to php://temp
+    // returns 0 past the in-memory limit and only warns. Unchecked, the
+    // verifier would read an empty stream. A child process, because
+    // sys_temp_dir cannot be changed at runtime.
+    $root = dirname(__DIR__, 3);
+    $script = <<<'PHP'
+        require $argv[1].'/vendor/autoload.php';
+        $asset = new Provemark\ContentCredentials\Core\Signing\Asset(
+            str_repeat("\xA5", 3 * 1024 * 1024),
+            Provemark\ContentCredentials\Core\Manifest\MediaType::Png,
+        );
+        try {
+            (new Provemark\ContentCredentials\Core\Reading\C2paVerifierReader)->read($asset);
+            echo "no exception\n";
+        } catch (Throwable $e) {
+            echo get_class($e), "\n", $e->getMessage(), "\n";
+        }
+        PHP;
+
+    $output = (string) shell_exec(sprintf(
+        '%s -d sys_temp_dir=/nonexistent/spec042 -d display_errors=0 -r %s %s 2>&1',
+        escapeshellarg(PHP_BINARY),
+        escapeshellarg($script),
+        escapeshellarg($root),
+    ));
+
+    expect($output)->toContain(ReadFailedException::class)
+        ->and($output)->toContain('could not be copied')
+        ->and($output)->not->toContain('no exception');
+})->group('SPEC-042');
+
 // --- AC6: trust settings fail at construction, not at the first read --------
 
 it('refuses trust settings the verifier refuses, at construction', function (string $json, string $needle) {

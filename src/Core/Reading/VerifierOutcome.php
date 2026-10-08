@@ -64,9 +64,12 @@ final class VerifierOutcome
         $remote = $report['remote_manifest'] ?? null;
 
         if (is_string($remote) && $remote !== '') {
-            throw new ReadFailedException('Could not read the asset: '.ServiceError::bound(
-                'its manifest is remote, at '.$remote.', and this reader never fetches one',
-            ));
+            // Only the URL is bounded (Amendment 3): it comes from the file,
+            // and bounding the whole sentence cut the reason off a long one.
+            throw new ReadFailedException(
+                'Could not read the asset: its manifest is remote, at '.ServiceError::bound($remote)
+                .', and this reader never fetches one',
+            );
         }
 
         $failures = self::failures($report);
