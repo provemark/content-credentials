@@ -124,3 +124,6 @@ Follow these before searching; most questions are already answered in one step.
 | **67** | 2026-09-17 | [c2pa-node 0.9.6 deprecates the path the service reads trust through](notes/step-67-c2pa-node-0-9-6-deprecates-the-settings-path.md) |
 | **68** | 2026-09-17 | [The Dutch trust list (verifieermij.nl), measured before joining it](notes/step-68-the-dutch-trust-list-measured.md) |
 | **69** | 2026-09-18 | [`bin/verify.sh` shows informational codes, and the README cap fires](notes/step-69-verify-sh-informational-and-the-readme-cap.md) |
+| **70** | 2026-10-07 | [The verifier as a third reader, and what a foreign corpus showed](notes/step-70-the-verifier-as-a-third-reader.md) |
+| **71** | 2026-10-08 | [The signing service fetched remote manifests](notes/step-71-the-service-fetched-remote-manifests.md) |
+| **72** | 2026-10-08 | [ext-c2pa v0.1.0 aborts the PHP process on one file](notes/step-72-ext-c2pa-aborts-php-on-one-file.md) |

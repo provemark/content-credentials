@@ -21,6 +21,7 @@
 /SECURITY.md        export-ignore
 /deptrac.yaml       export-ignore
 /docker-compose.yml export-ignore
+/docker-compose.remote-probe.yml export-ignore
 /phpstan.neon       export-ignore
 /phpunit.xml        export-ignore
 /pint.json          export-ignore

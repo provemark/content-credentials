@@ -36,7 +36,7 @@ in-process native extension, which puts the key on the web server.)
 **Reading needs none of that.** Extracting the C2PA metadata from a file you did
 not sign — inspecting what the credential claims, checking whether an image is
 marked as AI-generated, verifying the signature — needs no private key and no
-certificate. With the in-process reader installed it needs no service either:
+certificate. With the pure-PHP reader it needs no service and no extension:
 see [Reading and verifying](docs/readers.md).
 
 Listed as the PHP library under *External projects* in the Content Authenticity
@@ -177,18 +177,18 @@ production; see [Going to production](docs/production.md).
 ## Reading C2PA metadata from an existing file
 
 Extracting and inspecting the C2PA metadata in a file — yours or anyone's —
-needs no key, no certificate and, with the in-process reader, no service:
+needs no key, no certificate and, with the pure-PHP reader, no service:
 
 ```bash
-pie install ericmann/ext-c2pa      # https://github.com/php/pie
+composer require provemark/c2pa-verifier
 ```
 
 ```php
 use Provemark\ContentCredentials\Core\Manifest\MediaType;
-use Provemark\ContentCredentials\Core\Reading\ExtC2paReader;
+use Provemark\ContentCredentials\Core\Reading\C2paVerifierReader;
 use Provemark\ContentCredentials\Core\Signing\Asset;
 
-$report = (new ExtC2paReader)->read(
+$report = (new C2paVerifierReader)->read(
     new Asset(file_get_contents('photo.jpg'), MediaType::Jpeg),
 );
 
@@ -200,7 +200,7 @@ $report->softwareAgents();    // which system says it made this
 
 A file with no credential is not an error: `hasManifest()` returns `false` and
 the rest of the report answers accordingly. Reading through the signing service
-instead needs no extension and is the default; in Laravel either one is a facade
+is the default, and `ext-c2pa` is a third route; in Laravel each is a facade
 call, plus `php artisan content-credentials:read <file>`. Which engine answers,
 how to check the certificate against a trust list, and what each route costs is
 on [Reading and verifying](docs/readers.md).
@@ -214,7 +214,7 @@ page, so this one stays readable:
 |---|---|
 | [Usage](docs/usage.md) | Building manifests, signing and reading — Laravel and plain PHP, configuration, the facade, jobs and commands |
 | [What you can mark](docs/marking.md) | The thirteen media types, the `digitalSourceType` terms, what each one actually claims, and marking manipulated content |
-| [Reading and verifying](docs/readers.md) | Reading C2PA metadata with or without the signing service, binding the in-process reader, trust anchors, and the trade-off between the two |
+| [Reading and verifying](docs/readers.md) | Reading C2PA metadata with or without the signing service, the pure-PHP and in-process readers, trust anchors, and the trade-offs between the three |
 | [Running the signing service](docs/service.md) | Audit logging, rate limits, sizing the container, assertion limits, rotating the key |
 | [Going to production](docs/production.md) | Certificates a public verifier will trust, trust-list verification, C2PA Conformance Program alignment |
 | [Stability and support](docs/stability.md) | What is public API, which PHP and Laravel versions are supported, the deprecation policy, and what 1.0 would require |
