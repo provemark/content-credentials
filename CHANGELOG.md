@@ -33,6 +33,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   manifest is signed as an ingredient without it, and a trust settings file
   that turns fetching back on is refused at startup. `docs/service.md` has the
   details.
+- `docs/readers.md` now warns that ext-c2pa `v0.1.0` can end the PHP process:
+  a malformed MP3 makes a dependency of the extension panic (exit 134), which
+  no `catch` can intercept. `ExtC2paReader` is unchanged; the advice is to read
+  uploads through the service or `verifier` reader until the extension ships
+  the fix, and to know that `auto` selects the extension whenever it is loaded.
 
 ### Added
 

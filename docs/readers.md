@@ -89,10 +89,22 @@ reader still reports `isTrusted()` false, that is why.
   infrastructure, and its API may move. The adapter is the containment: a break
   is one class to fix, and callers see nothing.
 - **The two readers run different engines.** The extension carries **c2pa-rs
-  0.89.0**; the signing service carries **0.90.16**. They agree today — an
+  0.89.0**; the signing service carries **0.90.22**. They agree today — an
   integration test compares both readers accessor by accessor on the same asset,
   and that test is what would tell us they had stopped. Run it with
   `vendor/bin/pest --group=SPEC-019` before relying on a mixed setup.
+- **A fault in the extension's parser can end the PHP process.** An exception
+  from the extension becomes a `ReadFailedException` you can catch; a panic in
+  its Rust code cannot be caught at all. Measured on 2026-10-08: one malformed
+  MP3 makes ext-c2pa `v0.1.0` abort the whole PHP process (exit 134), whatever
+  media type you declare for it. Under PHP-FPM that ends the worker serving the
+  request; in a queue it ends the worker. The cause is a dependency of the
+  extension (`id3` 1.17.0) that was fixed after `v0.1.0` was built: the same
+  source rebuilt with only that dependency updated reads the file normally.
+  Until a release of the extension carries the fix, read uploaded files through
+  the service reader or the `verifier` reader, which both read that file
+  without trouble. Note that `auto` picks the extension whenever it is loaded,
+  so a site on `auto` takes this on without having chosen it.
 - **Signing still goes through the service.** The extension can sign too, and
   this library does not expose that: it would put the private key in your web
   process, which is the one thing this architecture exists to avoid. Reading
