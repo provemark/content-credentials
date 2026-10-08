@@ -2,7 +2,7 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | approved                                          |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
 | Approved   | Maurice van Loon, 2026-10-08                      |
 | Supersedes | — (extends SPEC-014 trust settings, SPEC-028 the parent ingredient, SPEC-031 the read error path) |
@@ -175,13 +175,18 @@ AC1 and AC2 are what would catch that.
 
 ## Traceability
 
-Filled when status becomes `implemented`.
+Implemented 2026-10-08. Measured locally against the rebuilt service:
+`--group=SPEC-043` 7 passed / 1 skipped in both probe configurations (trust off
+and on), the AC3 control passing in each; full integration 199 passed / 23
+skipped (defaults, TSA on) and 198 / 24 (hardened); `bin/e2e.php` trusted with
+the Article 50 mark intact, actions assertion still in `created_assertions`,
+`specVersion` 2.4.0; the AC1 audit reason read from the container log.
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
-| AC4                  | —                           | —                    |
-| AC5                  | —                           | —                    |
-| AC6                  | —                           | —                    |
+| AC1 | `tests/Integration/RemoteManifestFetchTest.php` :: "makes no request when reading a file whose manifest is remote" | `service/server.js` `readerSettings`, `POST /v1/read` |
+| AC2 | `tests/Integration/RemoteManifestFetchTest.php` :: "makes no request when signing with a parent whose manifest is remote", "still signs an edit whose parent declares a remote manifest" | `service/server.js` `NO_REMOTE_FETCH`, `Builder.withJson()` |
+| AC3 | `tests/Integration/RemoteManifestFetchTest.php` :: "reaches the listener with the request it is configured to make" | `tests/Integration/RemoteProbe.php`, `tests/Integration/remote-probe-router.php`, `./docker-compose.remote-probe.yml`; `.github/workflows/ci.yml` profiles `remote-probe`, `remote-probe-trust` and step "Assert the remote-fetch probe ran (SPEC-043)" |
+| AC4 | `tests/Integration/RemoteManifestFetchTest.php` :: "refuses to start when trust settings turn remote fetching on", "starts with trust settings that do not mention remote fetching" | `service/server.js` `loadTrustSettings()` |
+| AC5 | `tests/Integration/RemoteManifestFetchTest.php` :: "reports on /health that it never fetches a remote manifest" | `service/server.js` `GET /health` |
+| AC6 | `tests/Integration/RemoteManifestFetchTest.php` :: "refuses a remote-only file through every reader" | `service/server.js` `readerSettings`; `src/Core/Reading/VerifierOutcome.php` (SPEC-042 Amendment 2) |

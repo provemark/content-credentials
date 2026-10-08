@@ -190,6 +190,32 @@ memory with it — the concurrency cap will not save you, because the body is
 buffered *before* any limit is consulted. That is also why lowering this setting
 does more for memory than anything else here.
 
+## Remote manifests
+
+A C2PA asset can declare its manifest by URL instead of carrying it (XMP
+`dcterms:provenance`). The service **never fetches that URL** (SPEC-043). The
+URL comes from whoever made the uploaded file, and c2pa-rs fetches it by
+default, so before SPEC-043 the process holding the signing key made a request
+to an address an outsider chose, for `POST /v1/read` and for a `parent` on
+`POST /v1/sign`.
+
+What that means in practice:
+
+- `POST /v1/read` on a file whose only manifest is remote answers **500**
+  `read failed`, like any other read failure. The audit record's `reason` says
+  *must fetch remote manifests from url …*. All three PHP readers raise
+  `ReadFailedException` for such a file.
+- A `parent` whose only manifest is remote still works: the edit is signed and
+  the parent becomes a `parentOf` ingredient, but without its own manifest, so
+  the parent's provenance is not carried into the new one.
+- `GET /health` reports `remote_manifest_fetch: false`, so a rebuild can be
+  confirmed without a probe.
+- A trust settings file that sets `verify.remote_manifest_fetch` to anything
+  but `false` is refused at startup, with a message naming the setting.
+
+There is no option to turn fetching on. Doing that safely needs an allow-list
+of hosts, redirect and size limits and a timeout, and none of those exist.
+
 ## Assertion limits
 
 The service constrains what it will attest to. At most **one** `c2pa.actions`

@@ -225,12 +225,47 @@ function loadTrustSettings(path) {
     process.exit(1);
   }
 
+  // SPEC-043 AC4: the file cannot turn remote fetching back on. Refused rather
+  // than silently overridden, so an operator never believes a setting is in
+  // force that is not. Anything but absent or `false` is refused, so a string
+  // "true" cannot slip past a strict comparison.
+  const remoteFetch = settings.verify?.remote_manifest_fetch;
+  if (remoteFetch !== undefined && remoteFetch !== false) {
+    console.error(
+      `CONTENTAUTH_TRUST_SETTINGS sets verify.remote_manifest_fetch to ${JSON.stringify(remoteFetch)}: ${path}. `
+      + 'This service never fetches a remote manifest (SPEC-043): the URL comes from the uploaded file.',
+    );
+    process.exit(1);
+  }
+
   // Contents, not paths: c2pa parses these fields as PEM/config text, so a path
   // fails with "could not parse configuration" (NOTES.md Step 11).
   return settings;
 }
 
 const trustSettings = TRUST_SETTINGS_PATH ? loadTrustSettings(TRUST_SETTINGS_PATH) : undefined;
+
+/**
+ * SPEC-043: never fetch a remote manifest.
+ *
+ * An asset can declare its manifest by URL (XMP `dcterms:provenance`), and
+ * c2pa-rs fetches that URL by default. The URL comes from whoever made the
+ * uploaded file, so the default is a request from the process holding the
+ * signing key to an address an outsider chose. Measured 2026-10-08 on
+ * c2pa-node 0.9.5 / c2pa-rs 0.90.22: both POST /v1/read and a SPEC-028 parent
+ * on POST /v1/sign made that request; this setting stops both.
+ *
+ * Every Reader and Builder gets these settings. With trust settings, the
+ * trust document is merged in (it already passed loadTrustSettings, which
+ * refused a `true` here). Note for the Context migration (NOTES Step 67):
+ * a Context takes camelCase, so this key must be mapped there too, or it is
+ * dropped silently and SPEC-043's probe tests are what will say so.
+ */
+const NO_REMOTE_FETCH = Object.freeze({ verify: Object.freeze({ remote_manifest_fetch: false }) });
+
+const readerSettings = trustSettings
+  ? { ...trustSettings, verify: { ...trustSettings.verify, remote_manifest_fetch: false } }
+  : NO_REMOTE_FETCH;
 
 // Asset types this service will sign/read (SPEC-009 #6, widened by SPEC-021).
 // Must track MediaType in the PHP client; kept in the same order as the enum,
@@ -959,6 +994,8 @@ app.get('/health', (_req, res) => {
     spec_version: SPEC_VERSION,
     timestamping: Boolean(TSA_URL),
     trust_verification: Boolean(trustSettings),
+    // SPEC-043 AC5: confirmable after a rebuild without sending a probe.
+    remote_manifest_fetch: false,
     require_ai_marking: REQUIRE_AI_MARKING,
     // SPEC-018 AC1: which certificate is actually loaded, so a rotation can be
     // confirmed rather than assumed.
@@ -1146,7 +1183,9 @@ app.post('/v1/sign', async (req, res) => {
   // sign to a temp file and read that file back to get the signed image.
   const tmp = path.join(os.tmpdir(), `sign-${crypto.randomBytes(8).toString('hex')}`);
   try {
-    const builder = Builder.withJson(manifestDefinition);
+    // SPEC-043: the parent ingredient (SPEC-028) is read by the builder, and
+    // without these settings a parent's remote manifest URL is fetched.
+    const builder = Builder.withJson(manifestDefinition, NO_REMOTE_FETCH);
     const source = { buffer: fileBuffer, mimeType: mime_type };
     const dest = { path: tmp };
 
@@ -1303,9 +1342,9 @@ app.post('/v1/read', async (req, res) => {
     // SPEC-014: with trust settings configured, c2pa-rs verifies the signing
     // certificate against the trust list and reports validation_state
     // "Trusted"; without them it stops at "Valid" + signingCredential.untrusted.
-    const reader = trustSettings
-      ? await Reader.fromAsset({ buffer: fileBuffer, mimeType: mime_type }, trustSettings)
-      : await Reader.fromAsset({ buffer: fileBuffer, mimeType: mime_type });
+    // SPEC-043: always with settings now, so the fetch is off with trust
+    // verification and without it.
+    const reader = await Reader.fromAsset({ buffer: fileBuffer, mimeType: mime_type }, readerSettings);
     // SPEC-010: an asset with no C2PA manifest yields a null reader. Absence is
     // an empty manifest store (HTTP 200), never a 500 — the PHP client parses
     // {} into an empty ManifestReport (hasManifest() === false).

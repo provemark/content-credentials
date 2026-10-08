@@ -19,6 +19,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **The signing service no longer fetches a remote manifest** (SPEC-043). This
+  is a `service/` change, so a tag delivers only its documentation: it reaches
+  a deployment through `git pull` and a rebuild, confirmable on `GET /health`
+  as `remote_manifest_fetch: false`. An asset can declare its manifest by URL
+  (XMP `dcterms:provenance`), and c2pa-rs fetches that URL by default. So
+  `POST /v1/read`, and `POST /v1/sign` with a `parent`, made a request from the
+  process holding the signing key to an address chosen by whoever made the
+  uploaded file. Measured on c2pa-node 0.9.5 / c2pa-rs 0.90.22. Such a file now
+  reads as a failure (HTTP 500 `read failed`), a parent with only a remote
+  manifest is signed as an ingredient without it, and a trust settings file
+  that turns fetching back on is refused at startup. `docs/service.md` has the
+  details.
+
 ### Added
 
 - `C2paVerifierReader`, a third `ReaderInterface` implementation that reads and
