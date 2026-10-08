@@ -19,7 +19,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Security
+## [0.16.0] - 2026-10-08
+
+A minor release: one new reader, two new exceptions and a `conflict` entry in
+`composer.json`. Nothing that worked before changes, and no caller has to
+adapt. `src/`, `config/`, `docs/`, `README.md` and `composer.json` all
+changed, so the installed package is not identical to 0.15.2.
+
+**Read the first section as something this tag does not deliver.** Both
+items there are in `service/`, which is `export-ignore`d: the signing service
+no longer fetches remote manifests, and its lockfile takes two dependency
+fixes. They reach a deployment through `git pull` and a rebuild, never through
+`composer update`. `GET /health` reports `remote_manifest_fetch: false` once a
+rebuild has landed. The section comes first because it matters most to anyone
+running the service.
+
+**What this tag does deliver** is everything under Added and Changed.
+
+### Security: in the signing service, not in this tag
 
 - **The signing service no longer fetches a remote manifest** (SPEC-043). This
   is a `service/` change, so a tag delivers only its documentation: it reaches
@@ -43,11 +60,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   arrives through `git pull` and a rebuild. The weekly `audit` workflow had
   reported both since 2026-10-05; it is non-blocking by design, and its red
   step went unread for three days.
-- `docs/readers.md` now warns that ext-c2pa `v0.1.0` can end the PHP process:
-  a malformed MP3 makes a dependency of the extension panic (exit 134), which
-  no `catch` can intercept. `ExtC2paReader` is unchanged; the advice is to read
-  uploads through the service or `verifier` reader until the extension ships
-  the fix, and to know that `auto` selects the extension whenever it is loaded.
 
 ### Added
 
@@ -82,10 +94,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `docs/readers.md` now warns that ext-c2pa `v0.1.0` can end the PHP process:
+  a malformed MP3 makes a dependency of the extension panic (exit 134), which
+  no `catch` can intercept. `ExtC2paReader` is unchanged; the advice is to read
+  uploads through the service or `verifier` reader until the extension ships
+  the fix, and to know that `auto` selects the extension whenever it is loaded.
 - The README's reading example uses `C2paVerifierReader`
   (`composer require provemark/c2pa-verifier`) instead of the ext-c2pa
   extension, which needs a native build and can end the PHP process (see
-  Security). The extension stays documented in `docs/readers.md`, and primer
+  above). The extension stays documented in `docs/readers.md`, and primer
   section 9 now covers all three readers.
 - `docker-compose.remote-probe.yml`, a test-only file added with SPEC-043, is
   excluded from the Composer dist.
@@ -1895,7 +1912,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.15.2...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.16.0...main
+[0.16.0]: https://github.com/provemark/content-credentials/releases/tag/v0.16.0
 [0.15.2]: https://github.com/provemark/content-credentials/releases/tag/v0.15.2
 [0.15.1]: https://github.com/provemark/content-credentials/releases/tag/v0.15.1
 [0.15.0]: https://github.com/provemark/content-credentials/releases/tag/v0.15.0
