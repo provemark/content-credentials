@@ -28,11 +28,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `composer require provemark/c2pa-verifier` and select it. In Laravel,
   `CONTENTAUTH_READER=verifier` selects it and `CONTENTAUTH_VERIFIER_SETTINGS`
   is the path to a trust settings file; `auto` never picks it. Measured against
-  verifier v0.5.0, every report accessor agrees with both other readers on
-  eleven of the thirteen media types, trust and timestamp included. TIFF and
+  verifier v0.5.0: on assets this package signs, every report accessor agrees
+  with both other readers on eleven of the thirteen media types, trust and
+  timestamp included. On files signed elsewhere it is stricter: of 482 files
+  from the verifier's own test corpus, 47 that c2pa-rs calls `Valid` do not
+  read `Valid` here, including published files from Adobe, Amazon, Truepic
+  and Microsoft. `docs/readers.md` gives the numbers and the reasons that were
+  checked. TIFF and
   SVG are refused with `ReadFailedException`, because the verifier does not
   read them yet. A manifest chunk that fails its CRC is an exception here
-  where the other readers report `Invalid`. `docs/readers.md` lists every
+  where the other readers report `Invalid`. So is a file whose manifest is
+  declared only by URL: this reader never fetches one, and says so with the
+  URL rather than reporting no credentials. `docs/readers.md` lists every
   difference, and `docs/production.md` shows the `trust.anchors[]` form that
   this reader needs for an end-entity list such as IPTC's.
 - Two exceptions in `Reading\Exception`: `VerifierMissingException` (the
