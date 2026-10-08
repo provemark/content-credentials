@@ -1,0 +1,13 @@
+# SPEC-043 test profile ONLY. Do not use it to run the service.
+#
+# Gives the container a name for the host, so the integration suite's listener
+# (tests/Integration/RemoteProbe.php) is reachable from inside it. Docker
+# Desktop and colima provide host.docker.internal already; Linux runners do
+# not. Kept out of docker-compose.yml on purpose: the service as users run it
+# should gain no route to the host for the sake of a test.
+#
+# Selected by the CI profiles through COMPOSE_FILE in .env.
+services:
+  service:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

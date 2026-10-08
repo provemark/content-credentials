@@ -128,6 +128,12 @@ the client's, placement in the claim is the generator's** — `created` means
   (ASCII "jumb").
 - Read/verify: `Reader.fromAsset({buffer, mimeType})` → `.json()`,
   `.getActive()`.
+- **Gotcha (SPEC-043):** c2pa-rs fetches a **remote manifest** by default — a
+  URL the asset declares in XMP `dcterms:provenance` — on `Reader.fromAsset()`
+  and on `builder.addIngredient()`. The URL comes from the file, so the service
+  passes `{ verify: { remote_manifest_fetch: false } }` to every Reader and
+  Builder (measured 2026-10-08 on 0.9.5: both made the request without it).
+  With it off, c2pa-rs raises *must fetch remote manifests from url …*.
 - **Gotcha (SPEC-010):** `Reader.fromAsset()` resolves to **`null`** — it does
   not throw — for an asset with no C2PA manifest, so an unguarded `.json()`
   crashes. `POST /v1/read` returns `{}` in that case, which decodes client-side

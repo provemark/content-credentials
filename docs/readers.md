@@ -220,7 +220,8 @@ one is stricter.** Measured on 2026-10-07 against verifier v0.5.0:
   test files, published files from Adobe, Amazon, Truepic and Microsoft, and
   deliberately damaged files), 47 that c2pa-rs 0.90.22 calls `Valid` do not
   read `Valid` here: 29 are `Invalid`, 16 raise `ReadFailedException`, and 2
-  declare a remote manifest, which this reader never fetches (below). Among
+  declare a remote manifest, which c2pa-rs fetched by default and this reader
+  never fetches (below; the service no longer fetches either). Among
   them are files from Adobe Lightroom, Amazon Titan, Truepic and Microsoft
   Bing. The verifier documents its deliberate differences from c2pa-rs in its
   [`docs/comparison.md`](https://github.com/provemark/c2pa-verifier/blob/main/docs/comparison.md).
@@ -250,8 +251,9 @@ else differs:
 - **A manifest declared only by URL is an exception, never fetched.** A file
   can point at its manifest instead of carrying it (XMP `dcterms:provenance`).
   This reader raises `ReadFailedException` naming the URL, as `ExtC2paReader`
-  does. The service reader fetches it and reports the verdict, which means the
-  service makes a request to a URL taken from the uploaded file.
+  does. Since SPEC-043 the service does not fetch it either, so all three
+  readers raise; until then it fetched the URL taken from the uploaded file and
+  reported the verdict (see [`service.md`](service.md#remote-manifests)).
 - **Trust settings: a top-level `trust.allowed_list` is refused** when the
   reader is constructed. Put it inside a `trust.anchors[]` entry instead; see
   [`production.md`](production.md).
