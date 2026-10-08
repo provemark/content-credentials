@@ -438,12 +438,15 @@ jobs:
       # SPEC-043 AC3. Every SPEC-043 absence is meaningless unless the control
       # passed in the same run, and all of them skip quietly outside the probe
       # profile. So: the control passed, and each absence test passed.
+      # Prefixes, not full names: Pest cuts a long test name to the terminal
+      # width ("…whose manifest is re…"), and the full name failed this guard
+      # on its first CI run with every test green.
       - name: Assert the remote-fetch probe ran (SPEC-043)
         if: startsWith(matrix.profile.name, 'remote-probe')
         run: |
-          for t in 'reaches the listener with the request it is configured to make' \
-                   'makes no request when reading a file whose manifest is remote' \
-                   'makes no request when signing with a parent whose manifest is remote' \
+          for t in 'reaches the listener with the request' \
+                   'makes no request when reading a file' \
+                   'makes no request when signing with a parent' \
                    'refuses a remote-only file through every reader'; do
             grep -q "✓.*$t" /tmp/pest.out \
               || { echo "::error::SPEC-043: '$t' did not pass"; sed -n '1,80p' /tmp/pest.out; exit 1; }
