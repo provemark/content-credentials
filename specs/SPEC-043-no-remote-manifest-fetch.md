@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | approved                                          |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | — while draft                                     |
+| Approved   | Maurice van Loon, 2026-10-08                      |
 | Supersedes | — (extends SPEC-014 trust settings, SPEC-028 the parent ingredient, SPEC-031 the read error path) |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →

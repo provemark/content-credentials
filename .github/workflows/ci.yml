@@ -204,6 +204,31 @@ jobs:
               CONTENTAUTH_TSA_URL=http://127.0.0.1:9/tsa
               CC_TSA_EXPECT_UNREACHABLE=1
             groups: SPEC-007
+          # SPEC-043: the service must never fetch a URL taken from an uploaded
+          # file. Its tests assert ABSENCES, so this profile also carries their
+          # positive control: CONTENTAUTH_TSA_URL points at the suite's own
+          # listener, every signature fails closed on it (as in tsa-unreachable),
+          # and the timestamp request arriving proves the container reaches the
+          # listener in the same run. COMPOSE_FILE adds the host-gateway
+          # override, which docker-compose.yml deliberately does not carry.
+          # Twice, because AC1 covers reads with trust settings and without.
+          - name: remote-probe
+            env: |
+              RATE_LIMIT_REQUESTS=1000
+              READ_RATE_LIMIT_REQUESTS=1000
+              COMPOSE_FILE=docker-compose.yml:docker-compose.remote-probe.yml
+              CONTENTAUTH_TSA_URL=http://host.docker.internal:8765/tsa-control
+              CC_REMOTE_PROBE=1
+            groups: SPEC-043
+          - name: remote-probe-trust
+            env: |
+              RATE_LIMIT_REQUESTS=1000
+              READ_RATE_LIMIT_REQUESTS=1000
+              COMPOSE_FILE=docker-compose.yml:docker-compose.remote-probe.yml
+              CONTENTAUTH_TSA_URL=http://host.docker.internal:8765/tsa-control
+              CONTENTAUTH_TRUST_SETTINGS=/run/secrets/c2pa-trust.settings.json
+              CC_REMOTE_PROBE=1
+            groups: SPEC-043
           # SPEC-019's equivalence check needs BOTH readers, so this is the only
           # profile that installs ext-c2pa. Deliberately not added to the others:
           # AC5 is about the extension being ABSENT, and installing it everywhere
@@ -410,6 +435,20 @@ jobs:
       # layer takes contents and silently verifies nothing when handed a path.
       # Silently verifying nothing is the failure this guard exists to catch, and
       # a skipped test reports it as green.
+      # SPEC-043 AC3. Every SPEC-043 absence is meaningless unless the control
+      # passed in the same run, and all of them skip quietly outside the probe
+      # profile. So: the control passed, and each absence test passed.
+      - name: Assert the remote-fetch probe ran (SPEC-043)
+        if: startsWith(matrix.profile.name, 'remote-probe')
+        run: |
+          for t in 'reaches the listener with the request it is configured to make' \
+                   'makes no request when reading a file whose manifest is remote' \
+                   'makes no request when signing with a parent whose manifest is remote' \
+                   'refuses a remote-only file through every reader'; do
+            grep -q "✓.*$t" /tmp/pest.out \
+              || { echo "::error::SPEC-043: '$t' did not pass"; sed -n '1,80p' /tmp/pest.out; exit 1; }
+          done
+
       # SPEC-042 AC9. The verifier comparison runs in the two BLOCKING profiles
       # with the `integration` group, one test per media type. Counted rather
       # than grepped once, because a dataset that lost a type would still match.
