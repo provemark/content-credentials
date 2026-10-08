@@ -255,10 +255,12 @@ else differs:
 - **Trust settings: a top-level `trust.allowed_list` is refused** when the
   reader is constructed. Put it inside a `trust.anchors[]` entry instead; see
   [`production.md`](production.md).
-- **Memory.** The asset is already a string in `Asset`, and the reader copies
-  it into a memory stream, so a file is briefly held twice. The service path
-  caps a body at 20 MB; this path has no cap of its own, so bound uploads
-  before they reach it.
+- **Memory and disk.** The asset is already a string in `Asset`. The reader's
+  own copy stays in memory up to 2 MiB and goes to the system temp directory
+  above that, for the length of one read, so a large file is not held twice.
+  A temp directory that cannot be written is a `ReadFailedException`. What the
+  verifier itself allocates while parsing is not bounded here, and the service
+  path's 20 MB body cap does not apply, so bound uploads before they reach it.
 
 It is a first version: thoroughly tested and not yet used by anyone. Treat a
 verdict as something to check, and see its own README for what is known to be

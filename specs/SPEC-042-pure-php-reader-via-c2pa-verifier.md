@@ -196,7 +196,9 @@ is a divergence from c2patool inside the verifier, to be fixed there, and
     `hasManifest() === true`, `validationState() === Invalid`. A broken
     signature is an answer, not a read failure.
   - And a file whose only manifest is remote is `ReadFailedException`,
-    naming the URL (bounded) and saying this reader never fetches. The
+    naming the URL and saying this reader never fetches. Only the URL is
+    bounded (it comes from the file); the explanation after it is fixed text
+    and always survives (Amendment 3). The
     verifier reports such a file as `has_manifest: false` with the URL in
     `remote_manifest`, and an empty report would tell the caller "no Content
     Credentials" for a file that declares them (Amendment 2). Measured
@@ -262,6 +264,17 @@ is a divergence from c2patool inside the verifier, to be fixed there, and
   - The unit-level criteria (AC2–AC7) need no service and run in every
     `check` leg.
 
+- **AC10 — a copy of the asset does not double its memory** (Amendment 3)
+  - Given an asset of 32 MiB
+  - When it is read
+  - Then the reader's own copy of the bytes adds no more than 8 MiB to peak
+    memory: the copy goes to `php://temp` with a 2 MiB in-memory limit, and
+    spills to the system temp directory above that. Measured 2026-10-08:
+    33.4 MB extra with `php://memory`, 1.4 MB with `php://temp`.
+  - The spill file lives only for the read and is closed on every exit
+    path. A host without a writable temp directory gets
+    `ReadFailedException`, not a fatal error.
+
 ## Amendment 1 (2026-10-07, approved by Maurice van Loon the same day)
 
 Found while implementing AC4: its stated rule and its own Given disagreed. A
@@ -282,6 +295,17 @@ what the reader does when it meets one, and the mapping turned the verifier's
 `has_manifest: false` into an empty report: "no Content Credentials" for a
 file that declares them, the silent wrong answer AC3 refuses for TIFF. AC4
 now raises instead, as the extension does. Fetching stays out of scope.
+
+## Amendment 3 (2026-10-08, approved by Maurice van Loon the same day)
+
+From the review of everything since v0.15.2. Two findings changed behaviour:
+`ServiceError::bound()` was applied to the whole remote-manifest sentence, so a
+URL of more than 256 characters cut off the reason ("this reader never fetches
+one") and left mostly file-controlled text; and the reader copied the asset
+into an unbounded `php://memory` stream, doubling peak memory on the hosts this
+reader is for. AC4 now bounds the URL alone, and AC10 is new. Assets above
+2 MiB are briefly written to the system temp directory, as PHP already does
+for uploads.
 
 ## API sketch
 
@@ -329,8 +353,9 @@ library); the ADR records it.
 
 ## Traceability
 
-Implemented 2026-10-07; Amendment 2 the same day. `composer check`: 423 passed,
-7 skipped, 18 deprecated, deptrac 0 (419 before Amendment 2). Integration: 195 passed / 19 skipped with the service in its default
+Implemented 2026-10-07; Amendment 2 the same day, Amendment 3 on 2026-10-08.
+`composer check`: 427 passed, 7 skipped, 18 deprecated, deptrac 0 (419 before Amendment 2, 423 before
+Amendment 3). Integration: 195 passed / 19 skipped with the service in its default
 configuration, 194 / 20 with the `hardened` configuration (trust on, AI marking
 required); 11 verifier comparisons ran in each.
 
@@ -339,9 +364,10 @@ required); 11 verifier comparisons ran in each.
 | AC1 | `tests/Integration/VerifierReaderEquivalenceTest.php` :: "agrees with the service reader through the verifier", "finds the marking it was given, through the verifier", "agrees with the service reader on an unsigned asset", "agrees with the in-process reader through the verifier"; `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "reads the signed fixture as trusted, AI-generated and timestamped" | `src/Core/Reading/C2paVerifierReader.php` `read()`; `tests/Integration/ServiceHarness.php` `accessors()` |
 | AC2 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "returns an empty report for an asset with no C2PA data", "reports no validation state for an unsigned asset, as the other readers do", "returns exactly the report ExtC2paReader returns for no manifest"; `tests/Unit/Reading/VerifierOutcomeTest.php` :: "maps no manifest and no failure to an empty report", "treats a report with no has_manifest key as a failure, not as empty" | `src/Core/Reading/VerifierOutcome.php` `toManifestReport()` |
 | AC3 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "refuses a media type the verifier cannot read", "accepts every other media type", "knows of thirteen media types, eleven of them readable here" | `src/Core/Reading/C2paVerifierReader.php` `UNSUPPORTED`, `read()` |
-| AC4 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "throws ReadFailedException on input the verifier cannot parse", "throws ReadFailedException for a store the verifier reached but could not decode", "refuses a file whose only manifest is remote, naming the URL", "carries the verifier explanation in the message", "reports a broken hard binding as an Invalid report, not an exception"; `tests/Unit/Reading/VerifierOutcomeTest.php` :: "treats a reached but undecoded store as a failure", "does not call a reached store empty when it decoded nothing and said nothing", "refuses a report whose only manifest is remote", "bounds a remote manifest URL, which comes from the file", "reads the embedded manifest when a remote URL is declared beside it" | `src/Core/Reading/VerifierOutcome.php` `toManifestReport()` (Amendments 1 and 2); `tests/Fixtures/remote-manifest-spec042.jpg`; `src/Core/Reading/C2paVerifierReader.php` `read()` |
+| AC4 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "throws ReadFailedException on input the verifier cannot parse", "throws ReadFailedException for a store the verifier reached but could not decode", "refuses a file whose only manifest is remote, naming the URL", "carries the verifier explanation in the message", "reports a broken hard binding as an Invalid report, not an exception"; `tests/Unit/Reading/VerifierOutcomeTest.php` :: "treats a reached but undecoded store as a failure", "does not call a reached store empty when it decoded nothing and said nothing", "refuses a report whose only manifest is remote", "bounds a remote manifest URL, which comes from the file, and keeps the reason", "reads the embedded manifest when a remote URL is declared beside it" | `src/Core/Reading/VerifierOutcome.php` `toManifestReport()` (Amendments 1 and 2); `tests/Fixtures/remote-manifest-spec042.jpg`; `src/Core/Reading/C2paVerifierReader.php` `read()` |
 | AC5 | `tests/Unit/Reading/VerifierOutcomeTest.php` :: "bounds a long explanation where it enters this package", "bounds an explanation that is not valid UTF-8 without discarding it", "keeps a short explanation verbatim" | `src/Core/Reading/VerifierOutcome.php` via `ServiceError::bound()` |
 | AC6 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "refuses trust settings the verifier refuses, at construction", "verifies without trust when no settings are given", "treats empty settings as no settings" | `src/Core/Reading/C2paVerifierReader.php` `buildSettings()`; `src/Core/Reading/Exception/TrustSettingsRejectedException.php` |
 | AC7 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "reports itself available when the verifier is installed", "names the package to install when the verifier is absent" | `src/Core/Reading/C2paVerifierReader.php` `isAvailable()`, `__construct()`; `src/Core/Reading/Exception/VerifierMissingException.php` |
 | AC8 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "binds the pure-PHP reader when the mode is verifier", "reports verifier as the mode, configured and resolved", "passes the configured settings file to the pure-PHP reader", "treats an empty settings value as no trust, not as an error", "refuses a settings path that does not exist, when the reader is resolved", "refuses a settings file the verifier refuses, when the reader is resolved", "names verifier among the accepted modes when refusing", "does not resolve auto to the verifier, though it is installed" | `src/Laravel/ReaderFactory.php` `MODES`, `make()`, `verifierSettings()`; `config/content-credentials.php` `verifier_settings` |
-| AC9 | `tests/Integration/VerifierReaderEquivalenceTest.php` :: "agrees with the service reader through the verifier", "agrees with the in-process reader through the verifier" | `.github/workflows/ci.yml` steps "Assert the verifier comparison ran (SPEC-042)" and "Assert the verifier-extension comparison ran (SPEC-042)" (counted 0 on a skipped run, 11 on a real one); `composer.json` `require-dev`; `docs/adr/ADR-0007-the-verifier-as-an-optional-reader.md` |
+| AC9 | `tests/Unit/VerifierVersionRangeTest.php` :: "refuses every verifier version outside the tested range", "keeps the verifier out of require"; `tests/Integration/VerifierReaderEquivalenceTest.php` :: "agrees with the service reader through the verifier", "agrees with the in-process reader through the verifier" | `.github/workflows/ci.yml` steps "Assert the verifier comparison ran (SPEC-042)" and "Assert the verifier-extension comparison ran (SPEC-042)" (counted 0 on a skipped run, 11 on a real one); `composer.json` `require-dev`, `conflict` (ADR-0007 addendum); `docs/adr/ADR-0007-the-verifier-as-an-optional-reader.md` |
+| AC10 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "adds little to peak memory when reading a large asset", "fails with ReadFailedException when the copy cannot spill to disk" | `src/Core/Reading/C2paVerifierReader.php` `IN_MEMORY_BYTES`, `read()` (Amendment 3) |

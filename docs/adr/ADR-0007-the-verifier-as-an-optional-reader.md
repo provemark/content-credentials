@@ -62,3 +62,18 @@ Three facts decide it:
   breaking change on either side shows up in the other's suite, which is
   the point, but releases have to be ordered: the verifier first, then this
   package's constraint.
+
+## Addendum (2026-10-08): the tested range is enforced, not advised
+
+`suggest` carries no constraint, so a host following VerifierMissingException's
+`composer require provemark/c2pa-verifier` would take 0.6 the day it appears,
+and VerifierOutcome maps v0.5's report shape. A changed shape can turn a
+signed file into an empty report. So `composer.json` gains
+`"conflict": {"provemark/c2pa-verifier": "<0.5 || >=0.6"}`: Composer refuses
+an untested minor instead of installing it. Raising the range is a release of
+this package, after re-running the SPEC-042 measurements. A test pins that
+the `conflict` range and the `require-dev` constraint describe the same range.
+
+The cost, accepted: when the verifier ships 0.6.0, a host can use it only
+after this package releases a widened constraint. The two releases are
+ordered, which the Consequences above already said for the other direction.
