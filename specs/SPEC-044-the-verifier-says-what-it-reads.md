@@ -2,9 +2,9 @@
 
 | Field      | Value                                             |
 |------------|---------------------------------------------------|
-| Status     | draft                                             |
+| Status     | implemented                                       |
 | Author     | Maurice van Loon (maintainer)                     |
-| Approved   | —                                                 |
+| Approved   | Maurice van Loon, 2026-10-08                      |
 | Supersedes | — (extends SPEC-042 AC3)                          |
 
 > Lifecycle: `draft` → maintainer approves → `approved` → tests-first →
@@ -115,6 +115,13 @@ final class C2paVerifierReader implements ReaderInterface
 
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
-| AC1                  | —                           | —                    |
-| AC2                  | —                           | —                    |
-| AC3                  | —                           | —                    |
+| AC1 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "says it does not read TIFF or SVG", "says it reads every other media type" | `src/Core/Reading/C2paVerifierReader.php` `supports()` |
+| AC2 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "answers supports() without the verifier installed" | `src/Core/Reading/C2paVerifierReader.php` `supports()` |
+| AC3 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "refuses up front exactly the types supports() says no to" | `src/Core/Reading/C2paVerifierReader.php` `read()`, `supports()` |
+
+All 27 tests red before `src/` moved (2026-10-08), on the missing method.
+Then two mutations, each caught for its own reason: `supports()` answering
+true for SVG while `read()` kept its own list turned AC1 and AC3 red; making
+`supports()` depend on `isAvailable()` turned AC2 red and nothing else.
+SPEC-042's 89 tests unchanged and green; `composer check` green (454 passed,
+7 skipped and 18 deprecations, none from this group).

@@ -19,6 +19,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`C2paVerifierReader::supports(MediaType): bool`** (SPEC-044). Says, before
+  reading, whether this reader reads a media type at all: false for TIFF and
+  SVG, which `read()` refuses with `ReadFailedException`, true for the other
+  eleven. Static, and answers without `provemark/c2pa-verifier` installed, so a
+  caller can decide whether to use the reader before the package is there.
+  `read()` refuses through it, so the two cannot disagree. Asked for by the
+  Drupal module `drupal/content_credentials`, which skips unsupported types
+  before queueing a read rather than logging them as failures.
+
 ## [0.16.0] - 2026-10-08
 
 A minor release: one new reader, two new exceptions and a `conflict` entry in

@@ -252,7 +252,9 @@ else differs:
 
 - **TIFF and SVG are refused** with `ReadFailedException`. The verifier does
   not read them yet, and would otherwise report a signed file as carrying no
-  credentials.
+  credentials. To decide before reading, ask
+  `C2paVerifierReader::supports($mediaType)`: it answers without the verifier
+  installed, and `read()` refuses exactly what it says no to (SPEC-044).
 - **The declared media type plays no part.** The verifier identifies the
   container from its bytes; the other two readers pick a handler by the type
   you declare.

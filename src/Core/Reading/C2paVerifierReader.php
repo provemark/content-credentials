@@ -65,9 +65,21 @@ final class C2paVerifierReader implements ReaderInterface
         return class_exists(Verifier::class);
     }
 
+    /**
+     * Whether read() reads this media type at all (SPEC-044). False means it
+     * refuses before reading, with ReadFailedException.
+     *
+     * Static and free of the verifier's classes, so a caller can ask while
+     * deciding whether to use this reader, before the package is installed.
+     */
+    public static function supports(MediaType $type): bool
+    {
+        return ! in_array($type, self::UNSUPPORTED, true);
+    }
+
     public function read(Asset $asset): ManifestReport
     {
-        if (in_array($asset->mediaType, self::UNSUPPORTED, true)) {
+        if (! self::supports($asset->mediaType)) {
             throw new ReadFailedException(sprintf(
                 'Media type %s is not supported by this reader: provemark/c2pa-verifier cannot read it. '
                 .'Read it with the service or extension reader.',
