@@ -46,11 +46,11 @@
         "pestphp/pest": "^4.0",
         "php-http/mock-client": "^1.6",
         "phpstan/phpstan": "^2.0",
-        "provemark/c2pa-verifier": "^0.5",
+        "provemark/c2pa-verifier": "^0.6",
         "vlucas/phpdotenv": "^5.6"
     },
     "conflict": {
-        "provemark/c2pa-verifier": "<0.5 || >=0.6"
+        "provemark/c2pa-verifier": "<0.6 || >=0.7"
     },
     "autoload": {
         "psr-4": {

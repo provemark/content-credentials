@@ -77,3 +77,7 @@ the `conflict` range and the `require-dev` constraint describe the same range.
 The cost, accepted: when the verifier ships 0.6.0, a host can use it only
 after this package releases a widened constraint. The two releases are
 ordered, which the Consequences above already said for the other direction.
+
+That happened on 2026-10-09: the verifier released 0.6.0, the SPEC-042
+measurements were re-run against it, and the range moved to `^0.6`
+(`conflict` `<0.6 || >=0.7`, SPEC-042 Amendment 4).
