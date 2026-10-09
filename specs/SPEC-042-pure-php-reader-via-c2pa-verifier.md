@@ -307,7 +307,7 @@ reader is for. AC4 now bounds the URL alone, and AC10 is new. Assets above
 2 MiB are briefly written to the system temp directory, as PHP already does
 for uploads.
 
-## Amendment 4 (2026-10-09, draft — awaiting approval)
+## Amendment 4 (2026-10-09, approved by Maurice van Loon the same day)
 
 The verifier released 0.6.0 on 2026-10-09: the whole of C2PA 2.4 read
 against it, five validator rules newly checked, and nine new `StatusCode`

@@ -29,7 +29,7 @@ use Provemark\ContentCredentials\Core\Support\ServiceError;
 final class C2paVerifierReader implements ReaderInterface
 {
     /**
-     * The types verifier v0.5 does not read (SPEC-042 AC3). Read anyway, a
+     * The types verifier v0.5 and v0.6 do not read (SPEC-042 AC3, Amendment 4). Read anyway, a
      * signed TIFF comes back "no manifest", so they are refused before the
      * verifier is called. Widening this needs a measurement and an amendment.
      */

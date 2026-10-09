@@ -19,6 +19,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The pure-PHP reader now asks for `provemark/c2pa-verifier` `^0.6`**
+  (SPEC-042 Amendment 4). `require-dev` is `^0.6` and the `conflict` entry
+  `<0.6 || >=0.7`, so a host's Composer installs the verifier minor measured
+  here and no other. Re-measured against v0.6.0: every accessor of the report
+  agrees with the signing service on the eleven readable media types, with and
+  without trust, and with ext-c2pa. A host on verifier 0.5 moves with this
+  release; 0.6.0 adds nine status codes and refuses some shapes 0.5 accepted
+  (its `CHANGELOG.md` and `docs/comparison.md`), with the same report shape.
+
 ## [0.17.0] - 2026-10-08
 
 A minor release: one new public method, and nothing else in `src/` changes

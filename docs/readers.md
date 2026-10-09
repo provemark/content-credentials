@@ -246,6 +246,13 @@ one is stricter.** Measured on 2026-10-07 against verifier v0.5.0:
   0.90.22. Both carry certificate names in T61String encoding, and the newer
   `c2patool` 0.28.1 agrees with the verifier on both.
 
+This package now asks for verifier `^0.6` (SPEC-042 Amendment 4). Re-measured
+on 2026-10-09 against v0.6.0: for an asset signed by the service, every accessor
+still agrees with both other readers on the same eleven media types, with and
+without trust. The 482-file comparison above was not repeated. 0.6.0 refuses
+some shapes 0.5 accepted, each named in its `docs/comparison.md`, so the
+`Invalid` count on files signed elsewhere can only stay or grow.
+
 So switching an existing site to this reader can turn verdicts on uploaded files
 from `Valid` to `Invalid`. Try it on your own files before relying on it. What
 else differs:
