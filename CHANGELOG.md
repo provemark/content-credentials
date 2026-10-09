@@ -19,6 +19,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-09
+
+A minor release with no change to this package's API. Only the verifier range
+moves. The optional pure-PHP reader now asks for `provemark/c2pa-verifier` 0.6,
+so a host that uses it moves from verifier 0.5 to 0.6 with this release. A host
+that does not use it notices nothing. Minor rather than patch because what a
+host's Composer may install changes: `conflict` now refuses verifier 0.5.
+
 ### Changed
 
 - **The pure-PHP reader now asks for `provemark/c2pa-verifier` `^0.6`**
@@ -1941,7 +1949,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.17.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.18.0...main
+[0.18.0]: https://github.com/provemark/content-credentials/releases/tag/v0.18.0
 [0.17.0]: https://github.com/provemark/content-credentials/releases/tag/v0.17.0
 [0.16.0]: https://github.com/provemark/content-credentials/releases/tag/v0.16.0
 [0.15.2]: https://github.com/provemark/content-credentials/releases/tag/v0.15.2
