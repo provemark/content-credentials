@@ -307,6 +307,45 @@ reader is for. AC4 now bounds the URL alone, and AC10 is new. Assets above
 2 MiB are briefly written to the system temp directory, as PHP already does
 for uploads.
 
+## Amendment 4 (2026-10-09, draft — awaiting approval)
+
+The verifier released 0.6.0 on 2026-10-09: the whole of C2PA 2.4 read
+against it, five validator rules newly checked, and nine new `StatusCode`
+cases (cloud data, the text wrapper, the time-stamp assertion, the original
+preservation image). The report's shape and the classes this package uses
+are unchanged. The ADR-0007 addendum keeps a host off any verifier minor
+nobody measured here, so 0.6 cannot be installed beside this package until
+the range moves. This amendment moves it.
+
+**The tested range becomes `^0.6`.** `require-dev` is
+`"provemark/c2pa-verifier": "^0.6"` and `conflict` is `"<0.6 || >=0.7"`,
+the single-minor form `VerifierVersionRangeTest` enforces. A host on
+verifier 0.5 has to move with it: the release that carries this is a minor.
+`docs/readers.md` names v0.6.0 as the version measured.
+
+**Measured before writing**, in a scratch copy of `4c57f5b` with only the
+two constraints changed and v0.6.0 installed:
+
+- `composer check`: green, 452 passed, 9 skipped (ext-c2pa loaded on this
+  machine), deptrac 0 violations. `VerifierVersionRangeTest` passes on the
+  new pair.
+- AC1 against the local service, `defaults` (no trust,
+  `RATE_LIMIT_REQUESTS=1000`): `VerifierReaderEquivalenceTest` 34 passed;
+  11 of 11 media types agree with `SigningServiceReader`, and 11 of 11 with
+  `ExtC2paReader`.
+- AC1 in `hardened` (`CONTENTAUTH_TRUST_SETTINGS`, `REQUIRE_AI_MARKING=true`):
+  34 passed, 11 of 11 against the service.
+- `VerifierOutcome` keys on whether an active manifest was decoded and on
+  the failures' explanations, never on a code's name, so the new codes need
+  no mapping.
+
+The CI run of the pull request is the blocking repetition of these: AC9's
+guards count the eleven comparisons in both profiles.
+
+No criterion changes. AC1, AC3 and AC9 now name 0.6 where they named the
+measured version. AC3's refused set (TIFF, SVG) is unchanged: 0.6.0 reads
+neither.
+
 ## API sketch
 
 ```php
