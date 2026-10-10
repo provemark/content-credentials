@@ -122,6 +122,56 @@ not a string is skipped entirely, while a non-string `version` drops only the
 version, because a name read correctly is worth keeping. And an asset with no
 manifest, or none naming an agent, gives an empty list rather than an error.
 
+### What the file was made from
+
+Everything above describes the **active** manifest. When another tool re-signs
+a file, for example a CMS module that signs every upload, it puts its own
+manifest on top and the original becomes an *ingredient*. The AI marking is
+then in the ingredient, not in the active manifest, and
+`digitalSourceTypes()` is empty. `ingredients()` reads them
+(SPEC-045):
+
+```php
+foreach ($report->ingredients() as $ingredient) {
+    $ingredient->relationship();        // 'parentOf', 'componentOf', … verbatim
+    $ingredient->hasManifest();         // false when the ingredient carries none
+    $ingredient->digitalSourceTypes();  // that ingredient's own claim
+    $ingredient->isTrusted();           // its own verdict, see below
+    $ingredient->ingredients();         // and what *it* was made from
+}
+```
+
+**Check each ingredient's own `isTrusted()`; the report's does not cover it.**
+Only the active manifest's signer can make a report trusted, and what the
+re-signing tool recorded about an ingredient is left out of that verdict. A
+file whose AI claim was signed by an unknown certificate can read as trusted
+once a trusted tool re-signs it.
+
+An ingredient is trusted only when all of these hold:
+
+- **everything above it is trusted**: the report itself for the active
+  manifest's ingredients, the parent ingredient for theirs. Without this, an
+  image signed with a homemade certificate could carry a genuine, trusted AI
+  manifest grafted underneath as its "parent", and only the untrusted signer
+  would vouch for the link;
+- the reader's own validation of it found a trusted signer and no fault, and
+  its claim signature was validated, by the reader or by the tool that
+  recorded it;
+- no tool that wrote the file recorded a fault, or a status code this library
+  does not know, anywhere in it. A reader leaves recorded statuses out of its
+  own validation, so such a record may have hidden a real fault from view. (A
+  record entry without a readable code is ignored here: it cannot match a
+  reader's status, so it cannot hide one.)
+
+Without trust anchors, no ingredient is trusted.
+
+What to do with a trusted ingredient's claim is still your decision: whether a
+`parentOf` ingredient's type describes the file, and how far down to look. The
+walk is bounded against hostile files: a cycle stops it, and so do depth 8 and
+64 ingredients in total. A cut-off is silent — the ingredients beyond it are
+simply absent, which reads the same as having none — so treat an empty list as
+"none reported", not as proof that there are none.
+
 ## Usage (plain PHP / any framework)
 
 Core depends only on PSR interfaces — inject any PSR-18 client and PSR-17

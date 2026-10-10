@@ -8,6 +8,7 @@ use GuzzleHttp\Client;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Provemark\ContentCredentials\Core\Manifest\MediaType;
 use Provemark\ContentCredentials\Core\Manifest\SoftwareAgent;
+use Provemark\ContentCredentials\Core\Reading\IngredientReport;
 use Provemark\ContentCredentials\Core\Reading\ManifestReport;
 use Provemark\ContentCredentials\Core\Reading\ReaderInterface;
 use Provemark\ContentCredentials\Core\Reading\SigningServiceReader;
@@ -179,6 +180,25 @@ final class ServiceHarness
             // c2pa-rs 0.89.0, returns claim_generator_info including specVersion
             // verbatim for an asset signed by 0.90.x, so the two readers can agree.
             'declaredSpecVersion' => $report->declaredSpecVersion(),
+            // SPEC-045. Flattened like softwareAgents, recursively: what must
+            // agree is each ingredient's relationship, manifest, types and
+            // verdict, all the way down.
+            'ingredients' => self::ingredientTree($report->ingredients()),
         ];
+    }
+
+    /**
+     * @param  list<IngredientReport>  $ingredients
+     * @return list<array<string, mixed>>
+     */
+    public static function ingredientTree(array $ingredients): array
+    {
+        return array_map(fn (IngredientReport $ingredient) => [
+            'relationship' => $ingredient->relationship(),
+            'hasManifest' => $ingredient->hasManifest(),
+            'digitalSourceTypes' => $ingredient->digitalSourceTypes(),
+            'isTrusted' => $ingredient->isTrusted(),
+            'ingredients' => self::ingredientTree($ingredient->ingredients()),
+        ], $ingredients);
     }
 }

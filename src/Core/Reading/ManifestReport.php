@@ -19,6 +19,7 @@ final readonly class ManifestReport
     /**
      * @param  list<AssertionShape>  $assertions
      * @param  list<string>  $validationStatusCodes
+     * @param  list<IngredientReport>  $ingredients
      */
     public function __construct(
         private ?string $activeManifestLabel,
@@ -28,7 +29,23 @@ final readonly class ManifestReport
         private ?ValidationState $validationState = null,
         private bool $hasTimestamp = false,
         private ?string $declaredSpecVersion = null,
+        private array $ingredients = [],
     ) {}
+
+    /**
+     * The active manifest's ingredients, each with a verdict of its own
+     * (SPEC-045). Empty for a report without a manifest.
+     *
+     * The store verdict ({@see isTrusted()}) says nothing about an ingredient;
+     * read {@see IngredientReport::isTrusted()} for that. Bounded against hostile
+     * stores: a cycle, depth 8, or 64 ingredients in total.
+     *
+     * @return list<IngredientReport>
+     */
+    public function ingredients(): array
+    {
+        return $this->ingredients;
+    }
 
     /**
      * The C2PA specification version this manifest's generator declared, or null
