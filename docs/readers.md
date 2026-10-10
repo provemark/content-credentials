@@ -246,7 +246,9 @@ one is stricter.** Measured on 2026-10-07 against verifier v0.5.0:
   0.90.22. Both carry certificate names in T61String encoding, and the newer
   `c2patool` 0.28.1 agrees with the verifier on both.
 
-This package now asks for verifier `^0.6` (SPEC-042 Amendment 4). Re-measured
+This package now asks for verifier `^0.6.1` (SPEC-042 Amendments 4 and 5;
+0.6.1 reads an icon kept in a data box, as C2PA Sign writes a site logo, and
+checks its hash, which SPEC-045's tests rely on). Re-measured
 on 2026-10-09 against v0.6.0: for an asset signed by the service, every accessor
 still agrees with both other readers on the same eleven media types, with and
 without trust. The 482-file comparison above was not repeated. 0.6.0 refuses

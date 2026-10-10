@@ -80,4 +80,6 @@ ordered, which the Consequences above already said for the other direction.
 
 That happened on 2026-10-09: the verifier released 0.6.0, the SPEC-042
 measurements were re-run against it, and the range moved to `^0.6`
-(`conflict` `<0.6 || >=0.7`, SPEC-042 Amendment 4).
+(`conflict` `<0.6 || >=0.7`, SPEC-042 Amendment 4). On 2026-10-10 the
+floor moved to 0.6.1 (`<0.6.1 || >=0.7`, SPEC-042 Amendment 5): a patch
+that reads data-box icons, which SPEC-045's tests assume.

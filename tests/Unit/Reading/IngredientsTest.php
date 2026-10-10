@@ -23,8 +23,8 @@ use Provemark\ContentCredentials\Core\Signing\Asset;
  *   published through C2PA Sign 1.4.11 with c2patool 0.9.12 — two re-signs,
  *   so the AI type is two ingredients down. `trusted`: original signed by the
  *   C2PA test signer. `rogue`: original signed by a self-made CA that is not in
- *   the anchors. `logo`: the trusted chain with C2PA Sign's site logo, which the
- *   verifier does not resolve (AC2's pinned exception). C2PA Sign itself signs
+ *   the anchors. `logo`: the trusted chain with C2PA Sign's site logo, stored in
+ *   a data box, which verifier 0.6.1 reads (Amendment 4). C2PA Sign itself signs
  *   with the C2PA test signer throughout.
  * - `spec045-c2patool027-*.png`: the same kind of original, re-signed once with
  *   c2patool 0.27.22 `-p`, a writer that records its own view of the ingredient
@@ -206,15 +206,26 @@ it('reports the AI origin two ingredients down a C2PA Sign chain', function (str
 
 // --- AC2: the logo exception, pinned rather than hidden -------------------------
 
-it('pins the verifier refusing an ingredient whose C2PA Sign logo it cannot resolve', function () {
+it('reads a logo-bearing C2PA Sign chain through the verifier as c2pa-rs does', function () {
+    // Amendment 4: verifier 0.6.1 reads the icon in c2pa.databoxes and checks
+    // its hash, so the exception AC2 pinned here is gone. Every level is
+    // trusted, on the same evidence as the extension reader.
     $verifier = spec045Read('verifier', 'spec045-c2pasign-logo.png');
 
-    // The upload manifest (first ingredient) carries the icon in c2pa.databoxes,
-    // which makes the store Invalid here; Amendment 2 then lets nothing below
-    // it be trusted either.
-    expect($verifier->isTrusted())->toBeFalse()
-        ->and($verifier->ingredients()[0]->isTrusted())->toBeFalse()
-        ->and($verifier->ingredients()[0]->ingredients()[0]->isTrusted())->toBeFalse();
+    expect($verifier->isTrusted())->toBeTrue()
+        ->and(spec045Tree($verifier->ingredients()))->toBe([[
+            'relationship' => 'parentOf',
+            'hasManifest' => true,
+            'digitalSourceTypes' => [],
+            'isTrusted' => true,
+            'ingredients' => [[
+                'relationship' => 'parentOf',
+                'hasManifest' => true,
+                'digitalSourceTypes' => [SPEC045_AI],
+                'isTrusted' => true,
+                'ingredients' => [],
+            ]],
+        ]]);
 })->group('SPEC-045');
 
 it('trusts the same logo-bearing ingredient through c2pa-rs', function () {
