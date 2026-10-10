@@ -19,6 +19,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-10
+
+A minor release: reading what a file was made from. Nothing existing changes.
+
 ### Added
 
 - **`ManifestReport::ingredients()`** (SPEC-045): the active manifest's
@@ -1968,7 +1972,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.18.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.19.0...main
+[0.19.0]: https://github.com/provemark/content-credentials/releases/tag/v0.19.0
 [0.18.0]: https://github.com/provemark/content-credentials/releases/tag/v0.18.0
 [0.17.0]: https://github.com/provemark/content-credentials/releases/tag/v0.17.0
 [0.16.0]: https://github.com/provemark/content-credentials/releases/tag/v0.16.0
