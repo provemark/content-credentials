@@ -59,6 +59,7 @@ function spec045ComparableFixtures(): array
         'c2patool 0.27 trusted' => ['spec045-c2patool027-trusted.png'],
         'c2patool 0.27 rogue' => ['spec045-c2patool027-rogue.png'],
         'c2pa-rs CIE-sig-CA' => ['spec045-c2pa-rs-CIE-sig-CA.jpg'],
+        'graft' => ['spec045-graft.png'],
     ];
 }
 
@@ -84,8 +85,11 @@ it('reports the same ingredients through the service and ext-c2pa', function (st
 
     $asset = spec045IntegrationAsset($fixture);
 
-    expect(ServiceHarness::accessors($extension->read($asset))['ingredients'])
-        ->toBe(ServiceHarness::accessors($service->read($asset))['ingredients']);
+    $viaService = ServiceHarness::accessors($service->read($asset));
+
+    // Pinned to something, so two readers that both found nothing cannot agree.
+    expect($viaService['ingredients'])->not->toBe([])
+        ->and(ServiceHarness::accessors($extension->read($asset))['ingredients'])->toBe($viaService['ingredients']);
 })->with(spec045ComparableFixtures())
     ->skip(fn () => ! ExtC2paReader::isAvailable() ? 'ext-c2pa is not loaded' : $skipUnlessService())
     ->group('integration', 'SPEC-045');

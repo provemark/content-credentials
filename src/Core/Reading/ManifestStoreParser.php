@@ -117,7 +117,17 @@ final class ManifestStoreParser
             $state,
             self::parseHasTimestamp($active),
             self::parseDeclaredSpecVersion($active),
-            self::parseIngredients($activeLabel, $active, $manifests, self::ingredientDeltas($store), self::recordsHideNothing($manifests), [$activeLabel], 1, $budget),
+            self::parseIngredients(
+                $activeLabel,
+                $active,
+                $manifests,
+                self::ingredientDeltas($store),
+                // SPEC-045 Amendment 2: trust flows down from the report itself.
+                $state === ValidationState::Trusted && self::recordsHideNothing($manifests),
+                [$activeLabel],
+                1,
+                $budget,
+            ),
         );
     }
 
@@ -131,12 +141,12 @@ final class ManifestStoreParser
      *
      * @param  array<array-key, mixed>  $manifest
      * @param  array<array-key, mixed>  $manifests
-     * @param  array<string, array{success: list<string>, failure: list<string>}>  $deltas
-     * @param  bool  $recordsHideNothing  SPEC-045 Amendment 1, for the whole store
+     * @param  array<string, array{success: list<string>, failure: list<string>}|null>  $deltas  null: no usable evidence under that key
+     * @param  bool  $aboveTrusted  whether everything above these ingredients is trusted and no record in the store can hide a failure (Amendments 1 and 2)
      * @param  list<string>  $path  labels from the active manifest down to $label
      * @return list<IngredientReport>
      */
-    private static function parseIngredients(string $label, array $manifest, array $manifests, array $deltas, bool $recordsHideNothing, array $path, int $depth, int &$budget): array
+    private static function parseIngredients(string $label, array $manifest, array $manifests, array $deltas, bool $aboveTrusted, array $path, int $depth, int &$budget): array
     {
         $entries = $manifest['ingredients'] ?? null;
         if (! is_array($entries) || $depth > self::MAX_INGREDIENT_DEPTH) {
@@ -164,15 +174,17 @@ final class ManifestStoreParser
                 ? null
                 : $deltas[sprintf('self#jumbf=/c2pa/%s/c2pa.assertions/%s', $label, $assertionLabel)] ?? null;
 
+            $trusted = $aboveTrusted && $child !== null && self::ingredientTrusted($delta, self::recordedByWriter($entry));
+
             $children = $child === null || in_array($childLabel, $path, true)
                 ? []
-                : self::parseIngredients($childLabel, $child, $manifests, $deltas, $recordsHideNothing, [...$path, $childLabel], $depth + 1, $budget);
+                : self::parseIngredients($childLabel, $child, $manifests, $deltas, $trusted, [...$path, $childLabel], $depth + 1, $budget);
 
             $out[] = new IngredientReport(
                 $relationship,
                 $child !== null,
                 $child === null ? [] : (new ManifestReport($childLabel, null, self::parseAssertions($child), []))->digitalSourceTypes(),
-                $child !== null && $recordsHideNothing && self::ingredientTrusted($delta, self::recordedByWriter($entry)),
+                $trusted,
                 $children,
             );
         }
@@ -243,7 +255,7 @@ final class ManifestStoreParser
             }
 
             foreach ($entries as $entry) {
-                if (is_array($entry) && array_diff(self::allRecordedCodes($entry), self::RECORDABLE_CODES) !== []) {
+                if (is_array($entry) && ! self::recordHidesNothing($entry)) {
                     return false;
                 }
             }
@@ -253,44 +265,53 @@ final class ManifestStoreParser
     }
 
     /**
-     * Every code a writer recorded in one ingredient entry, whatever its
-     * category: `validation_status`, and `validation_results` with its active
-     * manifest and its own nested `ingredientDeltas`.
+     * Whether every code a writer recorded in one ingredient entry, in any
+     * category, is in RECORDABLE_CODES: `validation_status`, and
+     * `validation_results` with its active manifest and its own nested
+     * `ingredientDeltas`. Linear, and stops at the first other code
+     * (Amendment 2: a record is file content, and can be large).
      *
      * @param  array<array-key, mixed>  $entry
-     * @return list<string>
      */
-    private static function allRecordedCodes(array $entry): array
+    private static function recordHidesNothing(array $entry): bool
     {
-        $codes = self::codesIn($entry['validation_status'] ?? null);
+        $lists = [$entry['validation_status'] ?? null];
 
         $results = $entry['validation_results'] ?? null;
-        if (! is_array($results)) {
-            return $codes;
-        }
-
-        $maps = [$results['activeManifest'] ?? null];
-        foreach (is_array($results['ingredientDeltas'] ?? null) ? $results['ingredientDeltas'] : [] as $delta) {
-            $maps[] = is_array($delta) ? ($delta['validationDeltas'] ?? null) : null;
-        }
-
-        foreach ($maps as $map) {
-            if (is_array($map)) {
-                foreach (['success', 'informational', 'failure'] as $kind) {
-                    $codes = [...$codes, ...self::codesIn($map[$kind] ?? null)];
+        if (is_array($results)) {
+            $maps = [$results['activeManifest'] ?? null];
+            foreach (is_array($results['ingredientDeltas'] ?? null) ? $results['ingredientDeltas'] : [] as $delta) {
+                $maps[] = is_array($delta) ? ($delta['validationDeltas'] ?? null) : null;
+            }
+            foreach ($maps as $map) {
+                if (is_array($map)) {
+                    $lists[] = $map['success'] ?? null;
+                    $lists[] = $map['informational'] ?? null;
+                    $lists[] = $map['failure'] ?? null;
                 }
             }
         }
 
-        return $codes;
+        foreach ($lists as $list) {
+            foreach (self::codesIn($list) as $code) {
+                if (! in_array($code, self::RECORDABLE_CODES, true)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     /**
      * The reader's own validation of each ingredient, keyed by the URI of the
      * ingredient assertion it is about (`ingredientDeltas[].ingredientAssertionURI`).
      *
+     * Two deltas under one key are no evidence (null), and a `failure` that is
+     * present but cannot be read counts as a failure (Amendment 2).
+     *
      * @param  array<array-key, mixed>  $store
-     * @return array<string, array{success: list<string>, failure: list<string>}>
+     * @return array<string, array{success: list<string>, failure: list<string>}|null>
      */
     private static function ingredientDeltas(array $store): array
     {
@@ -310,9 +331,22 @@ final class ManifestStoreParser
                 continue;
             }
 
-            $out[$delta['ingredientAssertionURI']] = [
+            $uri = $delta['ingredientAssertionURI'];
+            if (array_key_exists($uri, $out)) {
+                $out[$uri] = null;
+
+                continue;
+            }
+
+            $failure = $codes['failure'] ?? [];
+            $failureCodes = self::codesIn($failure);
+            if (! is_array($failure) || count($failureCodes) !== count($failure)) {
+                $failureCodes[] = '(unreadable failure entry)';
+            }
+
+            $out[$uri] = [
                 'success' => self::codesIn($codes['success'] ?? null),
-                'failure' => self::codesIn($codes['failure'] ?? null),
+                'failure' => $failureCodes,
             ];
         }
 

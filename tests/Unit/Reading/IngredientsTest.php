@@ -29,6 +29,10 @@ use Provemark\ContentCredentials\Core\Signing\Asset;
  * - `spec045-c2patool027-*.png`: the same kind of original, re-signed once with
  *   c2patool 0.27.22 `-p`, a writer that records its own view of the ingredient
  *   (`signingCredential.untrusted`, having no anchors).
+ * - `spec045-graft.png` (Amendment 2): a genuine trusted AI original grafted
+ *   with c2patool 0.27.22 `-p` under an unrelated image signed by a self-made
+ *   CA, so the store is `Invalid` and only the untrusted top vouches for the
+ *   ingredient. Made by the independent review of this branch.
  * - `spec045-c2pa-rs-CIE-sig-CA.jpg`: c2pa-rs's own fixture `CIE-sig-CA.jpg`
  *   (MIT, see `spec045-c2pa-rs-LICENSE-MIT`): a `componentOf` ingredient whose
  *   claim signature does not verify, recorded by the writer as
@@ -205,9 +209,12 @@ it('reports the AI origin two ingredients down a C2PA Sign chain', function (str
 it('pins the verifier refusing an ingredient whose C2PA Sign logo it cannot resolve', function () {
     $verifier = spec045Read('verifier', 'spec045-c2pasign-logo.png');
 
-    // The upload manifest (first ingredient) carries the icon in c2pa.databoxes.
-    expect($verifier->ingredients()[0]->isTrusted())->toBeFalse()
-        ->and($verifier->ingredients()[0]->ingredients()[0]->isTrusted())->toBeTrue();
+    // The upload manifest (first ingredient) carries the icon in c2pa.databoxes,
+    // which makes the store Invalid here; Amendment 2 then lets nothing below
+    // it be trusted either.
+    expect($verifier->isTrusted())->toBeFalse()
+        ->and($verifier->ingredients()[0]->isTrusted())->toBeFalse()
+        ->and($verifier->ingredients()[0]->ingredients()[0]->isTrusted())->toBeFalse();
 })->group('SPEC-045');
 
 it('trusts the same logo-bearing ingredient through c2pa-rs', function () {
@@ -233,8 +240,12 @@ it('gives each ingredient the verdict of the SPEC-045 table', function (string $
 })->with(spec045Routes())->with([
     // Good at both levels; C2PA Sign 0.9.12 records nothing about them.
     'c2pasign trusted' => ['spec045-c2pasign-trusted.png', [true, true]],
-    // The upload manifest is C2PA Sign's own (trusted); the original is rogue.
-    'c2pasign rogue' => ['spec045-c2pasign-rogue.png', [true, false]],
+    // The upload manifest is C2PA Sign's own and good on its own, but the rogue
+    // original below makes the store Valid, not Trusted: Amendment 2, nothing
+    // under an untrusted report is trusted.
+    'c2pasign rogue' => ['spec045-c2pasign-rogue.png', [false, false]],
+    // Amendment 2: a trusted AI manifest grafted under a rogue-signed image.
+    'graft' => ['spec045-graft.png', [false]],
     // The writer recorded claimSignature.validated; the delta only adds trusted.
     'c2patool 0.27 trusted' => ['spec045-c2patool027-trusted.png', [true]],
     // The writer recorded untrusted; the delta carries nothing trust-related.
@@ -432,6 +443,90 @@ it('looks for recorded codes in every manifest of the store, not only the active
     expect($report->ingredients()[0]->isTrusted())->toBeFalse();
 })->group('SPEC-045');
 
+// --- AC3, Amendment 2: trust flows down; unreadable evidence is none --------
+
+it('trusts no ingredient of a report that is not trusted', function () {
+    $store = spec045Store('top', [
+        'top' => spec045Manifest(null, [['relationship' => 'parentOf', 'label' => 'c2pa.ingredient', 'active_manifest' => 'parent']]),
+        'parent' => spec045Manifest(SPEC045_AI),
+    ], [spec045GoodDelta('top')]);
+    $store['validation_state'] = 'Invalid';
+
+    expect(ManifestStoreParser::fromArray($store)->ingredients()[0]->isTrusted())->toBeFalse();
+})->group('SPEC-045');
+
+it('trusts no grandchild of an untrusted ingredient', function () {
+    // `mid` has no delta of its own, so it is untrusted; `ai` below it has a
+    // perfectly good one, and must still not be trusted.
+    $report = ManifestStoreParser::fromArray(spec045Store('top', [
+        'top' => spec045Manifest(null, [['relationship' => 'parentOf', 'label' => 'c2pa.ingredient', 'active_manifest' => 'mid']]),
+        'mid' => spec045Manifest(null, [['relationship' => 'parentOf', 'label' => 'c2pa.ingredient', 'active_manifest' => 'ai']]),
+        'ai' => spec045Manifest(SPEC045_AI),
+    ], [spec045GoodDelta('mid')]));
+
+    expect($report->ingredients()[0]->isTrusted())->toBeFalse()
+        ->and($report->ingredients()[0]->ingredients()[0]->isTrusted())->toBeFalse();
+})->group('SPEC-045');
+
+it('trusts a grandchild when every link above it is trusted', function () {
+    $report = ManifestStoreParser::fromArray(spec045Store('top', [
+        'top' => spec045Manifest(null, [['relationship' => 'parentOf', 'label' => 'c2pa.ingredient', 'active_manifest' => 'mid']]),
+        'mid' => spec045Manifest(null, [['relationship' => 'parentOf', 'label' => 'c2pa.ingredient', 'active_manifest' => 'ai']]),
+        'ai' => spec045Manifest(SPEC045_AI),
+    ], [spec045GoodDelta('top'), spec045GoodDelta('mid')]));
+
+    expect($report->ingredients()[0]->ingredients()[0]->isTrusted())->toBeTrue();
+})->group('SPEC-045');
+
+it('counts neither of two deltas under the same key', function (bool $failingFirst) {
+    $failing = spec045Delta('top', ['signingCredential.trusted', 'claimSignature.validated'], ['claimSignature.mismatch']);
+    $clean = spec045GoodDelta('top');
+
+    $report = ManifestStoreParser::fromArray(spec045Store('top', [
+        'top' => spec045Manifest(null, [['relationship' => 'parentOf', 'label' => 'c2pa.ingredient', 'active_manifest' => 'parent']]),
+        'parent' => spec045Manifest(SPEC045_AI),
+    ], $failingFirst ? [$failing, $clean] : [$clean, $failing]));
+
+    expect($report->ingredients()[0]->isTrusted())->toBeFalse();
+})->with(['failing delta first' => [true], 'clean delta first' => [false]])->group('SPEC-045');
+
+it('counts an unreadable failure in a delta as a failure', function (mixed $failure) {
+    $delta = spec045GoodDelta('top');
+    $delta['validationDeltas'] = [...(array) $delta['validationDeltas'], 'failure' => $failure];
+
+    $report = ManifestStoreParser::fromArray(spec045Store('top', [
+        'top' => spec045Manifest(null, [['relationship' => 'parentOf', 'label' => 'c2pa.ingredient', 'active_manifest' => 'parent']]),
+        'parent' => spec045Manifest(SPEC045_AI),
+    ], [$delta]));
+
+    expect($report->ingredients()[0]->isTrusted())->toBeFalse();
+})->with([
+    'a string' => ['claimSignature.mismatch'],
+    'an entry whose code is a list' => [[['code' => ['claimSignature.mismatch']]]],
+    'an entry that is not an object' => [['claimSignature.mismatch']],
+])->group('SPEC-045');
+
+it('reads a large writer record in bounded time', function () {
+    $nested = [];
+    for ($n = 0; $n < 60_000; $n++) {
+        $nested[] = ['ingredientAssertionURI' => "x{$n}", 'validationDeltas' => ['success' => [['code' => 'assertion.hashedURI.match', 'url' => 'x']]]];
+    }
+
+    // Parsing happens inside spec045RecordedStore(), so that call is what is timed.
+    $started = hrtime(true);
+    $report = spec045RecordedStore(fn (array $f, array $o) => [
+        [...$f, 'validation_results' => ['activeManifest' => ['success' => [['code' => 'claimSignature.validated']]], 'ingredientDeltas' => $nested]],
+        $o,
+    ]);
+    $seconds = (hrtime(true) - $started) / 1e9;
+
+    // Measured at 18.6 s for this shape before Amendment 2; linear is well
+    // under a second. Generous, so a slow CI runner cannot flake it.
+    expect($seconds)->toBeLessThan(3.0)
+        // and the record, all allowed codes, still leaves the ingredient trusted
+        ->and($report->ingredients()[0]->isTrusted())->toBeTrue();
+})->group('SPEC-045');
+
 // --- AC5: hostile chains are bounded --------------------------------------------
 
 it('stops at a manifest that names itself', function () {
@@ -490,6 +585,40 @@ it('reports no more than 64 ingredients in total', function () {
     expect($report->ingredients())->toHaveCount(64);
 })->group('SPEC-045');
 
+/**
+ * How many ingredients a tree holds, all levels counted.
+ *
+ * @param  list<IngredientReport>  $ingredients
+ */
+function spec045Count(array $ingredients): int
+{
+    $count = 0;
+    foreach ($ingredients as $ingredient) {
+        $count += 1 + spec045Count($ingredient->ingredients());
+    }
+
+    return $count;
+}
+
+it('shares the 64 budget across a deep and wide tree', function () {
+    // Four ingredients per manifest, four levels: 340 without a shared budget.
+    $manifests = [];
+    $make = function (string $label, int $level) use (&$make, &$manifests): void {
+        $ingredients = [];
+        if ($level < 4) {
+            for ($n = 0; $n < 4; $n++) {
+                $child = "{$label}.{$n}";
+                $ingredients[] = ['relationship' => 'parentOf', 'label' => "c2pa.ingredient__{$n}", 'active_manifest' => $child];
+                $make($child, $level + 1);
+            }
+        }
+        $manifests[$label] = spec045Manifest(null, $ingredients);
+    };
+    $make('root', 0);
+
+    expect(spec045Count(ManifestStoreParser::fromArray(spec045Store('root', $manifests))->ingredients()))->toBe(64);
+})->group('SPEC-045');
+
 // --- AC6: malformed ingredient data degrades, never throws ----------------------
 
 it('degrades malformed ingredient data instead of throwing', function (mixed $ingredients, mixed $deltas, int $expectedCount) {
@@ -509,10 +638,18 @@ it('degrades malformed ingredient data instead of throwing', function (mixed $in
     'delta entries malformed' => [[['relationship' => 'parentOf', 'label' => 'c2pa.ingredient']], [['ingredientAssertionURI' => 5], 'x', ['validationDeltas' => 'y']], 1],
 ])->group('SPEC-045');
 
-it('treats an ingredient with a non-string relationship as having none', function () {
-    $store = spec045Store('top', ['top' => ['assertions' => [], 'ingredients' => [['relationship' => 7, 'label' => 'c2pa.ingredient']]]]);
+it('treats an ingredient with a non-string relationship as having none, and still judges it', function () {
+    $store = spec045Store('top', [
+        'top' => ['assertions' => [], 'ingredients' => [['relationship' => 7, 'label' => 'c2pa.ingredient', 'active_manifest' => 'parent']]],
+        'parent' => spec045Manifest(SPEC045_AI),
+    ], [spec045GoodDelta('top')]);
 
-    expect(ManifestStoreParser::fromArray($store)->ingredients()[0]->relationship())->toBeNull();
+    $ingredient = ManifestStoreParser::fromArray($store)->ingredients()[0];
+
+    // Not vacuous: the same ingredient is trusted, so the null is the field
+    // degrading, not the whole entry being thrown away.
+    expect($ingredient->relationship())->toBeNull()
+        ->and($ingredient->isTrusted())->toBeTrue();
 })->group('SPEC-045');
 
 it('reports no ingredients for an empty report', function () {
