@@ -346,6 +346,23 @@ No criterion changes. AC1, AC3 and AC9 now name 0.6 where they named the
 measured version. AC3's refused set (TIFF, SVG) is unchanged: 0.6.0 reads
 neither.
 
+## Amendment 5 (2026-10-10, approved by Maurice van Loon the same day)
+
+The verifier released 0.6.1 on 2026-10-10 (its SPEC-067): an icon kept in
+a `c2pa.databoxes` store, as `c2patool` 0.9.12 writes a site logo for the
+Drupal module C2PA Sign, is read and its hash checked, where 0.6.0 refused
+it. SPEC-045 relied on that refusal as a pinned exception (its AC2); with
+0.6.1 the exception is gone (SPEC-045 Amendment 4), and this package's tests
+now assume 0.6.1's reading.
+
+**The tested range becomes `^0.6.1`.** `require-dev` is
+`"provemark/c2pa-verifier": "^0.6.1"` and `conflict` is
+`"<0.6.1 || >=0.7"`. `VerifierVersionRangeTest` accepts a patch floor
+(`^0.Y.Z` with `<0.Y.Z || >=0.(Y+1)`) and pins the floor at 0.6.1. The
+release that carries this is a patch: nothing in the API changes, and a host
+on verifier 0.6.0 is moved to 0.6.1. `docs/readers.md` and ADR-0007 name
+it. No criterion changes.
+
 ## API sketch
 
 ```php
@@ -408,5 +425,5 @@ required); 11 verifier comparisons ran in each.
 | AC6 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "refuses trust settings the verifier refuses, at construction", "verifies without trust when no settings are given", "treats empty settings as no settings" | `src/Core/Reading/C2paVerifierReader.php` `buildSettings()`; `src/Core/Reading/Exception/TrustSettingsRejectedException.php` |
 | AC7 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "reports itself available when the verifier is installed", "names the package to install when the verifier is absent" | `src/Core/Reading/C2paVerifierReader.php` `isAvailable()`, `__construct()`; `src/Core/Reading/Exception/VerifierMissingException.php` |
 | AC8 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "binds the pure-PHP reader when the mode is verifier", "reports verifier as the mode, configured and resolved", "passes the configured settings file to the pure-PHP reader", "treats an empty settings value as no trust, not as an error", "refuses a settings path that does not exist, when the reader is resolved", "refuses a settings file the verifier refuses, when the reader is resolved", "names verifier among the accepted modes when refusing", "does not resolve auto to the verifier, though it is installed" | `src/Laravel/ReaderFactory.php` `MODES`, `make()`, `verifierSettings()`; `config/content-credentials.php` `verifier_settings` |
-| AC9 | `tests/Unit/VerifierVersionRangeTest.php` :: "refuses every verifier version outside the tested range", "keeps the verifier out of require"; `tests/Integration/VerifierReaderEquivalenceTest.php` :: "agrees with the service reader through the verifier", "agrees with the in-process reader through the verifier" | `.github/workflows/ci.yml` steps "Assert the verifier comparison ran (SPEC-042)" and "Assert the verifier-extension comparison ran (SPEC-042)" (counted 0 on a skipped run, 11 on a real one); `composer.json` `require-dev`, `conflict` (ADR-0007 addendum); `docs/adr/ADR-0007-the-verifier-as-an-optional-reader.md` |
+| AC9 | `tests/Unit/VerifierVersionRangeTest.php` :: "refuses every verifier version outside the tested range", "tests against the verifier that reads data boxes" (Amendment 5), "keeps the verifier out of require"; `tests/Integration/VerifierReaderEquivalenceTest.php` :: "agrees with the service reader through the verifier", "agrees with the in-process reader through the verifier" | `.github/workflows/ci.yml` steps "Assert the verifier comparison ran (SPEC-042)" and "Assert the verifier-extension comparison ran (SPEC-042)" (counted 0 on a skipped run, 11 on a real one); `composer.json` `require-dev`, `conflict` (ADR-0007 addendum); `docs/adr/ADR-0007-the-verifier-as-an-optional-reader.md` |
 | AC10 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "adds little to peak memory when reading a large asset", "fails with ReadFailedException when the copy cannot spill to disk" | `src/Core/Reading/C2paVerifierReader.php` `IN_MEMORY_BYTES`, `read()` (Amendment 3) |

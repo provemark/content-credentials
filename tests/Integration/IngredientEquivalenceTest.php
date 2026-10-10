@@ -13,9 +13,9 @@ use Provemark\ContentCredentials\Tests\Integration\ServiceHarness;
  * verdicts.
  *
  * The files are the unit suite's (`tests/Fixtures/spec045-*`), written by
- * C2PA Sign + c2patool 0.9.12, by c2patool 0.27.22 and by c2pa-rs; not the
- * logo-bearing one, whose verifier verdict is AC2's pinned exception and is
- * covered in the unit suite. The comparison only means something under equal
+ * C2PA Sign + c2patool 0.9.12 (with and without a site logo), by c2patool
+ * 0.27.22 and by c2pa-rs. The logo-bearing one joined with Amendment 4, once
+ * verifier 0.6.1 read its data box. The comparison only means something under equal
  * configuration, so the in-process readers get the trust settings the running
  * service has — the SPEC-019 lesson of 2026-08-08.
  *
@@ -60,6 +60,8 @@ function spec045ComparableFixtures(): array
         'c2patool 0.27 rogue' => ['spec045-c2patool027-rogue.png'],
         'c2pa-rs CIE-sig-CA' => ['spec045-c2pa-rs-CIE-sig-CA.jpg'],
         'graft' => ['spec045-graft.png'],
+        // Amendment 4: since verifier 0.6.1 the logo in c2pa.databoxes is read.
+        'c2pasign logo' => ['spec045-c2pasign-logo.png'],
     ];
 }
 

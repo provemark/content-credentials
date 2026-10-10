@@ -19,6 +19,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The tested verifier range moves to `^0.6.1`** (SPEC-042 Amendment 5;
+  `conflict` `<0.6.1 || >=0.7`). `provemark/c2pa-verifier` 0.6.1 reads an
+  icon kept in a `c2pa.databoxes` store and checks its hash, where 0.6.0
+  refused it. The Drupal module C2PA Sign 1.4.11 (with c2patool 0.9.12)
+  stores a site logo there in every manifest it writes, so under 0.6.0 such a
+  file read `Invalid` on the verifier reader while c2pa-rs read it
+  `Trusted`. SPEC-045's pinned exception for that case is withdrawn
+  (Amendment 4): the three readers now agree on it.
+
 ## [0.19.0] - 2026-10-10
 
 A minor release: reading what a file was made from. Nothing existing changes.
