@@ -67,6 +67,8 @@ final class ManifestStoreParser
             return new ManifestReport(null, null, [], self::validationCodes($store), $state);
         }
 
+        $budget = self::MAX_INGREDIENTS;
+
         return new ManifestReport(
             $activeLabel,
             self::parseSigner($active),
@@ -75,7 +77,169 @@ final class ManifestStoreParser
             $state,
             self::parseHasTimestamp($active),
             self::parseDeclaredSpecVersion($active),
+            self::parseIngredients($activeLabel, $active, $manifests, self::ingredientDeltas($store), [$activeLabel], 1, $budget),
         );
+    }
+
+    /** SPEC-045 AC5: how deep the ingredient walk goes; the active manifest's own are depth 1. */
+    private const MAX_INGREDIENT_DEPTH = 8;
+
+    /** SPEC-045 AC5: how many ingredients one report holds, across the whole tree. */
+    private const MAX_INGREDIENTS = 64;
+
+    /**
+     * The ingredients a manifest names, each with its own verdict (SPEC-045).
+     *
+     * Untrusted input like the rest: a malformed entry is skipped, a malformed
+     * field degrades. The walk stops at a manifest already on the path (a cycle),
+     * at MAX_INGREDIENT_DEPTH, and when $budget is spent; what lies beyond is
+     * absent, not an error.
+     *
+     * @param  array<array-key, mixed>  $manifest
+     * @param  array<array-key, mixed>  $manifests
+     * @param  array<string, array{success: list<string>, failure: list<string>}>  $deltas
+     * @param  list<string>  $path  labels from the active manifest down to $label
+     * @return list<IngredientReport>
+     */
+    private static function parseIngredients(string $label, array $manifest, array $manifests, array $deltas, array $path, int $depth, int &$budget): array
+    {
+        $entries = $manifest['ingredients'] ?? null;
+        if (! is_array($entries) || $depth > self::MAX_INGREDIENT_DEPTH) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($entries as $entry) {
+            if ($budget <= 0) {
+                break;
+            }
+            if (! is_array($entry)) {
+                continue;
+            }
+            $budget--;
+
+            $relationship = isset($entry['relationship']) && is_string($entry['relationship']) ? $entry['relationship'] : null;
+            $assertionLabel = isset($entry['label']) && is_string($entry['label']) ? $entry['label'] : null;
+            $childLabel = isset($entry['active_manifest']) && is_string($entry['active_manifest']) ? $entry['active_manifest'] : null;
+            $child = $childLabel !== null && isset($manifests[$childLabel]) && is_array($manifests[$childLabel])
+                ? $manifests[$childLabel]
+                : null;
+
+            $delta = $assertionLabel === null
+                ? null
+                : $deltas[sprintf('self#jumbf=/c2pa/%s/c2pa.assertions/%s', $label, $assertionLabel)] ?? null;
+
+            $children = $child === null || in_array($childLabel, $path, true)
+                ? []
+                : self::parseIngredients($childLabel, $child, $manifests, $deltas, [...$path, $childLabel], $depth + 1, $budget);
+
+            $out[] = new IngredientReport(
+                $relationship,
+                $child !== null,
+                $child === null ? [] : (new ManifestReport($childLabel, null, self::parseAssertions($child), []))->digitalSourceTypes(),
+                $child !== null && self::ingredientTrusted($delta, self::recordedByWriter($entry)),
+                $children,
+            );
+        }
+
+        return $out;
+    }
+
+    /**
+     * SPEC-045 AC3, in one place.
+     *
+     * @param  array{success: list<string>, failure: list<string>}|null  $delta  the reader's own validation of the ingredient
+     * @param  array{success: list<string>, failure: list<string>}  $recorded  what the writer recorded about it
+     */
+    private static function ingredientTrusted(?array $delta, array $recorded): bool
+    {
+        if ($delta === null || ! in_array('signingCredential.trusted', $delta['success'], true) || $delta['failure'] !== []) {
+            return false;
+        }
+
+        if (! in_array('claimSignature.validated', [...$delta['success'], ...$recorded['success']], true)) {
+            return false;
+        }
+
+        // The writer's view of trust came from the writer's anchors; the reader
+        // re-evaluated it against its own, which is why only this code is excused.
+        return array_diff($recorded['failure'], ['signingCredential.untrusted']) === [];
+    }
+
+    /**
+     * What the writer recorded about an ingredient: `validation_results` from
+     * C2PA 2.x writers, or the older `validation_status` list. Every code in
+     * the older list counts as a failure — it carries no success/failure split,
+     * and reading a success there as a failure can only refuse an ingredient,
+     * never accept one.
+     *
+     * @param  array<array-key, mixed>  $entry
+     * @return array{success: list<string>, failure: list<string>}
+     */
+    private static function recordedByWriter(array $entry): array
+    {
+        $recorded = $entry['validation_results'] ?? null;
+        $results = is_array($recorded) ? ($recorded['activeManifest'] ?? null) : null;
+        if (is_array($results)) {
+            return ['success' => self::codesIn($results['success'] ?? null), 'failure' => self::codesIn($results['failure'] ?? null)];
+        }
+
+        return ['success' => [], 'failure' => self::codesIn($entry['validation_status'] ?? null)];
+    }
+
+    /**
+     * The reader's own validation of each ingredient, keyed by the URI of the
+     * ingredient assertion it is about (`ingredientDeltas[].ingredientAssertionURI`).
+     *
+     * @param  array<array-key, mixed>  $store
+     * @return array<string, array{success: list<string>, failure: list<string>}>
+     */
+    private static function ingredientDeltas(array $store): array
+    {
+        $results = $store['validation_results'] ?? null;
+        $list = is_array($results) ? ($results['ingredientDeltas'] ?? null) : null;
+        if (! is_array($list)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($list as $delta) {
+            if (! is_array($delta) || ! isset($delta['ingredientAssertionURI']) || ! is_string($delta['ingredientAssertionURI'])) {
+                continue;
+            }
+            $codes = $delta['validationDeltas'] ?? null;
+            if (! is_array($codes)) {
+                continue;
+            }
+
+            $out[$delta['ingredientAssertionURI']] = [
+                'success' => self::codesIn($codes['success'] ?? null),
+                'failure' => self::codesIn($codes['failure'] ?? null),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * The `code` of each well-formed status entry in a list.
+     *
+     * @return list<string>
+     */
+    private static function codesIn(mixed $list): array
+    {
+        if (! is_array($list)) {
+            return [];
+        }
+
+        $codes = [];
+        foreach ($list as $entry) {
+            if (is_array($entry) && isset($entry['code']) && is_string($entry['code'])) {
+                $codes[] = $entry['code'];
+            }
+        }
+
+        return $codes;
     }
 
     /**

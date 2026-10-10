@@ -19,6 +19,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`ManifestReport::ingredients()`** (SPEC-045): the active manifest's
+  ingredients, each an `IngredientReport` with its relationship, whether it has
+  a manifest, that manifest's `digitalSourceType`s, its own ingredients, and a
+  verdict of its own. A tool that re-signs a file (a CMS module signing every
+  upload, for instance) moves the AI marking into an ingredient; this is how
+  you read it. The report's `isTrusted()` does not cover an ingredient, so check
+  the ingredient's: it is true only when the reader's own validation found a
+  trusted signer and a verified claim signature, and neither the reader nor the
+  re-signing tool recorded a fault. Measured on all three readers, with files
+  from C2PA Sign 1.4.11 + c2patool 0.9.12, c2patool 0.27.22 and c2pa-rs's
+  `CIE-sig-CA.jpg` (an ingredient with a broken signature that a trust check
+  alone would accept). Bounded against hostile files: a cycle, depth 8, or 64
+  ingredients in total. No existing accessor changes.
+
 ## [0.18.0] - 2026-10-09
 
 A minor release with no change to this package's API. Only the verifier range
