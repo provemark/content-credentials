@@ -27,6 +27,46 @@ use Provemark\ContentCredentials\Core\Reading\Exception\ReadResponseException;
  */
 final class ManifestStoreParser
 {
+    /** SPEC-045 AC5: how deep the ingredient walk goes; the active manifest's own are depth 1. */
+    private const MAX_INGREDIENT_DEPTH = 8;
+
+    /** SPEC-045 AC5: how many ingredients one report holds, across the whole tree. */
+    private const MAX_INGREDIENTS = 64;
+
+    /**
+     * SPEC-045 Amendment 1: the codes a writer may record about an ingredient
+     * without making every ingredient untrusted. The C2PA 2.4 success and
+     * informational codes as provemark/c2pa-verifier classifies them
+     * (`StatusCode::isSuccess()` / `isInformational()`), plus
+     * `signingCredential.untrusted`, which the reader re-evaluates against its
+     * own anchors. Anything else — a failure, or a code this list does not
+     * know — could have hidden a real failure from the reader's delta.
+     */
+    private const RECORDABLE_CODES = [
+        'claimSignature.validated',
+        'claimSignature.insideValidity',
+        'assertion.hashedURI.match',
+        'assertion.dataHash.match',
+        'assertion.bmffHash.match',
+        'signingCredential.trusted',
+        'timeStamp.validated',
+        'timeStamp.trusted',
+        'ingredient.manifest.validated',
+        'assertion.alternativeContentRepresentation.match',
+        'signingCredential.ocsp.notRevoked',
+        'assertion.dataHash.additionalExclusionsPresent',
+        'ingredient.unknownProvenance',
+        'ingredient.claimSignature.validated',
+        'assertion.bmffHash.additionalExclusionsPresent',
+        'timeStamp.malformed',
+        'timeStamp.mismatch',
+        'timeStamp.outsideValidity',
+        'timeStamp.untrusted',
+        'signingCredential.ocsp.skipped',
+        'signingCredential.ocsp.unknown',
+        'signingCredential.untrusted',
+    ];
+
     /**
      * @throws ReadResponseException when the payload is not a manifest-store object
      */
@@ -77,15 +117,9 @@ final class ManifestStoreParser
             $state,
             self::parseHasTimestamp($active),
             self::parseDeclaredSpecVersion($active),
-            self::parseIngredients($activeLabel, $active, $manifests, self::ingredientDeltas($store), [$activeLabel], 1, $budget),
+            self::parseIngredients($activeLabel, $active, $manifests, self::ingredientDeltas($store), self::recordsHideNothing($manifests), [$activeLabel], 1, $budget),
         );
     }
-
-    /** SPEC-045 AC5: how deep the ingredient walk goes; the active manifest's own are depth 1. */
-    private const MAX_INGREDIENT_DEPTH = 8;
-
-    /** SPEC-045 AC5: how many ingredients one report holds, across the whole tree. */
-    private const MAX_INGREDIENTS = 64;
 
     /**
      * The ingredients a manifest names, each with its own verdict (SPEC-045).
@@ -98,10 +132,11 @@ final class ManifestStoreParser
      * @param  array<array-key, mixed>  $manifest
      * @param  array<array-key, mixed>  $manifests
      * @param  array<string, array{success: list<string>, failure: list<string>}>  $deltas
+     * @param  bool  $recordsHideNothing  SPEC-045 Amendment 1, for the whole store
      * @param  list<string>  $path  labels from the active manifest down to $label
      * @return list<IngredientReport>
      */
-    private static function parseIngredients(string $label, array $manifest, array $manifests, array $deltas, array $path, int $depth, int &$budget): array
+    private static function parseIngredients(string $label, array $manifest, array $manifests, array $deltas, bool $recordsHideNothing, array $path, int $depth, int &$budget): array
     {
         $entries = $manifest['ingredients'] ?? null;
         if (! is_array($entries) || $depth > self::MAX_INGREDIENT_DEPTH) {
@@ -131,13 +166,13 @@ final class ManifestStoreParser
 
             $children = $child === null || in_array($childLabel, $path, true)
                 ? []
-                : self::parseIngredients($childLabel, $child, $manifests, $deltas, [...$path, $childLabel], $depth + 1, $budget);
+                : self::parseIngredients($childLabel, $child, $manifests, $deltas, $recordsHideNothing, [...$path, $childLabel], $depth + 1, $budget);
 
             $out[] = new IngredientReport(
                 $relationship,
                 $child !== null,
                 $child === null ? [] : (new ManifestReport($childLabel, null, self::parseAssertions($child), []))->digitalSourceTypes(),
-                $child !== null && self::ingredientTrusted($delta, self::recordedByWriter($entry)),
+                $child !== null && $recordsHideNothing && self::ingredientTrusted($delta, self::recordedByWriter($entry)),
                 $children,
             );
         }
@@ -185,6 +220,69 @@ final class ManifestStoreParser
         }
 
         return ['success' => [], 'failure' => self::codesIn($entry['validation_status'] ?? null)];
+    }
+
+    /**
+     * SPEC-045 Amendment 1: whether no writer anywhere in the store recorded a
+     * code outside RECORDABLE_CODES.
+     *
+     * A reader drops a status the writer recorded, matched on code and url, in
+     * any category and store-wide. So one recorded failure code — even filed
+     * under `success`, even on another ingredient — can have hidden a real
+     * failure from any ingredient's delta, and then none of them can be
+     * trusted on that delta.
+     *
+     * @param  array<array-key, mixed>  $manifests
+     */
+    private static function recordsHideNothing(array $manifests): bool
+    {
+        foreach ($manifests as $manifest) {
+            $entries = is_array($manifest) ? ($manifest['ingredients'] ?? null) : null;
+            if (! is_array($entries)) {
+                continue;
+            }
+
+            foreach ($entries as $entry) {
+                if (is_array($entry) && array_diff(self::allRecordedCodes($entry), self::RECORDABLE_CODES) !== []) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Every code a writer recorded in one ingredient entry, whatever its
+     * category: `validation_status`, and `validation_results` with its active
+     * manifest and its own nested `ingredientDeltas`.
+     *
+     * @param  array<array-key, mixed>  $entry
+     * @return list<string>
+     */
+    private static function allRecordedCodes(array $entry): array
+    {
+        $codes = self::codesIn($entry['validation_status'] ?? null);
+
+        $results = $entry['validation_results'] ?? null;
+        if (! is_array($results)) {
+            return $codes;
+        }
+
+        $maps = [$results['activeManifest'] ?? null];
+        foreach (is_array($results['ingredientDeltas'] ?? null) ? $results['ingredientDeltas'] : [] as $delta) {
+            $maps[] = is_array($delta) ? ($delta['validationDeltas'] ?? null) : null;
+        }
+
+        foreach ($maps as $map) {
+            if (is_array($map)) {
+                foreach (['success', 'informational', 'failure'] as $kind) {
+                    $codes = [...$codes, ...self::codesIn($map[$kind] ?? null)];
+                }
+            }
+        }
+
+        return $codes;
     }
 
     /**

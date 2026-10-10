@@ -171,6 +171,49 @@ final readonly class IngredientReport
 public function ingredients(): array;
 ```
 
+## Amendment 1 — a writer's record can hide a failure anywhere in the store (approved 2026-10-10)
+
+Found in review before the branch left this machine. A reader drops a status
+the writer recorded, matched on **code and url, in any category** (success,
+informational, failure), from `validation_status`, `validation_results` and
+the record's own nested `ingredientDeltas` — and it collects those records
+**store-wide**, not per ingredient (the verifier's
+`IngredientManifestCheck::recordedInStore()`, which follows c2pa-rs). So
+whoever wrote a manifest in the chain can make a real `claimSignature.mismatch`
+disappear from the reader's delta by "recording" it, even under `success`, and
+add a `claimSignature.validated` of their own. Under AC3 as first written, a
+synthetic store built that way read `isTrusted() === true`.
+
+AC3 gains a fifth condition:
+
+- no writer anywhere in the store recorded a code outside this list:
+  `claimSignature.validated`, `claimSignature.insideValidity`,
+  `assertion.hashedURI.match`, `assertion.dataHash.match`,
+  `assertion.bmffHash.match`, `signingCredential.trusted`,
+  `timeStamp.validated`, `timeStamp.trusted`, `ingredient.manifest.validated`,
+  `assertion.alternativeContentRepresentation.match`,
+  `signingCredential.ocsp.notRevoked`,
+  `assertion.dataHash.additionalExclusionsPresent`,
+  `ingredient.unknownProvenance`, `ingredient.claimSignature.validated`,
+  `assertion.bmffHash.additionalExclusionsPresent`, `timeStamp.malformed`,
+  `timeStamp.mismatch`, `timeStamp.outsideValidity`, `timeStamp.untrusted`,
+  `signingCredential.ocsp.skipped`, `signingCredential.ocsp.unknown`, and
+  `signingCredential.untrusted`. These are the C2PA 2.4 success and
+  informational codes as provemark/c2pa-verifier classifies them
+  (`StatusCode::isSuccess()` / `isInformational()`), plus the one failure the
+  reader re-evaluates itself. **An unknown code counts as a failure.**
+
+If that condition fails, no ingredient in the report is trusted: a recorded
+failure code can have hidden a real one from any ingredient's delta. The cost
+is that an honest writer who recorded a real fault (as in `CIE-sig-CA.jpg`)
+makes every ingredient of that file untrusted — the safe direction. On every
+real file in the AC3 table the verdicts are unchanged.
+
+New cases under AC3: a failure recorded under `success`, under
+`informational`, under another ingredient, in a record's nested
+`ingredientDeltas`, and an unknown code — each turning an otherwise good
+ingredient untrusted.
+
 ## Open questions
 
 Resolved at approval (maintainer, 2026-10-10):
@@ -188,7 +231,7 @@ Resolved at approval (maintainer, 2026-10-10):
 |----------------------|-----------------------------|----------------------|
 | AC1 | `tests/Unit/Reading/IngredientsTest.php` :: "reports the AI origin two ingredients down a C2PA Sign chain" (verifier, extension) | `src/Core/Reading/ManifestStoreParser.php` `parseIngredients()`; `src/Core/Reading/IngredientReport.php`; `src/Core/Reading/ManifestReport.php` `ingredients()` |
 | AC2 | `tests/Integration/IngredientEquivalenceTest.php` :: "reports the same ingredients through the service and the verifier", "reports the same ingredients through the service and ext-c2pa"; `tests/Integration/ServiceHarness.php` `accessors()` / `ingredientTree()` (so the SPEC-019 and SPEC-042 comparisons cover it); `tests/Unit/Reading/IngredientsTest.php` :: "pins the verifier refusing an ingredient whose C2PA Sign logo it cannot resolve", "trusts the same logo-bearing ingredient through c2pa-rs" | `src/Core/Reading/ManifestStoreParser.php` `ingredientDeltas()` |
-| AC3 | `tests/Unit/Reading/IngredientsTest.php` :: "gives each ingredient the verdict of the SPEC-045 table" (5 files × verifier, extension), "trusts a synthetic ingredient only when every AC3 condition holds" (7 cases), "keeps the relationship verbatim" | `src/Core/Reading/ManifestStoreParser.php` `ingredientTrusted()`, `recordedByWriter()` |
+| AC3 | `tests/Unit/Reading/IngredientsTest.php` :: "gives each ingredient the verdict of the SPEC-045 table" (5 files × verifier, extension), "trusts a synthetic ingredient only when every AC3 condition holds" (7 cases), "keeps the relationship verbatim"; Amendment 1: "trusts the good synthetic chain when the writer recorded only allowed codes", "trusts no ingredient once a writer recorded a failure code anywhere" (6 cases), "looks for recorded codes in every manifest of the store, not only the active one" | `src/Core/Reading/ManifestStoreParser.php` `ingredientTrusted()`, `recordedByWriter()`; Amendment 1: `RECORDABLE_CODES`, `recordsHideNothing()`, `allRecordedCodes()` |
 | AC4 | `tests/Unit/Reading/IngredientsTest.php` :: "does not trust any ingredient when the reader has no anchors", "does not trust an ingredient without a manifest, or without its own delta", "does not trust an ingredient without a manifest even under a good delta" | `src/Core/Reading/ManifestStoreParser.php` `parseIngredients()`, `ingredientTrusted()` |
 | AC5 | `tests/Unit/Reading/IngredientsTest.php` :: "stops at a manifest that names itself", "stops at a cycle through an ancestor", "reports an ingredient naming a label that is not in the store as having no manifest", "reports no deeper than depth 8", "reports no more than 64 ingredients in total" | `src/Core/Reading/ManifestStoreParser.php` `MAX_INGREDIENT_DEPTH`, `MAX_INGREDIENTS`, `parseIngredients()` |
 | AC6 | `tests/Unit/Reading/IngredientsTest.php` :: "degrades malformed ingredient data instead of throwing" (5 cases), "treats an ingredient with a non-string relationship as having none", "reports no ingredients for an empty report" | `src/Core/Reading/ManifestStoreParser.php` `parseIngredients()`, `codesIn()`, `ingredientDeltas()` |
@@ -199,6 +242,11 @@ failing: no `claimSignature.validated` check, delta failures ignored, every
 recorded failure excused, no cycle guard, no depth bound, no total budget, no
 `signingCredential.trusted` check, and trusting an ingredient without a
 manifest — the last one survived the first test set and got its own test.
-`composer check` green (491 passed, 7 skipped); integration against the local
+Amendment 1's seven tests were run red first (the forged store read
+`true`); six mutations of it were watched failing: the condition not applied,
+only the `failure` category read, nested deltas skipped, `validation_status`
+skipped, only the first manifest searched, and `signingCredential.untrusted`
+not allowed (over-strict, turns the good cases red).
+`composer check` green (499 passed, 7 skipped); integration against the local
 service with trust settings: 210 passed, 22 skipped, the SPEC-045 comparisons
 among the passed.

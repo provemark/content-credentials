@@ -364,6 +364,74 @@ it('trusts a synthetic ingredient only when every AC3 condition holds', function
     ['an older writer recorded a failure in validation_status', false],
 ])->group('SPEC-045');
 
+// --- AC3, Amendment 1: a writer's record can hide a failure anywhere ----------
+
+/**
+ * A two-ingredient store where every AC3 condition holds for `forged` on the
+ * reader's side, and the writer of `top` recorded whatever $recordOn gets.
+ *
+ * @param  Closure(array<string, mixed>, array<string, mixed>): array{array<string, mixed>, array<string, mixed>}  $recordOn
+ */
+function spec045RecordedStore(Closure $recordOn): ManifestReport
+{
+    $forged = ['relationship' => 'parentOf', 'label' => 'c2pa.ingredient', 'active_manifest' => 'forged'];
+    $other = ['relationship' => 'componentOf', 'label' => 'c2pa.ingredient__1', 'active_manifest' => 'other'];
+    [$forged, $other] = $recordOn($forged, $other);
+
+    return ManifestStoreParser::fromArray(spec045Store('top', [
+        'top' => spec045Manifest(null, [$forged, $other]),
+        'forged' => spec045Manifest(SPEC045_AI),
+        'other' => spec045Manifest(null),
+    ], [spec045GoodDelta('top'), spec045GoodDelta('top', 'c2pa.ingredient__1')]));
+}
+
+it('trusts the good synthetic chain when the writer recorded only allowed codes', function () {
+    $report = spec045RecordedStore(fn (array $f, array $o) => [
+        [...$f, 'validation_results' => spec045Recorded(['claimSignature.validated', 'timeStamp.validated'], ['signingCredential.untrusted'])],
+        $o,
+    ]);
+
+    expect($report->ingredients()[0]->isTrusted())->toBeTrue()
+        ->and($report->ingredients()[1]->isTrusted())->toBeTrue();
+})->group('SPEC-045');
+
+it('trusts no ingredient once a writer recorded a failure code anywhere', function (string $case) {
+    $mismatch = ['code' => 'claimSignature.mismatch', 'url' => 'self#jumbf=/c2pa/forged/c2pa.signature'];
+    $validated = ['code' => 'claimSignature.validated', 'url' => 'self#jumbf=/c2pa/forged/c2pa.signature'];
+
+    $report = spec045RecordedStore(fn (array $f, array $o) => match ($case) {
+        'under success' => [[...$f, 'validation_results' => ['activeManifest' => ['success' => [$validated, $mismatch]]]], $o],
+        'under informational' => [[...$f, 'validation_results' => ['activeManifest' => ['success' => [$validated], 'informational' => [$mismatch]]]], $o],
+        'under another ingredient' => [$f, [...$o, 'validation_results' => ['activeManifest' => ['success' => [], 'failure' => [$mismatch]]]]],
+        'in a nested ingredientDeltas' => [[...$f, 'validation_results' => ['activeManifest' => ['success' => [$validated]], 'ingredientDeltas' => [['ingredientAssertionURI' => 'x', 'validationDeltas' => ['failure' => [$mismatch]]]]]], $o],
+        'an unknown code' => [[...$f, 'validation_results' => ['activeManifest' => ['success' => [$validated, ['code' => 'something.new', 'url' => 'x']]]]], $o],
+        'in an older validation_status' => [$f, [...$o, 'validation_status' => [$mismatch]]],
+        default => throw new InvalidArgumentException($case),
+    });
+
+    expect(array_map(fn (IngredientReport $i) => $i->isTrusted(), $report->ingredients()))->toBe([false, false]);
+})->with([
+    'under success',
+    'under informational',
+    'under another ingredient',
+    'in a nested ingredientDeltas',
+    'an unknown code',
+    'in an older validation_status',
+])->group('SPEC-045');
+
+it('looks for recorded codes in every manifest of the store, not only the active one', function () {
+    // The record sits in `forged`'s own ingredient assertion, one level down.
+    $report = ManifestStoreParser::fromArray(spec045Store('top', [
+        'top' => spec045Manifest(null, [['relationship' => 'parentOf', 'label' => 'c2pa.ingredient', 'active_manifest' => 'forged']]),
+        'forged' => spec045Manifest(SPEC045_AI, [[
+            'relationship' => 'parentOf', 'label' => 'c2pa.ingredient',
+            'validation_results' => ['activeManifest' => ['success' => [['code' => 'claimSignature.mismatch', 'url' => 'x']]]],
+        ]]),
+    ], [spec045GoodDelta('top')]));
+
+    expect($report->ingredients()[0]->isTrusted())->toBeFalse();
+})->group('SPEC-045');
+
 // --- AC5: hostile chains are bounded --------------------------------------------
 
 it('stops at a manifest that names itself', function () {

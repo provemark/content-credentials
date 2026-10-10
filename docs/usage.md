@@ -147,8 +147,11 @@ re-signing tool recorded about an ingredient is left out of that verdict. A
 file whose AI claim was signed by an unknown certificate can read as trusted
 once a trusted tool re-signs it. An ingredient is trusted only when the
 reader's own validation of it found a trusted signer and a verified claim
-signature, and neither that validation nor the re-signing tool found a fault.
-Without trust anchors, no ingredient is trusted.
+signature and no fault. And because a reader leaves out whatever the writing
+tools already recorded, anywhere in the file, a single recorded fault (or a
+status code this library does not know) makes no ingredient in that file
+trusted: it may have hidden a real fault from view. Without trust anchors, no
+ingredient is trusted.
 
 What to do with an ingredient's claim is your decision: whether a `parentOf`
 ingredient's type describes the file, how far down to look, and whether every

@@ -28,8 +28,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   upload, for instance) moves the AI marking into an ingredient; this is how
   you read it. The report's `isTrusted()` does not cover an ingredient, so check
   the ingredient's: it is true only when the reader's own validation found a
-  trusted signer and a verified claim signature, and neither the reader nor the
-  re-signing tool recorded a fault. Measured on all three readers, with files
+  trusted signer, a verified claim signature and no fault, and no tool that
+  wrote the file recorded a fault anywhere in it — a reader leaves recorded
+  statuses out of its own validation, so a recorded fault, or a status code
+  this library does not know, could hide a real one. Measured on all three readers, with files
   from C2PA Sign 1.4.11 + c2patool 0.9.12, c2patool 0.27.22 and c2pa-rs's
   `CIE-sig-CA.jpg` (an ingredient with a broken signature that a trust check
   alone would accept). Bounded against hostile files: a cycle, depth 8, or 64
