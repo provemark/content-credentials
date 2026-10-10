@@ -250,6 +250,26 @@ untrusted store over a good ingredient; an untrusted parent over a good
 grandchild; duplicate deltas in both orders; malformed failures; a deep and
 wide tree against the 64 budget; a large record in bounded time.
 
+## Amendment 3 — one key, one ingredient (approved 2026-10-10)
+
+From a second independent review, of Amendment 2. None of these was shown
+reachable through a real reader; each closes a way the evidence for one
+ingredient could be read as evidence for another, in the safe direction.
+
+- **The duplicate rule compares normalised keys.** `self#jumbf=c2pa/…` and
+  `self#jumbf=/c2pa/…` name the same assertion; two deltas whose keys differ
+  only in that leading slash are two deltas under one key, and neither counts.
+- **One label, one ingredient.** When two ingredient entries in the same
+  manifest carry the same `label`, the single delta under that label cannot
+  say which one it validated: neither entry is trusted.
+- **The documentation says what a writer record can and cannot do.** A
+  record entry without a string `code` is ignored when looking for recorded
+  failures: it cannot match a reader status, so it cannot hide one.
+
+Also under Amendment 2, which already required them, two fixes the same review
+found: a delta whose `failure` is `null` counts as a failure (present, not a
+list), and a malformed delta counts as one of two under its key.
+
 ## Open questions
 
 Resolved at approval (maintainer, 2026-10-10):
@@ -267,7 +287,7 @@ Resolved at approval (maintainer, 2026-10-10):
 |----------------------|-----------------------------|----------------------|
 | AC1 | `tests/Unit/Reading/IngredientsTest.php` :: "reports the AI origin two ingredients down a C2PA Sign chain" (verifier, extension) | `src/Core/Reading/ManifestStoreParser.php` `parseIngredients()`; `src/Core/Reading/IngredientReport.php`; `src/Core/Reading/ManifestReport.php` `ingredients()` |
 | AC2 | `tests/Integration/IngredientEquivalenceTest.php` :: "reports the same ingredients through the service and the verifier", "reports the same ingredients through the service and ext-c2pa"; `tests/Integration/ServiceHarness.php` `accessors()` / `ingredientTree()` (so the SPEC-019 and SPEC-042 comparisons cover it); `tests/Unit/Reading/IngredientsTest.php` :: "pins the verifier refusing an ingredient whose C2PA Sign logo it cannot resolve", "trusts the same logo-bearing ingredient through c2pa-rs" | `src/Core/Reading/ManifestStoreParser.php` `ingredientDeltas()` |
-| AC3 | `tests/Unit/Reading/IngredientsTest.php` :: "gives each ingredient the verdict of the SPEC-045 table" (5 files × verifier, extension), "trusts a synthetic ingredient only when every AC3 condition holds" (7 cases), "keeps the relationship verbatim"; Amendment 1: "trusts the good synthetic chain when the writer recorded only allowed codes", "trusts no ingredient once a writer recorded a failure code anywhere" (6 cases), "looks for recorded codes in every manifest of the store, not only the active one"; Amendment 2: "trusts no ingredient of a report that is not trusted", "trusts no grandchild of an untrusted ingredient", "trusts a grandchild when every link above it is trusted", "counts neither of two deltas under the same key" (2 orders), "counts an unreadable failure in a delta as a failure" (3 cases), "reads a large writer record in bounded time", and the `graft` row of the table test | `src/Core/Reading/ManifestStoreParser.php` `ingredientTrusted()`, `recordedByWriter()`; Amendment 1: `RECORDABLE_CODES`, `recordsHideNothing()`; Amendment 2: `fromArray()` (the report's trust as the first link), `parseIngredients()` `$aboveTrusted`, `recordHidesNothing()`, `ingredientDeltas()` |
+| AC3 | `tests/Unit/Reading/IngredientsTest.php` :: "gives each ingredient the verdict of the SPEC-045 table" (5 files × verifier, extension), "trusts a synthetic ingredient only when every AC3 condition holds" (7 cases), "keeps the relationship verbatim"; Amendment 1: "trusts the good synthetic chain when the writer recorded only allowed codes", "trusts no ingredient once a writer recorded a failure code anywhere" (6 cases), "looks for recorded codes in every manifest of the store, not only the active one"; Amendment 2: "trusts no ingredient of a report that is not trusted", "trusts no grandchild of an untrusted ingredient", "trusts a grandchild when every link above it is trusted", "counts neither of two deltas under the same key" (2 orders), "counts an unreadable failure in a delta as a failure" (4 cases, `null` from the second review), "counts a malformed delta as one of two under the same key" (2 cases), "reads a large writer record in bounded time", and the `graft` row of the table test; Amendment 3: "treats keys that differ only in the leading slash as one key" (2 orders), "still finds a delta written in the relative form", "trusts neither of two ingredient entries that share a label" | `src/Core/Reading/ManifestStoreParser.php` `ingredientTrusted()`, `recordedByWriter()`; Amendment 1: `RECORDABLE_CODES`, `recordsHideNothing()`; Amendment 2: `fromArray()` (the report's trust as the first link), `parseIngredients()` `$aboveTrusted`, `recordHidesNothing()`, `ingredientDeltas()`; Amendment 3: `normalisedUri()`, `parseIngredients()` `$labelCounts` |
 | AC4 | `tests/Unit/Reading/IngredientsTest.php` :: "does not trust any ingredient when the reader has no anchors", "does not trust an ingredient without a manifest, or without its own delta", "does not trust an ingredient without a manifest even under a good delta" | `src/Core/Reading/ManifestStoreParser.php` `parseIngredients()`, `ingredientTrusted()` |
 | AC5 | `tests/Unit/Reading/IngredientsTest.php` :: "stops at a manifest that names itself", "stops at a cycle through an ancestor", "reports an ingredient naming a label that is not in the store as having no manifest", "reports no deeper than depth 8", "reports no more than 64 ingredients in total", "shares the 64 budget across a deep and wide tree" | `src/Core/Reading/ManifestStoreParser.php` `MAX_INGREDIENT_DEPTH`, `MAX_INGREDIENTS`, `parseIngredients()` |
 | AC6 | `tests/Unit/Reading/IngredientsTest.php` :: "degrades malformed ingredient data instead of throwing" (5 cases), "treats an ingredient with a non-string relationship as having none, and still judges it", "reports no ingredients for an empty report" | `src/Core/Reading/ManifestStoreParser.php` `parseIngredients()`, `codesIn()`, `ingredientDeltas()` |
@@ -289,6 +309,10 @@ report's trust, children ignoring their parent's verdict, duplicate deltas
 resolved last-wins, unreadable failures ignored, Amendment 1 dropped, and no
 `claimSignature.validated` check. The quadratic version is caught by the
 bounded-time test.
-`composer check` green (511 passed, 7 skipped); integration against the local
+The second review's two Amendment 2 fixes and Amendment 3 were run red first
+(7 tests); five mutations were watched failing: `null` failure read as empty,
+a malformed delta not counted as seen, keys not normalised, normalisation a
+no-op, and a shared label still getting the delta.
+`composer check` green (518 passed, 7 skipped); integration against the local
 service with trust settings: 212 passed, 22 skipped, the SPEC-045 comparisons
 among the passed.

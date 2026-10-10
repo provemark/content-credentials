@@ -490,6 +490,20 @@ it('counts neither of two deltas under the same key', function (bool $failingFir
     expect($report->ingredients()[0]->isTrusted())->toBeFalse();
 })->with(['failing delta first' => [true], 'clean delta first' => [false]])->group('SPEC-045');
 
+it('counts a malformed delta as one of two under the same key', function (array $malformed) {
+    // The second review: a malformed first delta used to be skipped before the
+    // duplicate check, so the good one after it counted alone.
+    $report = ManifestStoreParser::fromArray(spec045Store('top', [
+        'top' => spec045Manifest(null, [['relationship' => 'parentOf', 'label' => 'c2pa.ingredient', 'active_manifest' => 'parent']]),
+        'parent' => spec045Manifest(SPEC045_AI),
+    ], [$malformed, spec045GoodDelta('top')]));
+
+    expect($report->ingredients()[0]->isTrusted())->toBeFalse();
+})->with([
+    'validationDeltas is a string' => [['ingredientAssertionURI' => 'self#jumbf=/c2pa/top/c2pa.assertions/c2pa.ingredient', 'validationDeltas' => 'junk']],
+    'validationDeltas missing' => [['ingredientAssertionURI' => 'self#jumbf=/c2pa/top/c2pa.assertions/c2pa.ingredient']],
+])->group('SPEC-045');
+
 it('counts an unreadable failure in a delta as a failure', function (mixed $failure) {
     $delta = spec045GoodDelta('top');
     $delta['validationDeltas'] = [...(array) $delta['validationDeltas'], 'failure' => $failure];
@@ -504,6 +518,8 @@ it('counts an unreadable failure in a delta as a failure', function (mixed $fail
     'a string' => ['claimSignature.mismatch'],
     'an entry whose code is a list' => [[['code' => ['claimSignature.mismatch']]]],
     'an entry that is not an object' => [['claimSignature.mismatch']],
+    // Present, and not a list: the second review found this one read as empty.
+    'null' => [null],
 ])->group('SPEC-045');
 
 it('reads a large writer record in bounded time', function () {
@@ -525,6 +541,47 @@ it('reads a large writer record in bounded time', function () {
     expect($seconds)->toBeLessThan(3.0)
         // and the record, all allowed codes, still leaves the ingredient trusted
         ->and($report->ingredients()[0]->isTrusted())->toBeTrue();
+})->group('SPEC-045');
+
+// --- AC3, Amendment 3: one key, one ingredient --------------------------------
+
+it('treats keys that differ only in the leading slash as one key', function (bool $failingFirst) {
+    $failing = spec045Delta('top', ['signingCredential.trusted', 'claimSignature.validated'], ['claimSignature.mismatch']);
+    $failing['ingredientAssertionURI'] = 'self#jumbf=c2pa/top/c2pa.assertions/c2pa.ingredient';
+    $clean = spec045GoodDelta('top');
+
+    $report = ManifestStoreParser::fromArray(spec045Store('top', [
+        'top' => spec045Manifest(null, [['relationship' => 'parentOf', 'label' => 'c2pa.ingredient', 'active_manifest' => 'parent']]),
+        'parent' => spec045Manifest(SPEC045_AI),
+    ], $failingFirst ? [$failing, $clean] : [$clean, $failing]));
+
+    expect($report->ingredients()[0]->isTrusted())->toBeFalse();
+})->with(['relative form first' => [true], 'absolute form first' => [false]])->group('SPEC-045');
+
+it('still finds a delta written in the relative form', function () {
+    // Normalising must not lose the single, honest delta either.
+    $delta = spec045GoodDelta('top');
+    $delta['ingredientAssertionURI'] = 'self#jumbf=c2pa/top/c2pa.assertions/c2pa.ingredient';
+
+    $report = ManifestStoreParser::fromArray(spec045Store('top', [
+        'top' => spec045Manifest(null, [['relationship' => 'parentOf', 'label' => 'c2pa.ingredient', 'active_manifest' => 'parent']]),
+        'parent' => spec045Manifest(SPEC045_AI),
+    ], [$delta]));
+
+    expect($report->ingredients()[0]->isTrusted())->toBeTrue();
+})->group('SPEC-045');
+
+it('trusts neither of two ingredient entries that share a label', function () {
+    $report = ManifestStoreParser::fromArray(spec045Store('top', [
+        'top' => spec045Manifest(null, [
+            ['relationship' => 'parentOf', 'label' => 'c2pa.ingredient', 'active_manifest' => 'genuine'],
+            ['relationship' => 'parentOf', 'label' => 'c2pa.ingredient', 'active_manifest' => 'other'],
+        ]),
+        'genuine' => spec045Manifest(null),
+        'other' => spec045Manifest(SPEC045_AI),
+    ], [spec045GoodDelta('top')]));
+
+    expect(array_map(fn (IngredientReport $i) => $i->isTrusted(), $report->ingredients()))->toBe([false, false]);
 })->group('SPEC-045');
 
 // --- AC5: hostile chains are bounded --------------------------------------------

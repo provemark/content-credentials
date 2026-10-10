@@ -153,6 +153,15 @@ final class ManifestStoreParser
             return [];
         }
 
+        // Amendment 3: a label two entries share cannot say which one its delta
+        // validated, so neither gets that delta.
+        $labelCounts = [];
+        foreach ($entries as $entry) {
+            if (is_array($entry) && isset($entry['label']) && is_string($entry['label'])) {
+                $labelCounts[$entry['label']] = ($labelCounts[$entry['label']] ?? 0) + 1;
+            }
+        }
+
         $out = [];
         foreach ($entries as $entry) {
             if ($budget <= 0) {
@@ -170,9 +179,9 @@ final class ManifestStoreParser
                 ? $manifests[$childLabel]
                 : null;
 
-            $delta = $assertionLabel === null
+            $delta = $assertionLabel === null || ($labelCounts[$assertionLabel] ?? 0) > 1
                 ? null
-                : $deltas[sprintf('self#jumbf=/c2pa/%s/c2pa.assertions/%s', $label, $assertionLabel)] ?? null;
+                : $deltas[self::normalisedUri(sprintf('self#jumbf=/c2pa/%s/c2pa.assertions/%s', $label, $assertionLabel))] ?? null;
 
             $trusted = $aboveTrusted && $child !== null && self::ingredientTrusted($delta, self::recordedByWriter($entry));
 
@@ -326,19 +335,25 @@ final class ManifestStoreParser
             if (! is_array($delta) || ! isset($delta['ingredientAssertionURI']) || ! is_string($delta['ingredientAssertionURI'])) {
                 continue;
             }
-            $codes = $delta['validationDeltas'] ?? null;
-            if (! is_array($codes)) {
-                continue;
-            }
-
-            $uri = $delta['ingredientAssertionURI'];
+            // The key counts as seen before anything else is read, so a
+            // malformed delta is still one of two under it; and it is compared
+            // normalised (Amendment 3).
+            $uri = self::normalisedUri($delta['ingredientAssertionURI']);
             if (array_key_exists($uri, $out)) {
                 $out[$uri] = null;
 
                 continue;
             }
 
-            $failure = $codes['failure'] ?? [];
+            $codes = $delta['validationDeltas'] ?? null;
+            if (! is_array($codes)) {
+                $out[$uri] = null;
+
+                continue;
+            }
+
+            // Present and not a readable list, null included: a failure.
+            $failure = array_key_exists('failure', $codes) ? $codes['failure'] : [];
             $failureCodes = self::codesIn($failure);
             if (! is_array($failure) || count($failureCodes) !== count($failure)) {
                 $failureCodes[] = '(unreadable failure entry)';
@@ -351,6 +366,20 @@ final class ManifestStoreParser
         }
 
         return $out;
+    }
+
+    /**
+     * An ingredient assertion URI with the leading slash its relative form
+     * leaves out: `self#jumbf=c2pa/…` and `self#jumbf=/c2pa/…` name the same
+     * assertion (SPEC-045 Amendment 3).
+     */
+    private static function normalisedUri(string $uri): string
+    {
+        $prefix = 'self#jumbf=';
+
+        return str_starts_with($uri, $prefix)
+            ? $prefix.'/'.ltrim(substr($uri, strlen($prefix)), '/')
+            : $uri;
     }
 
     /**

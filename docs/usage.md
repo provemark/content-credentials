@@ -159,7 +159,9 @@ An ingredient is trusted only when all of these hold:
   recorded it;
 - no tool that wrote the file recorded a fault, or a status code this library
   does not know, anywhere in it. A reader leaves recorded statuses out of its
-  own validation, so such a record may have hidden a real fault from view.
+  own validation, so such a record may have hidden a real fault from view. (A
+  record entry without a readable code is ignored here: it cannot match a
+  reader's status, so it cannot hide one.)
 
 Without trust anchors, no ingredient is trusted.
 
