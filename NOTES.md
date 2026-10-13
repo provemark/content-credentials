@@ -127,3 +127,4 @@ Follow these before searching; most questions are already answered in one step.
 | **70** | 2026-10-07 | [The verifier as a third reader, and what a foreign corpus showed](notes/step-70-the-verifier-as-a-third-reader.md) |
 | **71** | 2026-10-08 | [The signing service fetched remote manifests](notes/step-71-the-service-fetched-remote-manifests.md) |
 | **72** | 2026-10-08 | [ext-c2pa v0.1.0 aborts the PHP process on one file](notes/step-72-ext-c2pa-aborts-php-on-one-file.md) |
+| **73** | 2026-10-11 | [Two findings from the Drupal module's review: a cut-off ingredient tree, and quadratic de-duplication](notes/step-73-two-findings-from-the-drupal-module-review.md) |
