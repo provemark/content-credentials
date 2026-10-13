@@ -363,6 +363,32 @@ release that carries this is a patch: nothing in the API changes, and a host
 on verifier 0.6.0 is moved to 0.6.1. `docs/readers.md` and ADR-0007 name
 it. No criterion changes.
 
+## Amendment 6 (2026-10-13, approved by Maurice van Loon the same day)
+
+The verifier released 0.7.0 on 2026-10-13 (its SPEC-068 to SPEC-072). 0.6.x
+called a file `Trusted` whose hash left the picture outside what is signed:
+a `c2pa.hash.data` excluding everything but the manifest store, or only a
+PNG's image data, and a `c2pa.hash.bmff` excluding `/mdat` or `/moov`, each
+with the picture changed after signing. `c2patool` 0.28.x still calls them
+`Trusted`. 0.7.0 refuses them, reads Pixel Camera video (a QuickTime-style
+`meta` and indexed xpaths), and reports an ingredient failure a signer
+acknowledged as informational, with `ValidationStatus::$acknowledged`.
+
+**The tested range becomes `^0.7`, and 0.6 is left out on purpose.**
+`require-dev` is `"provemark/c2pa-verifier": "^0.7"` and `conflict` is
+`"<0.7 || >=0.8"`, the maintainer's choice ("alleen 0.7"): a host must not
+stay on a verifier that calls such a file `Trusted`.
+`VerifierVersionRangeTest` pins it ("tests against the verifier that
+refuses an exclusion over the media").
+
+`acknowledged` changes nothing here. This package reads the verifier's
+report through its JSON (`VerifierOutcome`, `ManifestStoreParser`):
+`validation_status` holds failures only, and an ingredient's deltas are read
+for `success` and `failure`, not `informational`. A failure that was dropped
+is now an informational line this package does not read, so the outcome is
+the same. The release that carries this is a patch, as 0.19.1 was: nothing
+in the API changes. No criterion changes. AC9's test gains the new pin.
+
 ## API sketch
 
 ```php
@@ -425,5 +451,5 @@ required); 11 verifier comparisons ran in each.
 | AC6 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "refuses trust settings the verifier refuses, at construction", "verifies without trust when no settings are given", "treats empty settings as no settings" | `src/Core/Reading/C2paVerifierReader.php` `buildSettings()`; `src/Core/Reading/Exception/TrustSettingsRejectedException.php` |
 | AC7 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "reports itself available when the verifier is installed", "names the package to install when the verifier is absent" | `src/Core/Reading/C2paVerifierReader.php` `isAvailable()`, `__construct()`; `src/Core/Reading/Exception/VerifierMissingException.php` |
 | AC8 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "binds the pure-PHP reader when the mode is verifier", "reports verifier as the mode, configured and resolved", "passes the configured settings file to the pure-PHP reader", "treats an empty settings value as no trust, not as an error", "refuses a settings path that does not exist, when the reader is resolved", "refuses a settings file the verifier refuses, when the reader is resolved", "names verifier among the accepted modes when refusing", "does not resolve auto to the verifier, though it is installed" | `src/Laravel/ReaderFactory.php` `MODES`, `make()`, `verifierSettings()`; `config/content-credentials.php` `verifier_settings` |
-| AC9 | `tests/Unit/VerifierVersionRangeTest.php` :: "refuses every verifier version outside the tested range", "tests against the verifier that reads data boxes" (Amendment 5), "keeps the verifier out of require"; `tests/Integration/VerifierReaderEquivalenceTest.php` :: "agrees with the service reader through the verifier", "agrees with the in-process reader through the verifier" | `.github/workflows/ci.yml` steps "Assert the verifier comparison ran (SPEC-042)" and "Assert the verifier-extension comparison ran (SPEC-042)" (counted 0 on a skipped run, 11 on a real one); `composer.json` `require-dev`, `conflict` (ADR-0007 addendum); `docs/adr/ADR-0007-the-verifier-as-an-optional-reader.md` |
+| AC9 | `tests/Unit/VerifierVersionRangeTest.php` :: "refuses every verifier version outside the tested range", "tests against the verifier that refuses an exclusion over the media" (Amendment 6), "keeps the verifier out of require"; `tests/Integration/VerifierReaderEquivalenceTest.php` :: "agrees with the service reader through the verifier", "agrees with the in-process reader through the verifier" | `.github/workflows/ci.yml` steps "Assert the verifier comparison ran (SPEC-042)" and "Assert the verifier-extension comparison ran (SPEC-042)" (counted 0 on a skipped run, 11 on a real one); `composer.json` `require-dev`, `conflict` (ADR-0007 addendum); `docs/adr/ADR-0007-the-verifier-as-an-optional-reader.md` |
 | AC10 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "adds little to peak memory when reading a large asset", "fails with ReadFailedException when the copy cannot spill to disk" | `src/Core/Reading/C2paVerifierReader.php` `IN_MEMORY_BYTES`, `read()` (Amendment 3) |

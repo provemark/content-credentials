@@ -19,6 +19,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **The tested verifier range moves to `^0.7`** (SPEC-042 Amendment 6;
+  `conflict` `<0.7 || >=0.8`). `provemark/c2pa-verifier` 0.6.x called a
+  file `Trusted` whose hash left the picture outside what is signed: a
+  `c2pa.hash.data` excluding everything but the manifest store, or only a
+  PNG's image data, and a `c2pa.hash.bmff` excluding `/mdat` or `/moov`,
+  with the picture changed after signing. 0.7.0 refuses those, verifies
+  Pixel Camera videos, and reports ingredient failures a signer
+  acknowledged as informational. This package reads that report through
+  its JSON (`validation_status` and the ingredient deltas' `success` and
+  `failure`), so the new informational lines change nothing here. A host
+  on verifier 0.6 is moved to 0.7; the floor leaves 0.6 out on purpose.
+
 ## [0.19.1] - 2026-10-10
 
 A patch release: the tested verifier range moves to `^0.6.1`. No API change.
