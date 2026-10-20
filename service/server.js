@@ -37,6 +37,31 @@ function hashForAlg(alg) {
   }
 }
 
+/**
+ * SPEC-007 Amendment 1 (AC7): does a read-back manifest store carry a
+ * timestamp the engine could check?
+ *
+ * Both are required: `signature_info.time` present and parseable (D1), and
+ * `timeStamp.validated` among the active manifest's success codes. The TSA's
+ * own trust is not (D3), so `timeStamp.untrusted` does not refuse. Total: any
+ * input, however malformed, answers false rather than throwing.
+ *
+ * Why it exists: c2pa-node 0.9.8 and later sign through CallbackSigner +
+ * signAsync without contacting the TSA, and answer 200 (contentauth/c2pa-js#244,
+ * NOTES Step 74). A configured TSA is a promise; this checks it was kept.
+ */
+function carriesValidatedTimestamp(store) {
+  if (store === null || typeof store !== 'object') return false;
+  const label = store.active_manifest;
+  if (typeof label !== 'string') return false;
+  const manifest = store.manifests?.[label];
+  const time = manifest?.signature_info?.time;
+  if (typeof time !== 'string' || Number.isNaN(Date.parse(time))) return false;
+  const success = store.validation_results?.activeManifest?.success;
+  if (!Array.isArray(success)) return false;
+  return success.some((entry) => entry?.code === 'timeStamp.validated');
+}
+
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
 const API_KEY = process.env.CONTENTAUTH_API_KEY ?? '';
 const SIGN_ALG = (process.env.CONTENTAUTH_SIGN_ALG ?? 'es256').toLowerCase();
@@ -993,6 +1018,10 @@ app.get('/health', (_req, res) => {
     // Composer, so "did it land" is a question an operator will actually have.
     spec_version: SPEC_VERSION,
     timestamping: Boolean(TSA_URL),
+    // SPEC-007 Amendment 1 (A1): every signature is read back and checked for a
+    // validated timestamp exactly when a TSA is configured. Confirmable after a
+    // rebuild without spending a signature.
+    timestamp_check: Boolean(TSA_URL),
     trust_verification: Boolean(trustSettings),
     // SPEC-043 AC5: confirmable after a rebuild without sending a probe.
     remote_manifest_fetch: false,
@@ -1235,6 +1264,21 @@ app.post('/v1/sign', async (req, res) => {
 
     const signedAsset = fs.readFileSync(tmp);
 
+    // SPEC-007 Amendment 1 (AC6): a configured TSA is a promise, so check it was
+    // kept. The engine can sign without contacting the TSA and say nothing
+    // (c2pa-node 0.9.8+, contentauth/c2pa-js#244). Refused through the catch
+    // below: 500, no signed_content, audit outcome "failed". Same Reader
+    // settings as everywhere else (SPEC-043). Measured on 0.9.5: 16-22 ms and
+    // +15 MiB peak for a 14.5 MiB asset (see the amendment's Cost section).
+    let timestamped = false;
+    if (TSA_URL) {
+      const readBack = await Reader.fromAsset({ buffer: signedAsset, mimeType: mime_type }, NO_REMOTE_FETCH);
+      if (!carriesValidatedTimestamp(readBack ? readBack.json() : null)) {
+        throw new Error('signed without a validated timestamp although CONTENTAUTH_TSA_URL is set');
+      }
+      timestamped = true;
+    }
+
     audit({
       ts: new Date().toISOString(),
       cid: req.cid,
@@ -1249,7 +1293,10 @@ app.post('/v1/sign', async (req, res) => {
       assertion_labels: (Array.isArray(extra_assertions) ? extra_assertions : [])
         .map((a) => cap(a?.label, 128)).filter(Boolean),
       digital_source_types: allSourceTypes(extra_assertions),
-      timestamped: Boolean(TSA_URL),
+      // SPEC-007 Amendment 1 (AC8): the outcome of the check, not the
+      // configuration. On 0.9.10 the configuration said true for assets
+      // that carried no timestamp.
+      timestamped,
       // SPEC-028 AC8: accountability for "we signed a claim that this was
       // derived from something" requires recording that there was a something.
       parent_bytes: parentBuffer === null ? null : parentBuffer.length,
@@ -1428,6 +1475,7 @@ server.setTimeout(REQUEST_TIMEOUT_MS);
 module.exports = {
   actionsOf,
   allSourceTypes,
+  carriesValidatedTimestamp,
   firstActionSourceTypes,
   markingSourceTypes,
   needsParentAsset,
