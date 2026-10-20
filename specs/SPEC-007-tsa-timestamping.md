@@ -227,12 +227,29 @@ TSA:
 | 5 MB | 233 ms | 13 ms |
 | 14 MB | 264 ms | 15 ms |
 
-**Memory is not measured.** The RSS deltas from the same run were noise
-(−2 to +4 MB), so this table says nothing about it. Reasoned: the read runs
-after the builder has finished, so it adds to the peak only if it needs more
-than signing did. SPEC-024 puts a read at ~3–5× the asset and a signature at
-~7×. Before approval, measure the peak of one 20 MB sign with and without the
-read-back.
+**Memory, measured 2026-10-20** on c2pa-node 0.9.5 in the service container.
+Each run is one fresh Node process doing what the sign handler does: a base64
+body string decoded to a Buffer, `Builder.withJson`, `CallbackSigner` with the
+DigiCert TSA, `signAsync` to a temp file, `readFileSync`, and then, in half the
+runs, the read-back. The peak is the process's `VmHWM` (highest RSS, native
+memory included). The assets are the largest that fit the 20 MB body limit
+after base64: a 14.5 MiB WAV and a 13.7 MiB PNG. Three runs per row:
+
+| asset | before signing | peak, no read-back | peak, with read-back | read-back |
+|---|---|---|---|---|
+| WAV 14.5 MiB | 100 MiB | 171 / 171 / 171 MiB | 186 / 186 / 186 MiB | 16–22 ms |
+| PNG 13.7 MiB | 97 MiB | 162 / 148 / 161 MiB | 176 / 176 / 176 MiB | 21 ms |
+
+**The read-back raises the peak by 15 MiB, about one asset's size**, in every
+run and for both types. So it does not hide under the signing peak, as the
+draft first reasoned. Measured per process, not per container, so these
+figures are not comparable with SPEC-024's multipliers, which came from
+container measurements.
+
+What it means for `mem_limit: 1g` is reasoned, not measured: SPEC-024 sizes a
+saturated instance at ~650 MiB (four signs, four reads). If all four signing
+slots read back at once, that adds up to 4 × 15 = 60 MiB, about 710 MiB in
+total. Inside the limit, with less headroom.
 
 ### What this does not solve
 
