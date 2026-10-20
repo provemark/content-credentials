@@ -134,6 +134,147 @@ are the required error / malformed-input paths.
   - Then it responds non-2xx with an error and returns **no** `signed_content`;
     it never returns an untimestamped signature as if success.
 
+## Amendment 1: the service checks the timestamp it promised (draft, 2026-10-20)
+
+**Status: draft.** Proposed on 2026-10-20 and not approved. No implementation
+code until the maintainer approves it. Source: NOTES Step 74.
+
+**Why.** AC5 assumed that a configured TSA is either used or the signature
+fails. c2pa-node 0.9.8 broke that assumption without an error. On 0.9.8 and
+0.9.10 a `CallbackSigner` with a `tsaUrl` signs through `signAsync` without
+contacting the TSA. A working TSA gives a signature without a timestamp, and so
+does an unreachable one: HTTP 200, and the audit record says
+`timestamped: true` *(measured per version in fresh containers, NOTES Step 74;
+reported as contentauth/c2pa-js#244)*.
+
+The pin stayed on 0.9.5, and since #184 the AC5 test turns red on such an
+engine. But that test only guards CI. A service built from a lockfile with a
+broken engine, or a future engine that drops the timestamp some other way,
+would hand out untimestamped signatures as success. Nothing in the service
+checks the result today. `timestamped` in the audit record is
+`Boolean(TSA_URL)`, the configuration rather than the outcome.
+
+### Changes
+
+**AC5 is unchanged.** It is now enforced at two points: when the TSA refuses
+(as today), and after signing (AC6).
+
+**New criteria:**
+
+- **AC6: a signature without a validated timestamp is refused**
+  - Given `CONTENTAUTH_TSA_URL` is set
+  - When signing returns an asset whose active manifest, read back by the
+    service, does not carry a timestamp
+  - Then `/v1/sign` responds non-2xx with the generic signing error and a
+    `cid`, returns no `signed_content`, and the audit record has outcome
+    `failed` with a reason that says the timestamp is missing
+  - "Carries a timestamp" means both of these: `signature_info.time` is present
+    and parses as a date-time (D1), and `timeStamp.validated` is among the
+    active manifest's `success` codes
+  - Rationale: the second condition is what the engine reports for a token it
+    could check *(measured on 0.9.5: `timeStamp.validated` in `success`, and
+    `timeStamp.untrusted` informational without TSA anchors)*. D3 stands: the
+    TSA's own trust is not required, and `timeStamp.untrusted` does not refuse.
+
+- **AC7: the check is a pure function, tested without an engine**
+  - Given manifest-store JSON in the shape `/v1/read` returns
+  - When the service's exported check is applied
+  - Then it accepts a store whose active manifest has `time` and
+    `timeStamp.validated`. It refuses a store with no `time`, a store with a
+    malformed `time`, a store whose `timeStamp.validated` is missing, and a
+    store with no active manifest
+  - Rationale: the engines that actually drop the timestamp (0.9.8+) are not
+    the ones CI runs. A test on JSON fixtures goes red before the function
+    exists, and stays meaningful on any engine. Exported like the SPEC-029
+    helpers, so requiring `server.js` must still not start a server.
+
+- **AC8: the audit record states the outcome**
+  - `timestamped` in a `signed` record is `true` only when AC6's check passed,
+    and absent or `false` when no TSA is configured
+  - Rationale: with AC6 a `signed` record with a TSA configured always means a
+    checked timestamp. Today the field repeats the configuration, which is how
+    it said `true` on 0.9.10 for assets without one. This touches SPEC-012's
+    record. The field keeps its name and its type.
+
+**Unchanged:** AC1–AC5, D1–D6, the `/v1/sign` contract, `/health`, and the
+no-TSA path, which gets no read-back.
+
+### Implementation sketch
+
+```js
+// service/server.js, after signAsync() and readFileSync(tmp)
+if (TSA_URL) {
+  const reader = await Reader.fromAsset({ buffer: signedAsset, mimeType: mime_type }, NO_REMOTE_FETCH);
+  const store = reader ? reader.json() : null;
+  if (!carriesValidatedTimestamp(store)) {          // AC7, exported
+    throw new Error('signed without a validated timestamp although CONTENTAUTH_TSA_URL is set');
+  }                                                  // -> existing catch: 500, audit "failed" (AC6)
+}
+```
+
+The read uses the same settings as every other Reader (SPEC-043: no remote
+fetch). It runs inside the signing slot (SPEC-015), not against the read
+budget (SPEC-024), because it is part of signing.
+
+### Cost
+
+Measured on c2pa-node 0.9.5 in the service container, WAV assets, DigiCert
+TSA:
+
+| asset | signing (incl. TSA) | read-back |
+|---|---|---|
+| 0.1 MB | 476 ms | 5 ms |
+| 5 MB | 233 ms | 13 ms |
+| 14 MB | 264 ms | 15 ms |
+
+**Memory, measured 2026-10-20** on c2pa-node 0.9.5 in the service container.
+Each run is one fresh Node process doing what the sign handler does: a base64
+body string decoded to a Buffer, `Builder.withJson`, `CallbackSigner` with the
+DigiCert TSA, `signAsync` to a temp file, `readFileSync`, and then, in half the
+runs, the read-back. The peak is the process's `VmHWM` (highest RSS, native
+memory included). The assets are the largest that fit the 20 MB body limit
+after base64: a 14.5 MiB WAV and a 13.7 MiB PNG. Three runs per row:
+
+| asset | before signing | peak, no read-back | peak, with read-back | read-back |
+|---|---|---|---|---|
+| WAV 14.5 MiB | 100 MiB | 171 / 171 / 171 MiB | 186 / 186 / 186 MiB | 16–22 ms |
+| PNG 13.7 MiB | 97 MiB | 162 / 148 / 161 MiB | 176 / 176 / 176 MiB | 21 ms |
+
+**The read-back raises the peak by 15 MiB, about one asset's size**, in every
+run and for both types. So it does not hide under the signing peak, as the
+draft first reasoned. Measured per process, not per container, so these
+figures are not comparable with SPEC-024's multipliers, which came from
+container measurements.
+
+What it means for `mem_limit: 1g` is reasoned, not measured: SPEC-024 sizes a
+saturated instance at ~650 MiB (four signs, four reads). If all four signing
+slots read back at once, that adds up to 4 × 15 = 60 MiB, about 710 MiB in
+total. Inside the limit, with less headroom.
+
+### What this does not solve
+
+- **The reader is the same engine as the signer.** An engine that drops the
+  timestamp *and* reports one on read would pass. Nothing has shown that, and a
+  second engine for this one check (ext-c2pa, the verifier) is out of
+  proportion. Named so it is not mistaken for independence.
+- It does not choose or check TSA trust anchors (out of scope, as before).
+
+### Open questions
+
+- **Should `/health` report the check** (e.g. `timestamp_check: true`), so a
+  rebuild is confirmable without spending a signature, as with
+  `remote_manifest_fetch` (SPEC-043)? *Leaning: yes, same reason.*
+- **Fixtures for AC7:** taken from a real `/v1/read` response of a timestamped
+  and an untimestamped asset, trimmed to the fields the check reads. Leaning:
+  trimmed, so the fixture states what the check depends on.
+
+### Verification before merge
+
+AC6–AC8 green. On c2pa-node 0.9.5: AC4 and AC5 still pass, and `bin/e2e.php`
+is trusted with `hasTimestamp` true. On a 0.9.10 build (local, not merged):
+every sign with a TSA configured is refused under AC6 rather than signed. That
+run is the proof the check catches the failure it exists for.
+
 ## API sketch
 
 Illustrative only. PHP files `declare(strict_types=1)`; public API `final` /
