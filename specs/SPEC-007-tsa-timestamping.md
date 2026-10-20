@@ -134,10 +134,10 @@ are the required error / malformed-input paths.
   - Then it responds non-2xx with an error and returns **no** `signed_content`;
     it never returns an untimestamped signature as if success.
 
-## Amendment 1: the service checks the timestamp it promised (draft, 2026-10-20)
+## Amendment 1: the service checks the timestamp it promised (approved 2026-10-20)
 
-**Status: draft.** Proposed on 2026-10-20 and not approved. No implementation
-code until the maintainer approves it. Source: NOTES Step 74.
+Approved by Maurice van Loon on 2026-10-20, with both open questions resolved
+as leaned (see *Decisions* below). Source: NOTES Step 74.
 
 **Why.** AC5 assumed that a configured TSA is either used or the signature
 fails. c2pa-node 0.9.8 broke that assumption without an error. On 0.9.8 and
@@ -259,14 +259,18 @@ total. Inside the limit, with less headroom.
   proportion. Named so it is not mistaken for independence.
 - It does not choose or check TSA trust anchors (out of scope, as before).
 
-### Open questions
+### Decisions (resolved at approval, 2026-10-20)
 
-- **Should `/health` report the check** (e.g. `timestamp_check: true`), so a
-  rebuild is confirmable without spending a signature, as with
-  `remote_manifest_fetch` (SPEC-043)? *Leaning: yes, same reason.*
-- **Fixtures for AC7:** taken from a real `/v1/read` response of a timestamped
-  and an untimestamped asset, trimmed to the fields the check reads. Leaning:
-  trimmed, so the fixture states what the check depends on.
+- **A1: `/health` reports the check.** `timestamp_check` is `true` when the
+  service checks a timestamp after signing, which is exactly when
+  `CONTENTAUTH_TSA_URL` is set, and `false` otherwise. A rebuild that carries
+  the check is then confirmable without spending a signature, as with
+  `remote_manifest_fetch` (SPEC-043).
+- **A2: AC7 fixtures are trimmed.** One store taken from a real `/v1/read`
+  response, cut down to the fields the check reads; the refusal cases are
+  derived from it in the test. AC7 is also run over the engine's own output for
+  two committed signed assets, one timestamped and one not, so the trimmed
+  shape cannot drift from what the reader returns.
 
 ### Verification before merge
 
