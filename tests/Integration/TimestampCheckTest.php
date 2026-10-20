@@ -90,27 +90,56 @@ function spec007am1Node(string $script, mixed $input): array
     return $decoded;
 }
 
-/** @return array<array-key, mixed> */
-function spec007am1Store(): array
+/**
+ * The fields the check reads, from the trimmed fixture: the active manifest's
+ * label, its signature time, and its success codes.
+ *
+ * @return array{label: string, time: string, success: list<array{code: string}>}
+ */
+function spec007am1Fields(): array
 {
-    $decoded = json_decode((string) file_get_contents(dirname(__DIR__).'/Fixtures/spec007-store-timestamped.json'), true);
-
-    if (! is_array($decoded)) {
-        throw new RuntimeException('cannot read the timestamped store fixture');
+    $store = json_decode((string) file_get_contents(dirname(__DIR__).'/Fixtures/spec007-store-timestamped.json'), true);
+    $label = is_array($store) && is_string($store['active_manifest'] ?? null) ? $store['active_manifest'] : '';
+    $manifests = is_array($store) && is_array($store['manifests'] ?? null) ? $store['manifests'] : [];
+    $manifest = is_array($manifests[$label] ?? null) ? $manifests[$label] : [];
+    $info = is_array($manifest['signature_info'] ?? null) ? $manifest['signature_info'] : [];
+    $results = is_array($store) && is_array($store['validation_results'] ?? null) ? $store['validation_results'] : [];
+    $active = is_array($results['activeManifest'] ?? null) ? $results['activeManifest'] : [];
+    $success = [];
+    foreach (is_array($active['success'] ?? null) ? $active['success'] : [] as $entry) {
+        if (is_array($entry) && is_string($entry['code'] ?? null)) {
+            $success[] = ['code' => $entry['code']];
+        }
     }
 
-    return $decoded;
+    if ($label === '' || ! is_string($info['time'] ?? null) || $success === []) {
+        throw new RuntimeException('the timestamped store fixture lacks a field the check reads');
+    }
+
+    return ['label' => $label, 'time' => $info['time'], 'success' => $success];
 }
 
 /**
- * The fixture with one change applied to its active manifest's entries.
+ * A store in the `/v1/read` shape, built from those fields; each argument
+ * replaces one of them so a case states exactly what it changes.
  *
- * @param  callable(array<array-key, mixed>): array<array-key, mixed>  $change
- * @return array<array-key, mixed>
+ * @param  list<array{code: string}>|null  $success  null leaves out validation_results
+ * @param  list<array{code: string}>  $failure
+ * @return array<string, mixed>
  */
-function spec007am1Variant(callable $change): array
+function spec007am1Build(?string $active, string $label, mixed $time, ?array $success, array $failure = []): array
 {
-    return $change(spec007am1Store());
+    $info = $time === null ? [] : ['time' => $time];
+    $store = ['manifests' => [$label => ['signature_info' => $info]]];
+
+    if ($active !== null) {
+        $store['active_manifest'] = $active;
+    }
+    if ($success !== null) {
+        $store['validation_results'] = ['activeManifest' => ['success' => $success, 'failure' => $failure]];
+    }
+
+    return $store;
 }
 
 $skipUnlessContainer = fn () => spec007am1Container() === null || ! ServiceHarness::reachable()
@@ -120,52 +149,19 @@ $skipUnlessContainer = fn () => spec007am1Container() === null || ! ServiceHarne
 // --- AC7: the check is a pure function --------------------------------------
 
 it('accepts a store with a time and timeStamp.validated, and refuses every store without them', function () {
-    $store = spec007am1Store();
-    $label = is_string($store['active_manifest'] ?? null) ? $store['active_manifest'] : '';
+    ['label' => $label, 'time' => $time, 'success' => $success] = spec007am1Fields();
+    $withoutTimestamp = array_values(array_filter($success, fn (array $e) => $e['code'] !== 'timeStamp.validated'));
 
     $cases = [
-        'timestamped' => $store,
-        'no time' => spec007am1Variant(function (array $s) use ($label) {
-            unset($s['manifests'][$label]['signature_info']['time']);
-
-            return $s;
-        }),
-        'malformed time' => spec007am1Variant(function (array $s) use ($label) {
-            $s['manifests'][$label]['signature_info']['time'] = 'not a date';
-
-            return $s;
-        }),
-        'time not a string' => spec007am1Variant(function (array $s) use ($label) {
-            $s['manifests'][$label]['signature_info']['time'] = 1760000000;
-
-            return $s;
-        }),
-        'no timeStamp.validated' => spec007am1Variant(function (array $s) {
-            $s['validation_results']['activeManifest']['success'] = [['code' => 'claimSignature.validated']];
-
-            return $s;
-        }),
-        'timeStamp.validated under failure' => spec007am1Variant(function (array $s) {
-            $s['validation_results']['activeManifest']['failure'] = $s['validation_results']['activeManifest']['success'];
-            $s['validation_results']['activeManifest']['success'] = [];
-
-            return $s;
-        }),
-        'no validation results' => spec007am1Variant(function (array $s) {
-            unset($s['validation_results']);
-
-            return $s;
-        }),
-        'no active manifest' => spec007am1Variant(function (array $s) {
-            unset($s['active_manifest']);
-
-            return $s;
-        }),
-        'active manifest missing' => spec007am1Variant(function (array $s) {
-            $s['active_manifest'] = 'urn:c2pa:nowhere';
-
-            return $s;
-        }),
+        'timestamped' => spec007am1Build($label, $label, $time, $success),
+        'no time' => spec007am1Build($label, $label, null, $success),
+        'malformed time' => spec007am1Build($label, $label, 'not a date', $success),
+        'time not a string' => spec007am1Build($label, $label, 1760000000, $success),
+        'no timeStamp.validated' => spec007am1Build($label, $label, $time, $withoutTimestamp),
+        'timeStamp.validated under failure' => spec007am1Build($label, $label, $time, $withoutTimestamp, [['code' => 'timeStamp.validated']]),
+        'no validation results' => spec007am1Build($label, $label, $time, null),
+        'no active manifest' => spec007am1Build(null, $label, $time, $success),
+        'active manifest missing' => spec007am1Build('urn:c2pa:nowhere', $label, $time, $success),
         'empty store' => [],
         'null' => null,
         'not an object' => 'text',
@@ -258,7 +254,8 @@ it('records timestamped exactly when the returned asset carries a timestamp', fu
         ->and($body['signed_content'] ?? null)->toBeString();
 
     [, $reader] = ServiceHarness::signerAndReader();
-    $report = $reader->read(new Asset((string) base64_decode((string) $body['signed_content'], true), MediaType::Png));
+    $signed = is_string($body['signed_content'] ?? null) ? base64_decode($body['signed_content'], true) : false;
+    $report = $reader->read(new Asset($signed === false ? '' : $signed, MediaType::Png));
 
     $record = null;
     $container = (string) spec007am1Container();

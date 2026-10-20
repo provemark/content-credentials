@@ -19,6 +19,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Signing service:** with `CONTENTAUTH_TSA_URL` set, the service reads every
+  signature back and refuses one that carries no validated timestamp (HTTP 500,
+  no `signed_content`). c2pa-node 0.9.8 and later can sign without contacting
+  the TSA and report success (contentauth/c2pa-js#244); the service pins 0.9.5,
+  where this does not happen, so the check is a guard rather than a fix. The
+  audit field `timestamped` now states whether that check passed, and
+  `GET /health` reports `timestamp_check`. Cost, measured on 0.9.5: about 20 ms
+  and one asset's size in peak memory per signature (SPEC-007 Amendment 1).
+  Service-side: reaches you through `git pull` and a rebuild, not through a
+  Composer update. The `docs/production.md` note about it is in the package.
+
 ## [0.19.2] - 2026-10-13
 
 A patch release: the tested verifier range moves to `^0.7`. No API change.
