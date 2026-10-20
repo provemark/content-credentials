@@ -21,7 +21,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
-const { LocalSigner, CallbackSigner, Builder, Reader } = require('@contentauth/c2pa-node');
+const { LocalSigner, CallbackSigner, Builder, Reader, Context } = require('@contentauth/c2pa-node');
 
 /**
  * Hash for the ECDSA callback signer used on the timestamped (async) path.
@@ -197,7 +197,39 @@ try {
 }
 
 /**
- * Load and vet the trust settings document (SPEC-014 AC4/AC5).
+ * The snake_case keys a trust document may carry, and their `Context` names
+ * (SPEC-014 Amendment 1, AC9). The document stays snake_case on purpose: it is
+ * also the `c2patool --settings` file. A Context takes camelCase and drops the
+ * rest silently — on c2pa-node 0.9.8 that lost the anchors while verify_trust
+ * survived (NOTES Step 67) — so these tables are the whole contract.
+ */
+const TRUST_KEYS = Object.freeze({
+  trust_anchors: 'trustAnchors',
+  user_anchors: 'userAnchors',
+  trust_config: 'trustConfig',
+  allowed_list: 'allowedList',
+});
+const VERIFY_KEYS = Object.freeze({
+  verify_trust: 'verifyTrust',
+  remote_manifest_fetch: 'remoteManifestFetch', // SPEC-043
+});
+
+/** Rename the keys of one section through a table that loadTrustSettings vetted. */
+function mapKeys(section, table) {
+  return Object.fromEntries(Object.entries(section ?? {}).map(([key, value]) => [table[key], value]));
+}
+
+/**
+ * A vetted trust document in Context form. Sections other than trust and
+ * verify pass through unchanged, as they did on the raw-settings path.
+ */
+function toContextSettings(settings) {
+  const { trust, verify, ...rest } = settings;
+  return { ...rest, trust: mapKeys(trust, TRUST_KEYS), verify: mapKeys(verify, VERIFY_KEYS) };
+}
+
+/**
+ * Load and vet the trust settings document (SPEC-014 AC4/AC5, Amendment 1 AC9).
  *
  * Both checks fail the process rather than degrading, because trust
  * verification that is quietly disabled is worse than none: reads keep
@@ -236,18 +268,48 @@ function loadTrustSettings(path) {
   // AC5: would these settings actually verify anything?
   const nonEmpty = (value) => typeof value === 'string' && value.trim() !== '';
   const trust = settings.trust ?? {};
-  const hasMaterial = nonEmpty(trust.trust_anchors) || nonEmpty(trust.allowed_list);
 
   if (settings.verify?.verify_trust !== true) {
     console.error(`CONTENTAUTH_TRUST_SETTINGS does not enable verify.verify_trust: ${path}`);
     process.exit(1);
   }
-  if (!hasMaterial) {
+  // Amendment 1: the c2pa-rs 0.91 form. A Context rebuilds trust.anchors from
+  // the flat fields and discards an input block of that name unread.
+  if (trust.anchors !== undefined) {
     console.error(
-      `CONTENTAUTH_TRUST_SETTINGS carries no trust.trust_anchors or trust.allowed_list: ${path}. `
-      + 'verify_trust without trust material verifies nothing, silently.',
+      `CONTENTAUTH_TRUST_SETTINGS carries trust.anchors: ${path}. `
+      + 'This service takes the flat form (trust.trust_anchors, trust.allowed_list); '
+      + 'a trust.anchors block would be discarded unread.',
     );
     process.exit(1);
+  }
+  if (!nonEmpty(trust.trust_anchors)) {
+    // Amendment 1: an allowed list alone confers no trust on c2pa-rs 0.91, and
+    // through a Context it cannot even be expressed — it is attached to the
+    // anchor entries, so with none it is dropped.
+    console.error(
+      nonEmpty(trust.allowed_list)
+        ? `CONTENTAUTH_TRUST_SETTINGS carries trust.allowed_list without trust.trust_anchors: ${path}. `
+          + 'On this engine an allowed list needs anchors beside it (for example the official C2PA trust list); '
+          + 'see docs/production.md.'
+        : `CONTENTAUTH_TRUST_SETTINGS carries no trust.trust_anchors: ${path}. `
+          + 'verify_trust without trust material verifies nothing, silently.',
+    );
+    process.exit(1);
+  }
+
+  // AC9: a Context drops a key it does not know without a word, so every key
+  // under trust and verify is one we map, or the service does not start.
+  for (const [section, known] of [['trust', TRUST_KEYS], ['verify', VERIFY_KEYS]]) {
+    for (const key of Object.keys(settings[section] ?? {})) {
+      if (!Object.hasOwn(known, key)) {
+        console.error(
+          `CONTENTAUTH_TRUST_SETTINGS carries ${section}.${key}, which this service does not pass on: ${path}. `
+          + `Known keys under ${section}: ${Object.keys(known).join(', ')}.`,
+        );
+        process.exit(1);
+      }
+    }
   }
 
   // SPEC-043 AC4: the file cannot turn remote fetching back on. Refused rather
@@ -280,17 +342,20 @@ const trustSettings = TRUST_SETTINGS_PATH ? loadTrustSettings(TRUST_SETTINGS_PAT
  * c2pa-node 0.9.5 / c2pa-rs 0.90.22: both POST /v1/read and a SPEC-028 parent
  * on POST /v1/sign made that request; this setting stops both.
  *
- * Every Reader and Builder gets these settings. With trust settings, the
+ * Every Reader and Builder gets this setting, through a Context (SPEC-014
+ * Amendment 1), so it is spelled camelCase. With trust settings, the mapped
  * trust document is merged in (it already passed loadTrustSettings, which
- * refused a `true` here). Note for the Context migration (NOTES Step 67):
- * a Context takes camelCase, so this key must be mapped there too, or it is
- * dropped silently and SPEC-043's probe tests are what will say so.
+ * refused a `true` here). Dropped silently, it would turn the fetch back on;
+ * SPEC-043's probe tests are what would say so.
  */
-const NO_REMOTE_FETCH = Object.freeze({ verify: Object.freeze({ remote_manifest_fetch: false }) });
+const builderContext = new Context({ verify: { remoteManifestFetch: false } });
 
-const readerSettings = trustSettings
-  ? { ...trustSettings, verify: { ...trustSettings.verify, remote_manifest_fetch: false } }
-  : NO_REMOTE_FETCH;
+const readerContext = trustSettings
+  ? (() => {
+    const mapped = toContextSettings(trustSettings);
+    return new Context({ ...mapped, verify: { ...mapped.verify, remoteManifestFetch: false } });
+  })()
+  : builderContext;
 
 // Asset types this service will sign/read (SPEC-009 #6, widened by SPEC-021).
 // Must track MediaType in the PHP client; kept in the same order as the enum,
@@ -1227,7 +1292,7 @@ app.post('/v1/sign', async (req, res) => {
   try {
     // SPEC-043: the parent ingredient (SPEC-028) is read by the builder, and
     // without these settings a parent's remote manifest URL is fetched.
-    const builder = Builder.withJson(manifestDefinition, NO_REMOTE_FETCH);
+    const builder = await Builder.withJsonAsync(manifestDefinition, builderContext);
     const source = { buffer: fileBuffer, mimeType: mime_type };
     const dest = { path: tmp };
 
@@ -1285,7 +1350,7 @@ app.post('/v1/sign', async (req, res) => {
     // +15 MiB peak for a 14.5 MiB asset (see the amendment's Cost section).
     let timestamped = false;
     if (TSA_URL) {
-      const readBack = await Reader.fromAsset({ buffer: signedAsset, mimeType: mime_type }, NO_REMOTE_FETCH);
+      const readBack = await Reader.fromAsset({ buffer: signedAsset, mimeType: mime_type }, builderContext);
       if (!carriesValidatedTimestamp(readBack ? readBack.json() : null)) {
         throw new Error('signed without a validated timestamp although CONTENTAUTH_TSA_URL is set');
       }
@@ -1404,7 +1469,7 @@ app.post('/v1/read', async (req, res) => {
     // "Trusted"; without them it stops at "Valid" + signingCredential.untrusted.
     // SPEC-043: always with settings now, so the fetch is off with trust
     // verification and without it.
-    const reader = await Reader.fromAsset({ buffer: fileBuffer, mimeType: mime_type }, readerSettings);
+    const reader = await Reader.fromAsset({ buffer: fileBuffer, mimeType: mime_type }, readerContext);
     // SPEC-010: an asset with no C2PA manifest yields a null reader. Absence is
     // an empty manifest store (HTTP 200), never a 500 — the PHP client parses
     // {} into an empty ManifestReport (hasManifest() === false).
