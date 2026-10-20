@@ -1,0 +1,25 @@
+{
+    "active_manifest": "urn:c2pa:91fa0d81-dbe8-448f-9ba1-bb7a07f74f51",
+    "manifests": {
+        "urn:c2pa:91fa0d81-dbe8-448f-9ba1-bb7a07f74f51": {
+            "signature_info": {
+                "time": "2026-10-07T19:49:31+00:00"
+            }
+        }
+    },
+    "validation_results": {
+        "activeManifest": {
+            "success": [
+                {
+                    "code": "timeStamp.validated"
+                },
+                {
+                    "code": "claimSignature.insideValidity"
+                },
+                {
+                    "code": "claimSignature.validated"
+                }
+            ]
+        }
+    }
+}

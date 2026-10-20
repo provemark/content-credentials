@@ -134,10 +134,10 @@ are the required error / malformed-input paths.
   - Then it responds non-2xx with an error and returns **no** `signed_content`;
     it never returns an untimestamped signature as if success.
 
-## Amendment 1: the service checks the timestamp it promised (draft, 2026-10-20)
+## Amendment 1: the service checks the timestamp it promised (approved 2026-10-20)
 
-**Status: draft.** Proposed on 2026-10-20 and not approved. No implementation
-code until the maintainer approves it. Source: NOTES Step 74.
+Approved by Maurice van Loon on 2026-10-20, with both open questions resolved
+as leaned (see *Decisions* below). Source: NOTES Step 74.
 
 **Why.** AC5 assumed that a configured TSA is either used or the signature
 fails. c2pa-node 0.9.8 broke that assumption without an error. On 0.9.8 and
@@ -259,14 +259,18 @@ total. Inside the limit, with less headroom.
   proportion. Named so it is not mistaken for independence.
 - It does not choose or check TSA trust anchors (out of scope, as before).
 
-### Open questions
+### Decisions (resolved at approval, 2026-10-20)
 
-- **Should `/health` report the check** (e.g. `timestamp_check: true`), so a
-  rebuild is confirmable without spending a signature, as with
-  `remote_manifest_fetch` (SPEC-043)? *Leaning: yes, same reason.*
-- **Fixtures for AC7:** taken from a real `/v1/read` response of a timestamped
-  and an untimestamped asset, trimmed to the fields the check reads. Leaning:
-  trimmed, so the fixture states what the check depends on.
+- **A1: `/health` reports the check.** `timestamp_check` is `true` when the
+  service checks a timestamp after signing, which is exactly when
+  `CONTENTAUTH_TSA_URL` is set, and `false` otherwise. A rebuild that carries
+  the check is then confirmable without spending a signature, as with
+  `remote_manifest_fetch` (SPEC-043).
+- **A2: AC7 fixtures are trimmed.** One store taken from a real `/v1/read`
+  response, cut down to the fields the check reads; the refusal cases are
+  derived from it in the test. AC7 is also run over the engine's own output for
+  two committed signed assets, one timestamped and one not, so the trimmed
+  shape cannot drift from what the reader returns.
 
 ### Verification before merge
 
@@ -365,3 +369,7 @@ http resolver is not implemented", so the service signs via `CallbackSigner` +
 | AC3 | treats a malformed timestamp as absent without throwing (4 datasets) | `SigningServiceReader::parseHasTimestamp()` |
 | AC4 | `bin/e2e.php` timestamp assertion vs `/health` (integration, verified 2026-07-28) | `service/server.js` async `CallbackSigner` path; `GET /health` `timestamping` |
 | AC5 | `tests/Integration/TimestampFailsClosedTest.php` :: "refuses to sign when the timestamp authority cannot be reached"; "reports the timestamp authority as configured on /health". Automated 2026-08-13 in the `tsa-unreachable` CI profile; verified by hand 2026-07-28 until then | `service/server.js` sign `catch` (no untimestamped fallback) |
+| Am. 1 AC6 | Verified by hand on c2pa-node 0.9.10 with the check (2026-10-20): with `CONTENTAUTH_TSA_URL` at DigiCert and at a dead port, `/v1/sign` answered 500, no `signed_content`, audit `failed` with reason "signed without a validated timestamp although CONTENTAUTH_TSA_URL is set". Not in CI: no engine CI runs drops the timestamp. On 0.9.5 the full integration group stays green (217 passed) and `bin/e2e.php` reports the timestamp | `service/server.js` sign handler, read-back after `signAsync` |
+| Am. 1 AC7 | `tests/Integration/TimestampCheckTest.php` :: "accepts a store with a time and timeStamp.validated, and refuses every store without them" (12 cases); "reads the engine output of a timestamped asset as timestamped, and of an untimestamped one as not". Red on the pre-amendment image ("server.js does not export carriesValidatedTimestamp") | `carriesValidatedTimestamp()` in `service/server.js`; fixture `tests/Fixtures/spec007-store-timestamped.json` |
+| Am. 1 AC8 | `TimestampCheckTest.php` :: "records timestamped exactly when the returned asset carries a timestamp". Red on c2pa-node 0.9.10 without the check (record `true`, asset without timestamp) | audit record `timestamped` in the sign handler |
+| Am. 1 A1 | `TimestampCheckTest.php` :: "reports on /health whether it checks the timestamp after signing" | `GET /health` `timestamp_check` |

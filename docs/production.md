@@ -22,7 +22,11 @@ service — it never enters your web application.
 RFC 3161 Time Stamping Authority and every signature carries a timestamp, so its
 validity survives certificate expiry. Unset, no timestamp is added (the default);
 if the TSA is unreachable the signing request **fails closed** rather than
-producing an untimestamped signature. `GET /health` reports `timestamping`, and
+producing an untimestamped signature. The service also reads every signature
+back and refuses one that carries no validated timestamp, because an engine can
+skip the TSA without an error (c2pa-node 0.9.8 to at least 0.9.10 does). This
+adds about 20 ms and one asset's size in memory to each signature. `GET /health`
+reports `timestamping` and `timestamp_check`, and
 `ManifestReport::hasTimestamp()` confirms a read manifest is timestamped.
 
 A timestamp's *trust* is a separate question from its presence, and it depends
