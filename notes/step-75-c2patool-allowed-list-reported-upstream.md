@@ -1,5 +1,7 @@
 # Step 75 — c2patool's own `--allowed_list` confers no trust, reported upstream (2026-10-22)
 
+**Report:** contentauth/c2patool#363, plus a comment on it for the sidecar.
+
 That c2pa-rs 0.91 drops a flat `trust.allowed_list` was already on record:
 Step 67's addendum measured it through c2pa-node 0.9.8 (c2pa-rs 0.91.0), and
 `docs/production.md` has said since SPEC-042 (2026-10-07) that c2patool 0.28
@@ -64,10 +66,52 @@ out gives `missing field`.
   been moved to build a `TrustAnchor`.
 - c2pa-rs `main` removed the deprecated trust fields on 2026-10-15 (#2751) and
   still does not reject unknown keys under `trust`.
-- The `init trust --legacy` sidecar (`c2pa-trust-allowed.sha256.txt`, which
-  holds the interim list's allowed hashes) is loaded through the same flat key,
-  so that list is probably dropped too. Not tested: `init trust` is never run
-  in this project.
+- The removal was announced. c2patool's own CHANGELOG for 0.28.0 lists under
+  breaking changes: "migrate configurations using the legacy `cawg_trust` or
+  `trust.trust_anchors`, `trust.trust_config`, `trust.user_anchors`, and
+  `trust.allowed_list` fields". c2patool's own `--allowed_list`, its
+  `C2PATOOL_ALLOWED_LIST` environment variable (the same clap argument) and
+  the sidecar below were not migrated with it.
+
+## A targeted review of c2patool, same day
+
+Every place `v0.28.2` hands settings to c2pa-rs was read (ten calls to
+`update_from_str` / `with_value`, eight of them trust), with each candidate
+measured on 0.27.22 and 0.28.2, and checked against `main`.
+
+- **The `init trust --legacy` sidecar is affected too.** That command
+  downloads `https://contentcredentials.org/trust/allowed.sha256.txt` (the
+  interim list's allowed hashes, about 230 lines) into
+  `c2pa-trust-allowed.sha256.txt` next to the settings file, and
+  `apply_trust_sidecars()` loads it through the same flat key. Measured with
+  the sidecar files placed by hand (`init trust` is never run in this
+  project), on `sample/C.jpg`, with `sample/store.cfg` as
+  `c2pa-trust-store.cfg`:
+
+  | sidecar content | 0.27.22 | 0.28.2 |
+  |---|---|---|
+  | `sample/allowed_list.pem` | Trusted | **untrusted** |
+  | base64 SHA-256 of each certificate's DER, the format of `allowed.sha256.txt` | Trusted | **untrusted** |
+
+  On `main`, the two anchor sidecars now write `[[trust.anchors]]`; the
+  allowed-list sidecar still writes the flat key. A first hash-form run read
+  untrusted on 0.27.22 as well, because only the first of the three
+  certificates in the file had been hashed. The signer of `C.jpg` is not the
+  first one.
+- **A CAWG test fixture that tests nothing on 0.28.2, already fixed on
+  `main`.** `tests/fixtures/trust/cawg_test_settings.toml` at `v0.28.2` uses
+  `[cawg_trust]`, which 0.91 no longer has. On `C_with_CAWG_data.jpg`:
+  0.27.22 reads `Trusted`, 0.28.2 reads `Valid` with
+  `cawg.x509.credential.untrusted`, and the same anchors moved into
+  `trust.anchors` with `trust_kind: "cawg"` read `Trusted` with
+  `cawg.x509.credential.trusted`. The three integration tests using the
+  fixture stay green because they assert only that `cawg.identity.well-formed`
+  is present. On `main` the fixture has used `[[trust.anchors]]` since
+  2026-08-28, so the tag was cut from a line without that commit. Not
+  reported.
+- **Not affected:** `--trust_config` (`Trust` still has `trust_config`), the
+  two anchor sidecars (migrated on load), and `builder.thumbnail.enabled` in
+  `info.rs`.
 
 ## Not a security problem
 
@@ -84,7 +128,8 @@ c2pa-python for `allowed_list`, `allowed list`, `allowedList`, `allowed-list`
 and `end-entity`. Nothing covered it. #363 contains only the documented
 example, the two versions and the `--trust_anchors` control. The cause and the
 workaround above are not in it, on purpose: the maintainers own that code, and
-they can be offered if asked.
+they can be offered if asked. The sidecar measurement was added as a comment
+on #363, with the note that the files were placed by hand.
 
 ## Same day, two other comments
 
