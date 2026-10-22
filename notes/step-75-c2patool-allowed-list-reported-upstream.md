@@ -1,6 +1,7 @@
 # Step 75 — c2patool's own `--allowed_list` confers no trust, reported upstream (2026-10-22)
 
-**Report:** contentauth/c2patool#363, plus a comment on it for the sidecar.
+**Reports:** contentauth/c2patool#363, plus a comment on it for the sidecar,
+and contentauth/c2pa-rs#2893 for the cause, measured through c2pa-python.
 
 That c2pa-rs 0.91 drops a flat `trust.allowed_list` was already on record:
 Step 67's addendum measured it through c2pa-node 0.9.8 (c2pa-rs 0.91.0), and
@@ -113,6 +114,47 @@ measured on 0.27.22 and 0.28.2, and checked against `main`.
   two anchor sidecars (migrated on load), and `builder.thumbnail.enabled` in
   `info.rs`.
 
+## The same cause in c2pa-python, and the report to c2pa-rs
+
+c2pa-python's `docs/context-settings.md` recommends
+`Context.from_dict({"trust": {"allowed_list": test_cert}})` "for quick
+testing", and still shows the whole 0.90 settings schema, `cawg_trust`
+included, with no version note. The same script, with c2patool's
+`sample/allowed_list.pem` and `sample/C.jpg`, in a fresh virtualenv per
+version:
+
+| c2pa-python | `sdk_version()` | `validation_state` |
+|---|---|---|
+| 0.36.0 | 0.89.0 | Trusted |
+| 0.37.0 | 0.90.0 | Trusted |
+| 0.37.12 | 0.91.0 | **Valid** |
+| 0.38.1 | 0.91.3 | **Valid** |
+
+With the same certificate in an anchor entry (`trust_kind: "manifest"`,
+`trust_anchors: ""`), 0.38.1 reads `Trusted`, so the certificate matches and
+only the flat key is lost.
+
+Before reporting, the claim was checked against the possibility that the
+removal is deliberate. c2pa-rs had the same symptom for `trust_anchors` as
+#2663, treated it as a bug, and fixed it in #2667 by migrating
+`trust_anchors` and `user_anchors` into `anchors[]`. That fix does not touch
+`allowed_list`, and neither the issue nor the pull request says why. The
+c2pa-rs 0.91.0 release notes do not mention the change; only c2patool's
+0.28.0 changelog does. Either way the report stands: if it is a bug, the
+migration is incomplete; if it is deliberate, the documentation is wrong and
+a removed key should not pass silently.
+
+**contentauth/c2pa-rs#2893** contains the script, the version table, the
+anchor-entry result and one question: whether a key under `trust` that is no
+longer supported could return an error instead of being dropped.
+
+Read, not run, and not in the report: c2pa-android 0.0.15 and c2pa-swift
+v0.0.15 (both 2026-10-18) ship c2pa-rs 0.91.3, and their public settings
+models still serialise `trust.allowed_list` and `cawg_trust`; Android passes
+that JSON through `updateFromString`. The C++ documentation, the settings page
+on opensource.contentauthenticity.org and the c2pa-node README also still
+describe the old keys.
+
 ## Not a security problem
 
 An allowed list only adds trust. Losing it makes a verdict stricter, never
@@ -152,8 +194,8 @@ on #363, with the note that the files were placed by hand.
 
 ## Still open
 
-- c2patool#363, and whether a fix lands in c2pa-rs (rejecting unknown trust
-  keys) or only in c2patool.
+- c2patool#363 and c2pa-rs#2893, and whether a fix lands in c2pa-rs
+  (migrating or rejecting the old keys) or only in each downstream.
 - `docs/production.md` describes the flat `allowed_list` as working for
   c2patool 0.27.22, and as dropped by 0.28. Both are still correct.
   `certs/c2pa-trust.settings.json` uses only `trust_anchors` and
