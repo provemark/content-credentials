@@ -36,7 +36,7 @@ Follow these before searching; most questions are already answered in one step.
 
 | Subject | Steps |
 |---|---|
-| Trust verification and settings documents | [11](notes/step-11-c2pa-node-trust-settings.md), [12](notes/step-12-spec-014-trust-verification-in-read.md), [13](notes/step-13-spec-013-istrusted-fails-closed.md), [19](notes/step-19-official-c2pa-trust-list.md), [47](notes/step-47-equivalence-test-configurations.md), [68](notes/step-68-the-dutch-trust-list-measured.md), [74](notes/step-74-c2pa-node-0-9-10-and-the-lost-timestamp.md) |
+| Trust verification and settings documents | [11](notes/step-11-c2pa-node-trust-settings.md), [12](notes/step-12-spec-014-trust-verification-in-read.md), [13](notes/step-13-spec-013-istrusted-fails-closed.md), [19](notes/step-19-official-c2pa-trust-list.md), [47](notes/step-47-equivalence-test-configurations.md), [68](notes/step-68-the-dutch-trust-list-measured.md), [74](notes/step-74-c2pa-node-0-9-10-and-the-lost-timestamp.md), [75](notes/step-75-c2patool-allowed-list-reported-upstream.md) |
 | TSA timestamping (async path, fails closed) | [6](notes/step-06-spec-007-tsa-timestamping.md), [23](notes/step-23-spec-019-ext-c2pa-reader.md), [74](notes/step-74-c2pa-node-0-9-10-and-the-lost-timestamp.md) |
 | Memory multipliers and body-size limits | [20](notes/step-20-spec-017-body-size-default.md), [30](notes/step-30-spec-024-bounding-the-read-path.md), [37](notes/step-37-spec-028-implemented-article-50-2.md), [43](notes/step-43-spec-029-and-spec-030-implemented.md) |
 | Media types: what works, what does not, and why | [25](notes/step-25-spec-021-seven-more-media-types.md), [27](notes/step-27-measuring-remaining-formats-and-pdf.md), [28](notes/step-28-spec-023-thirteen-media-types.md) |
@@ -129,3 +129,4 @@ Follow these before searching; most questions are already answered in one step.
 | **72** | 2026-10-08 | [ext-c2pa v0.1.0 aborts the PHP process on one file](notes/step-72-ext-c2pa-aborts-php-on-one-file.md) |
 | **73** | 2026-10-11 | [Two findings from the Drupal module's review: a cut-off ingredient tree, and quadratic de-duplication](notes/step-73-two-findings-from-the-drupal-module-review.md) |
 | **74** | 2026-10-20 | [c2pa-node 0.9.10: the trust migration works, and signing lost its timestamp](notes/step-74-c2pa-node-0-9-10-and-the-lost-timestamp.md) |
+| **75** | 2026-10-22 | [c2patool's own `--allowed_list` confers no trust, reported upstream](notes/step-75-c2patool-allowed-list-reported-upstream.md) |
