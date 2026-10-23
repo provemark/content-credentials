@@ -19,6 +19,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.19.3] - 2026-10-23
+
+A patch release: the tested verifier range moves to `^0.8`, and the signing
+service refuses a signature without a validated timestamp. No API change.
+
 ### Security
 
 - **The tested verifier range moves to `^0.8`** (SPEC-042 Amendment 7;
@@ -2030,7 +2035,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.19.2...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.19.3...main
+[0.19.3]: https://github.com/provemark/content-credentials/releases/tag/v0.19.3
 [0.19.2]: https://github.com/provemark/content-credentials/releases/tag/v0.19.2
 [0.19.1]: https://github.com/provemark/content-credentials/releases/tag/v0.19.1
 [0.19.0]: https://github.com/provemark/content-credentials/releases/tag/v0.19.0
