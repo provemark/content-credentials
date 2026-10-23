@@ -19,6 +19,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **The tested verifier range moves to `^0.8`** (SPEC-042 Amendment 7;
+  `conflict` `<0.8 || >=0.9`). `provemark/c2pa-verifier` 0.7.x let a
+  replaced ingredient manifest accept its own failures, let an ingredient
+  mark an assertion of the active manifest as redacted, accepted a BMFF
+  hash that leaves the offset tables unsigned, and chose an entry's EKUs at
+  the clock rather than at the judged time; 0.8.0 closes each. Its new
+  validation time, crJSON and trust-list options are not used here, and
+  the report is read through its JSON as before. A host on verifier 0.7 is
+  moved to 0.8; the floor leaves 0.7 out on purpose.
+
 ### Changed
 
 - **Signing service:** with `CONTENTAUTH_TSA_URL` set, the service reads every

@@ -85,4 +85,6 @@ floor moved to 0.6.1 (`<0.6.1 || >=0.7`, SPEC-042 Amendment 5): a patch
 that reads data-box icons, which SPEC-045's tests assume. On 2026-10-13 the
 range moved to `^0.7` (`<0.7 || >=0.8`, SPEC-042 Amendment 6): 0.7.0 refuses
 a hash that leaves the picture unsigned, which 0.6.x called `Trusted`, so 0.6
-is left out on purpose.
+is left out on purpose. On 2026-10-23 the range moved to `^0.8` (`<0.8 ||
+>=0.9`, SPEC-042 Amendment 7): 0.8.0 closes four ways to a wrong `Valid` or
+`Trusted` that 0.7.x has, so 0.7 is left out on purpose too.

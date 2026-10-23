@@ -47,12 +47,12 @@ it('refuses every verifier version outside the tested range', function () {
         ->toBe(sprintf('<%s || >=0.%d', $floor, $minor + 1));
 })->group('SPEC-042');
 
-it('tests against the verifier that refuses an exclusion over the media', function () {
-    // SPEC-042 Amendment 6: 0.7 is the floor. 0.6.x calls a file Trusted whose
-    // hash excludes everything but the manifest, or the image data, or /mdat,
-    // with the picture changed after signing; 0.7.0 refuses it.
-    expect(spec042ComposerSection('require-dev')['provemark/c2pa-verifier'] ?? null)->toBe('^0.7')
-        ->and(spec042ComposerSection('conflict')['provemark/c2pa-verifier'] ?? null)->toBe('<0.7 || >=0.8');
+it('tests against the verifier that closed the review of 2026-10-23', function () {
+    // SPEC-042 Amendment 7: 0.8 is the floor. 0.7.x lets an ingredient accept
+    // its own failures, lets an ingredient redact the active manifest, and
+    // accepts BMFF offset tables left out of the hash; 0.8.0 refuses each.
+    expect(spec042ComposerSection('require-dev')['provemark/c2pa-verifier'] ?? null)->toBe('^0.8')
+        ->and(spec042ComposerSection('conflict')['provemark/c2pa-verifier'] ?? null)->toBe('<0.8 || >=0.9');
 })->group('SPEC-042');
 
 it('keeps the verifier out of require', function () {
