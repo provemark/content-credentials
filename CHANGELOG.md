@@ -19,6 +19,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **The verifier floor moves to 0.8.1** (SPEC-042 Amendment 8; `require-dev`
+  `^0.8.1`, `conflict` `<0.8.1 || >=0.9`). `provemark/c2pa-verifier` 0.8.0
+  checked only the first ingredient assertion's hash of a manifest named
+  twice, and let an ingredient redact an assertion of the active manifest
+  through a cycle; both made a file `Trusted` that should be `Invalid`.
+  0.8.1 closes both. No code changes here. A host on verifier 0.8.0 is moved
+  to 0.8.1; the floor leaves 0.8.0 out on purpose.
+
 ## [0.19.3] - 2026-10-23
 
 A patch release: the tested verifier range moves to `^0.8`, and the signing

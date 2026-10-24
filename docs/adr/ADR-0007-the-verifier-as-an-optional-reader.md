@@ -87,4 +87,7 @@ range moved to `^0.7` (`<0.7 || >=0.8`, SPEC-042 Amendment 6): 0.7.0 refuses
 a hash that leaves the picture unsigned, which 0.6.x called `Trusted`, so 0.6
 is left out on purpose. On 2026-10-23 the range moved to `^0.8` (`<0.8 ||
 >=0.9`, SPEC-042 Amendment 7): 0.8.0 closes four ways to a wrong `Valid` or
-`Trusted` that 0.7.x has, so 0.7 is left out on purpose too.
+`Trusted` that 0.7.x has, so 0.7 is left out on purpose too. On 2026-10-24
+the floor moved to 0.8.1 (`<0.8.1 || >=0.9`, SPEC-042 Amendment 8): 0.8.1
+closes two ways to a wrong `Trusted` that 0.8.0 has, so 0.8.0 is left out
+on purpose.
