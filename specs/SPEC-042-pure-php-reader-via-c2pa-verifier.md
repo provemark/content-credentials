@@ -442,6 +442,36 @@ which need the SPEC-043 probe profile). The pin was seen red on the old
 range first. The release that carries this is a patch. No
 criterion changes. AC9's test takes the new pin.
 
+## Amendment 9 (2026-10-25, approved by Maurice van Loon the same day)
+
+The verifier released 0.8.2 on 2026-10-25. Measured against `c2patool`
+0.28.3, 0.8.1 said `Valid`, or `Trusted` under a trusted root, in two cases
+where `c2patool` says `Invalid`: an ECDSA algorithm under a key on another
+curve (ES256 under P-384 and the like; every `c2patool` measured refuses it,
+and C2PA 2.5 §12.3.1 permits refusing it), and a signer certificate signed
+with `id-Ed25519` and algorithm parameters (RFC 8410 §3; `c2patool` 0.28.3
+refuses it). 0.8.2 refuses both (its SPEC-009 amendment 5 and SPEC-015
+amendment 11). The verifier counts neither among its wrong verdicts: in both
+the certificate holder's key made the signature. It also no longer applies
+the update-manifest rules to a manifest nothing reaches (its SPEC-022
+amendment 8), which made such a file `Invalid` where `c2patool` says
+`Trusted`. Its public contract is unchanged (142 symbols).
+
+**The floor moves to 0.8.2, and 0.8.1 is left out on purpose**, as in
+Amendment 8: `require-dev` is `"provemark/c2pa-verifier": "^0.8.2"` and
+`conflict` is `"<0.8.2 || >=0.9"`. The verdict of this package's verifier
+route should be the verdict `c2patool` gives. `VerifierVersionRangeTest`
+pins it ("tests against the verifier that refuses what c2patool refuses in
+0.28.3"), in place of Amendment 8's pin.
+
+Measured on 2026-10-25 with 0.8.2 installed: `composer check` (519 passed,
+7 skipped), and the integration tests that use the verifier
+(`VerifierReaderEquivalenceTest`, `IngredientEquivalenceTest`,
+`RemoteManifestFetchTest` against the running service: 52 passed; 4 skipped,
+which need the SPEC-043 probe profile), as with 0.8.1. The pin was seen red
+on the old range first. The release that carries this is a patch. No
+criterion changes. AC9's test takes the new pin.
+
 ## API sketch
 
 ```php
@@ -504,5 +534,5 @@ required); 11 verifier comparisons ran in each.
 | AC6 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "refuses trust settings the verifier refuses, at construction", "verifies without trust when no settings are given", "treats empty settings as no settings" | `src/Core/Reading/C2paVerifierReader.php` `buildSettings()`; `src/Core/Reading/Exception/TrustSettingsRejectedException.php` |
 | AC7 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "reports itself available when the verifier is installed", "names the package to install when the verifier is absent" | `src/Core/Reading/C2paVerifierReader.php` `isAvailable()`, `__construct()`; `src/Core/Reading/Exception/VerifierMissingException.php` |
 | AC8 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "binds the pure-PHP reader when the mode is verifier", "reports verifier as the mode, configured and resolved", "passes the configured settings file to the pure-PHP reader", "treats an empty settings value as no trust, not as an error", "refuses a settings path that does not exist, when the reader is resolved", "refuses a settings file the verifier refuses, when the reader is resolved", "names verifier among the accepted modes when refusing", "does not resolve auto to the verifier, though it is installed" | `src/Laravel/ReaderFactory.php` `MODES`, `make()`, `verifierSettings()`; `config/content-credentials.php` `verifier_settings` |
-| AC9 | `tests/Unit/VerifierVersionRangeTest.php` :: "refuses every verifier version outside the tested range", "tests against the verifier that closed the graph fuzzer's findings" (Amendment 8; Amendment 7's pin before it), "keeps the verifier out of require"; `tests/Integration/VerifierReaderEquivalenceTest.php` :: "agrees with the service reader through the verifier", "agrees with the in-process reader through the verifier" | `.github/workflows/ci.yml` steps "Assert the verifier comparison ran (SPEC-042)" and "Assert the verifier-extension comparison ran (SPEC-042)" (counted 0 on a skipped run, 11 on a real one); `composer.json` `require-dev`, `conflict` (ADR-0007 addendum); `docs/adr/ADR-0007-the-verifier-as-an-optional-reader.md` |
+| AC9 | `tests/Unit/VerifierVersionRangeTest.php` :: "refuses every verifier version outside the tested range", "tests against the verifier that refuses what c2patool refuses in 0.28.3" (Amendment 9; Amendments 7 and 8's pins before it), "keeps the verifier out of require"; `tests/Integration/VerifierReaderEquivalenceTest.php` :: "agrees with the service reader through the verifier", "agrees with the in-process reader through the verifier" | `.github/workflows/ci.yml` steps "Assert the verifier comparison ran (SPEC-042)" and "Assert the verifier-extension comparison ran (SPEC-042)" (counted 0 on a skipped run, 11 on a real one); `composer.json` `require-dev`, `conflict` (ADR-0007 addendum); `docs/adr/ADR-0007-the-verifier-as-an-optional-reader.md` |
 | AC10 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "adds little to peak memory when reading a large asset", "fails with ReadFailedException when the copy cannot spill to disk" | `src/Core/Reading/C2paVerifierReader.php` `IN_MEMORY_BYTES`, `read()` (Amendment 3) |

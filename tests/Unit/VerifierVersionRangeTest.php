@@ -47,13 +47,13 @@ it('refuses every verifier version outside the tested range', function () {
         ->toBe(sprintf('<%s || >=0.%d', $floor, $minor + 1));
 })->group('SPEC-042');
 
-it('tests against the verifier that closed the graph fuzzer\'s findings', function () {
-    // SPEC-042 Amendment 8: 0.8.1 is the floor. 0.8.0 checks only the first
-    // ingredient assertion's hash of a manifest named twice, and lets an
-    // ingredient redact the active manifest through a cycle; 0.8.1 refuses
-    // both. 0.7.x stays out (Amendment 7).
-    expect(spec042ComposerSection('require-dev')['provemark/c2pa-verifier'] ?? null)->toBe('^0.8.1')
-        ->and(spec042ComposerSection('conflict')['provemark/c2pa-verifier'] ?? null)->toBe('<0.8.1 || >=0.9');
+it('tests against the verifier that refuses what c2patool refuses in 0.28.3', function () {
+    // SPEC-042 Amendment 9: 0.8.2 is the floor. 0.8.1 calls a file Valid or
+    // Trusted whose ECDSA algorithm is on another curve than its key, or whose
+    // Ed25519 signer certificate carries parameters; c2patool says Invalid,
+    // and so does 0.8.2. 0.8.0 and 0.7.x stay out (Amendments 7 and 8).
+    expect(spec042ComposerSection('require-dev')['provemark/c2pa-verifier'] ?? null)->toBe('^0.8.2')
+        ->and(spec042ComposerSection('conflict')['provemark/c2pa-verifier'] ?? null)->toBe('<0.8.2 || >=0.9');
 })->group('SPEC-042');
 
 it('keeps the verifier out of require', function () {

@@ -19,6 +19,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The verifier floor moves to 0.8.2** (SPEC-042 Amendment 9; `require-dev`
+  `^0.8.2`, `conflict` `<0.8.2 || >=0.9`). `provemark/c2pa-verifier` 0.8.1
+  called a file `Valid`, or `Trusted` under a trusted root, when its ECDSA
+  algorithm was on another curve than its key, or when its Ed25519 signer
+  certificate carried algorithm parameters; `c2patool` says `Invalid`, and
+  so does 0.8.2. No code changes here. A host on verifier 0.8.1 is moved to
+  0.8.2; the floor leaves 0.8.1 out on purpose.
+
 ## [0.19.4] - 2026-10-24
 
 A patch release: the verifier floor moves to 0.8.1. No API change.
