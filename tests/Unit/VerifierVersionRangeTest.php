@@ -47,13 +47,13 @@ it('refuses every verifier version outside the tested range', function () {
         ->toBe(sprintf('<%s || >=0.%d', $floor, $minor + 1));
 })->group('SPEC-042');
 
-it('tests against the verifier that refuses what c2patool refuses in 0.28.3', function () {
-    // SPEC-042 Amendment 9: 0.8.2 is the floor. 0.8.1 calls a file Valid or
-    // Trusted whose ECDSA algorithm is on another curve than its key, or whose
-    // Ed25519 signer certificate carries parameters; c2patool says Invalid,
-    // and so does 0.8.2. 0.8.0 and 0.7.x stay out (Amendments 7 and 8).
-    expect(spec042ComposerSection('require-dev')['provemark/c2pa-verifier'] ?? null)->toBe('^0.8.2')
-        ->and(spec042ComposerSection('conflict')['provemark/c2pa-verifier'] ?? null)->toBe('<0.8.2 || >=0.9');
+it('tests against the verifier that reads revocation against the issuer its walk verified', function () {
+    // SPEC-042 Amendment 10: 0.9 is the range. 0.9.0 grows the verifier's
+    // contract (evidence, a caller's revocation source, two status codes) and
+    // reads stored OCSP responses against the issuer its chain walk verified.
+    // 0.8.x stays out: one minor, as this package measured it.
+    expect(spec042ComposerSection('require-dev')['provemark/c2pa-verifier'] ?? null)->toBe('^0.9')
+        ->and(spec042ComposerSection('conflict')['provemark/c2pa-verifier'] ?? null)->toBe('<0.9 || >=0.10');
 })->group('SPEC-042');
 
 it('keeps the verifier out of require', function () {
