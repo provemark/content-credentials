@@ -289,6 +289,21 @@ else differs:
   A temp directory that cannot be written is a `ReadFailedException`. What the
   verifier itself allocates while parsing is not bounded here, and the service
   path's 20 MB body cap does not apply, so bound uploads before they reach it.
+- **What the verifier offers beyond its JSON report is not passed on.** This
+  reader takes the verifier's `toJson()` and builds the same `ManifestReport`
+  the other two readers give. Since verifier 0.9 its own report can also show
+  the evidence behind a verdict (the anchor and time each manifest was judged
+  at, the certificates, the time-stamps and OCSP responses found, which trust
+  lists were used), and a caller may hand it a revocation source so that a
+  signer is checked online. None of that reaches you through this package: it
+  passes no revocation source and reads no evidence. To use them, call the
+  verifier directly; its README lists both in its public contract.
+- **A stapled `revoked` is believed in one case the service does not.** A
+  signer issued directly by a trust anchor, whose file carries only its own
+  certificate and a stapled OCSP response saying `revoked`, is `Invalid` here
+  (verifier 0.9, its SPEC-030 amendment 5) and `Trusted` with `c2patool`
+  0.28.3. No file in the verifier's corpus has that shape outside its own
+  probes.
 
 It is a first version: thoroughly tested and not yet used by anyone. Treat a
 verdict as something to check, and see its own README for what is known to be
