@@ -19,6 +19,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The verifier range moves to 0.9** (SPEC-042 Amendment 10; `require-dev`
+  `^0.9`, `conflict` `<0.9 || >=0.10`). `provemark/c2pa-verifier` 0.9.0 is a
+  minor: its report can show the evidence behind a verdict, a caller may
+  give it a revocation source, three faults carry the status code C2PA 2.4
+  names, and stored OCSP responses are read against the issuer its chain
+  walk verified. No code changes here, and no verdict this package's reader
+  gives changes: it passes no revocation source. A host on verifier 0.8.x
+  is moved to 0.9.
+
 ## [0.19.5] - 2026-10-25
 
 A patch release: the verifier floor moves to 0.8.2. No API change.
