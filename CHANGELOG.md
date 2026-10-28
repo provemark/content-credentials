@@ -19,6 +19,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Documentation
+
+- **What the verifier route does not pass on** (`docs/readers.md`). Verifier
+  0.9's evidence behind a verdict and its revocation source are reachable
+  only by calling the verifier directly; this package's reader passes no
+  source and reads no evidence.
+- **0.19.6 said no verdict of this package's reader changes with verifier
+  0.9. One can:** a signer issued directly by a trust anchor, whose file
+  carries only its own certificate and a stapled `revoked`, is now `Invalid`
+  where it was `Trusted` (the verifier's SPEC-030 amendment 5). Over the
+  verifier's corpus no verdict moved. `docs/readers.md` names it among the
+  differences from the service.
+
 ## [0.19.6] - 2026-10-28
 
 A patch release: the verifier range moves to 0.9. No API change.
