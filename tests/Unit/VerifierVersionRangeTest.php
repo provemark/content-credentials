@@ -47,14 +47,14 @@ it('refuses every verifier version outside the tested range', function () {
         ->toBe(sprintf('<%s || >=0.%d', $floor, $minor + 1));
 })->group('SPEC-042');
 
-it('tests against the verifier that reads revocation against the issuer its walk verified', function () {
-    // SPEC-042 Amendment 10: 0.9 is the range. 0.9.0 grows the verifier's
-    // contract (evidence, a caller's revocation source, two status codes) and
-    // reads stored OCSP responses against the issuer its chain walk verified.
-    // 0.8.x stays out: one minor, as this package measured it.
-    expect(spec042ComposerSection('require-dev')['provemark/c2pa-verifier'] ?? null)->toBe('^0.9')
-        ->and(spec042ComposerSection('conflict')['provemark/c2pa-verifier'] ?? null)->toBe('<0.9 || >=0.10');
-})->group('SPEC-042');
+it('tests against the verifier that writes the evidence down as a document', function () {
+    // SPEC-042 Amendment 11, SPEC-046 AC6: 0.10 is the range. 0.10.0 adds
+    // evidenceToArray() and evidenceToJson(), which readVerified() exists to
+    // hand on, and carries the fixes of a security review (six wrongly Trusted
+    // kinds of file). 0.9.x stays out: one minor, as this package measured it.
+    expect(spec042ComposerSection('require-dev')['provemark/c2pa-verifier'] ?? null)->toBe('^0.10')
+        ->and(spec042ComposerSection('conflict')['provemark/c2pa-verifier'] ?? null)->toBe('<0.10 || >=0.11');
+})->group('SPEC-042', 'SPEC-046');
 
 it('keeps the verifier out of require', function () {
     // ADR-0007: optional. A hard requirement would add ext-mbstring to every

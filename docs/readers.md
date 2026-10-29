@@ -289,15 +289,34 @@ else differs:
   A temp directory that cannot be written is a `ReadFailedException`. What the
   verifier itself allocates while parsing is not bounded here, and the service
   path's 20 MB body cap does not apply, so bound uploads before they reach it.
-- **What the verifier offers beyond its JSON report is not passed on.** This
-  reader takes the verifier's `toJson()` and builds the same `ManifestReport`
-  the other two readers give. Since verifier 0.9 its own report can also show
-  the evidence behind a verdict (the anchor and time each manifest was judged
-  at, the certificates, the time-stamps and OCSP responses found, which trust
-  lists were used), and a caller may hand it a revocation source so that a
-  signer is checked online. None of that reaches you through this package: it
-  passes no revocation source and reads no evidence. To use them, call the
-  verifier directly; its README lists both in its public contract.
+- **The verifier's own report of the same read: `readVerified()`.** `read()`
+  gives the same `ManifestReport` the other two readers give. The verifier's
+  own report also holds the evidence behind a verdict (the anchor and time
+  each manifest was judged at, the certificates, the time-stamps and OCSP
+  responses found, which trust lists were used), and writes it down as a
+  document to keep. `readVerified($asset)` returns both, from one and the
+  same read (SPEC-046):
+
+  ```php
+  use Provemark\C2paVerifier\Trust\TrustSettings;
+  use Provemark\C2paVerifier\Verifier\Verifier;
+
+  $reader = new C2paVerifierReader(
+      TrustSettings::fromTrustLists($signerPem, $tsaPem), // or a settings document as a string
+      new Verifier(revocationSource: $source),             // optional: a verifier configured your way
+  );
+  $read = $reader->readVerified($asset);
+  $read->report;                          // the ManifestReport, as read() gives it
+  $read->verification->evidenceToJson();  // what that verdict rested on, to keep
+  ```
+
+  Calling the verifier a second time for the evidence would be a second read,
+  at another moment: a revocation answer or the clock may differ, and the
+  evidence would not be that of the verdict shown. The evidence names the
+  trust lists only when they come as `TrustSettings::fromTrustLists()`; a
+  settings document gives none. Keeping the document, and recording which
+  file it belongs to, is yours to do. A refused or unreadable asset throws the
+  same `ReadFailedException` as `read()`.
 - **A stapled `revoked` is believed in one case the service does not.** A
   signer issued directly by a trust anchor, whose file carries only its own
   certificate and a stapled OCSP response saying `revoked`, is `Invalid` here
