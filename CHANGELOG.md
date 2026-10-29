@@ -19,12 +19,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`C2paVerifierReader::readVerified()`** (SPEC-046) returns a `VerifiedRead`:
+  the `ManifestReport` and the verifier's own `VerificationReport` of one and
+  the same read, so the evidence a caller keeps
+  (`$read->verification->evidenceToJson()`) is the evidence of the verdict it
+  shows. `read()` is unchanged.
+- **The reader takes an optional `Verifier`**, configured as the caller
+  chooses, such as one with a revocation source; without one it builds
+  `new Verifier` as before.
+- **Trust settings may also be the verifier's `TrustSettings` object**, such as
+  `TrustSettings::fromTrustLists()`, so the evidence names the lists a verdict
+  was judged against. A settings document as a string still works.
+
+### Changed
+
+- **The verifier range moves to 0.10** (`^0.10`, `conflict` `<0.10 || >=0.11`,
+  SPEC-042 Amendment 11): the evidence document exists from verifier 0.10 on.
+  0.10.0 also carries a security review's fixes, six of them for files it
+  wrongly called `Trusted`.
+
 ### Documentation
 
-- **What the verifier route does not pass on** (`docs/readers.md`). Verifier
-  0.9's evidence behind a verdict and its revocation source are reachable
-  only by calling the verifier directly; this package's reader passes no
-  source and reads no evidence.
+- **The verifier route and its evidence** (`docs/readers.md`): what
+  `readVerified()` gives, and why calling the verifier a second time for the
+  evidence is not the same read.
 - **0.19.6 said no verdict of this package's reader changes with verifier
   0.9. One can:** a signer issued directly by a trust anchor, whose file
   carries only its own certificate and a stapled `revoked`, is now `Invalid`

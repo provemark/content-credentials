@@ -94,4 +94,6 @@ on purpose. On 2026-10-25 the floor moved to 0.8.2 (`<0.8.2 || >=0.9`,
 SPEC-042 Amendment 9): 0.8.2 refuses two signatures that `c2patool` refuses
 and 0.8.1 called `Valid` or `Trusted`, so 0.8.1 is left out on purpose.
 On 2026-10-28 the range moved to `^0.9` (`<0.9 || >=0.10`, SPEC-042
-Amendment 10): one minor, as measured.
+Amendment 10): one minor, as measured. On 2026-10-29 it moved to `^0.10`
+(`<0.10 || >=0.11`, SPEC-042 Amendment 11): `readVerified()` (SPEC-046)
+hands on the evidence document verifier 0.10 introduced.

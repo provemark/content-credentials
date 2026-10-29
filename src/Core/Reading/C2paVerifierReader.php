@@ -25,6 +25,10 @@ use Provemark\ContentCredentials\Core\Support\ServiceError;
  * Measured against verifier v0.5.0 on 2026-10-07: eleven of the thirteen media
  * types agree with both other readers on every accessor, trust and timestamp
  * included.
+ *
+ * readVerified() gives the verifier's own report of the same read next to the
+ * ManifestReport (SPEC-046), and a caller may hand in a Verifier configured
+ * its own way, such as one with a revocation source.
  */
 final class C2paVerifierReader implements ReaderInterface
 {
@@ -40,14 +44,19 @@ final class C2paVerifierReader implements ReaderInterface
 
     private readonly ?TrustSettings $settings;
 
+    private readonly Verifier $verifier;
+
     /**
-     * @param  string|null  $trustSettingsJson  the contents of a settings file in c2patool's
-     *                                          JSON shape; null or blank verifies without trust
+     * @param  string|TrustSettings|null  $trustSettingsJson  the contents of a settings file in
+     *                                                        c2patool's JSON shape, or the verifier's TrustSettings, such as
+     *                                                        TrustSettings::fromTrustLists() (SPEC-046 AC7); null or blank verifies without trust
+     * @param  Verifier|null  $verifier  the verifier that reads, configured as the caller chose
+     *                                   (SPEC-046 AC3); null builds `new Verifier`
      *
      * @throws VerifierMissingException when provemark/c2pa-verifier is not installed
      * @throws TrustSettingsRejectedException when the verifier refuses the settings
      */
-    public function __construct(?string $trustSettingsJson = null)
+    public function __construct(string|TrustSettings|null $trustSettingsJson = null, ?Verifier $verifier = null)
     {
         if (! self::isAvailable()) {
             throw new VerifierMissingException(
@@ -57,7 +66,8 @@ final class C2paVerifierReader implements ReaderInterface
             );
         }
 
-        $this->settings = self::buildSettings($trustSettingsJson);
+        $this->settings = $trustSettingsJson instanceof TrustSettings ? $trustSettingsJson : self::buildSettings($trustSettingsJson);
+        $this->verifier = $verifier ?? new Verifier;
     }
 
     public static function isAvailable(): bool
@@ -78,6 +88,18 @@ final class C2paVerifierReader implements ReaderInterface
     }
 
     public function read(Asset $asset): ManifestReport
+    {
+        return $this->readVerified($asset)->report;
+    }
+
+    /**
+     * read()'s ManifestReport together with the verifier's VerificationReport of the same
+     * verify() call (SPEC-046): one read, so the evidence it carries is the evidence of the
+     * verdict the ManifestReport shows.
+     *
+     * @throws ReadFailedException as read() does, with the same message; never half a result
+     */
+    public function readVerified(Asset $asset): VerifiedRead
     {
         if (! self::supports($asset->mediaType)) {
             throw new ReadFailedException(sprintf(
@@ -112,7 +134,8 @@ final class C2paVerifierReader implements ReaderInterface
 
             // Through JSON rather than toArray(), so the parser sees exactly
             // what was measured: the report as the verifier serialises it.
-            $json = (new Verifier)->verify($stream, $this->settings)->toJson();
+            $verification = $this->verifier->verify($stream, $this->settings);
+            $json = $verification->toJson();
             $report = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
         } catch (ReadFailedException $e) {
             throw $e;
@@ -129,7 +152,7 @@ final class C2paVerifierReader implements ReaderInterface
             throw new ReadFailedException('Could not read the asset: the verifier report was not an object.');
         }
 
-        return VerifierOutcome::toManifestReport($report);
+        return new VerifiedRead(VerifierOutcome::toManifestReport($report), $verification);
     }
 
     private static function buildSettings(?string $json): ?TrustSettings
