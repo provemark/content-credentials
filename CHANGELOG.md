@@ -19,6 +19,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-29
+
+A minor release: the pure-PHP reader gives the verifier's own report of the
+same read (SPEC-046), and the verifier range narrows to 0.10. Existing calls
+to `C2paVerifierReader` keep working unchanged.
+
 ### Added
 
 - **`C2paVerifierReader::readVerified()`** (SPEC-046) returns a `VerifiedRead`:
@@ -2111,7 +2117,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.19.6...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.20.0...main
+[0.20.0]: https://github.com/provemark/content-credentials/releases/tag/v0.20.0
 [0.19.6]: https://github.com/provemark/content-credentials/releases/tag/v0.19.6
 [0.19.5]: https://github.com/provemark/content-credentials/releases/tag/v0.19.5
 [0.19.4]: https://github.com/provemark/content-credentials/releases/tag/v0.19.4
