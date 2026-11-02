@@ -19,6 +19,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security: in the signing service, not in a tag
+
+- **The service's lockfile takes `body-parser` 2.4.0 and `qs` 6.17.1**, for
+  GHSA-27r3-jxmh-p828 (high: denial of service through trailing bytes after a
+  compressed request body) and GHSA-6pq8-jhm2-2vcw (moderate, in
+  `qs.stringify`). The `body-parser` flaw is reachable only by a caller holding
+  the token, because the Bearer check runs before the body is parsed. The
+  service never calls `qs` itself, and Express uses it to parse, not to
+  `stringify`. That is reasoned from the code,
+  not tested. Express stays at 5.2.1 and c2pa-node at 0.9.5. This is
+  `service/`, so it arrives through `git pull` and a rebuild. Still reported,
+  and left: `minimatch` (moderate), reached only through the install-time path
+  that unpacks c2pa-node's native binary, and fixed only in a major that the
+  packages on that path do not accept. The weekly `audit` workflow had been red
+  on this step since 2026-10-26 while its runs read as success.
+
 ## [0.20.0] - 2026-10-29
 
 A minor release: the pure-PHP reader gives the verifier's own report of the
