@@ -219,6 +219,9 @@ non-2xx body through `SigningFailedException` with the service message
   contradictory actions assertions are a correctness defect rather than a policy
   choice. Deployments whose certificate exists solely to mark AI content can
   opt in via `REQUIRE_AI_MARKING` (AC8). Reasoning recorded in Problem.
+  *Since SPEC-029 Amendment 1 (2026-11-02), an actions assertion is required
+  to **exist**, because claim v2 requires one and c2pa-rs 0.91 refuses a
+  manifest without it. This resolution about its **contents** stands.*
 - **Should `REQUIRE_AI_MARKING` check every action or only the first?** Claim v2
   requires the first action to be `c2pa.created`/`c2pa.opened`, and the Art.50
   marking rides on that first action. Checking only the first is simpler and

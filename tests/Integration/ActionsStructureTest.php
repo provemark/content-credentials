@@ -59,17 +59,27 @@ $skipUnlessContainer = fn () => spec029Container() === null
  * `$extraAssertions` is deliberately `mixed`: the shapes under test are exactly
  * the ones no typed signature would let through.
  *
+ * `$omitKey` sends no `extra_assertions` key at all, ignoring `$extraAssertions`.
+ *
  * @return array{status: int, error: string, cid: string}
  */
-function spec029Sign(mixed $extraAssertions): array
+function spec029Sign(mixed $extraAssertions, bool $omitKey = false): array
 {
+    $body = [
+        'content' => base64_encode(ServiceHarness::fixtureBytes()),
+        'mime_type' => 'image/png',
+    ];
+
+    // Am. 1 AC10/AC12: a body WITHOUT the key is a different request from one
+    // carrying `[]`, and before the amendment it took a different path through
+    // rejectAssertions() — an early return that skipped the AI-marking policy.
+    if (! $omitKey) {
+        $body['extra_assertions'] = $extraAssertions;
+    }
+
     $response = (new Client(['http_errors' => false]))->post(ServiceHarness::baseUrl().'/v1/sign', [
         'headers' => ['Authorization' => 'Bearer '.ServiceHarness::apiKey()],
-        'json' => [
-            'content' => base64_encode(ServiceHarness::fixtureBytes()),
-            'mime_type' => 'image/png',
-            'extra_assertions' => $extraAssertions,
-        ],
+        'json' => $body,
     ]);
 
     $decoded = json_decode((string) $response->getBody(), true);
@@ -244,9 +254,8 @@ it('refuses an actions assertion whose data is not an object', function (mixed $
 ])->group('SPEC-029', 'integration')->skip($skipUnlessReachable);
 
 // --- AC6: an actions assertion must carry at least one action ----------------
-// Three outcomes, and the third is the one that keeps SPEC-011's settled
-// permission intact. Testing only the two refusals would pass against an
-// implementation that also refuses the absent case.
+// Its third case (no actions assertion at all) used to sign. Amendment 1
+// replaced it with a refusal, tested under AC10 below.
 
 it('refuses an actions assertion with no actions key', function () {
     $result = spec029Sign(spec029Assertion([]));
@@ -272,19 +281,55 @@ it('refuses an empty actions array without signing anything', function () {
     );
 })->group('SPEC-029', 'integration')->skip($skipUnlessContainer);
 
-it('still signs a request carrying no actions assertion at all', function () {
-    $result = spec029Sign([]);
+// --- Am. 1 AC10/AC11: no actions assertion at all is refused ----------------
+// Until Amendment 1 this case signed, and read back Invalid. On c2pa-rs 0.91 the
+// engine refuses it after signing and the service answers 500, so the service
+// now refuses it first. AC11: assert the reason and the audit outcome, never the
+// status alone. On 0.9.10 a status-only refusal test passed because the ENGINE
+// refused (NOTES Step 74), and a 400 cannot tell the two apart.
 
-    // SPEC-011 settled "at most one, not required" and SPEC-029 does not reopen
-    // it. Absent is a worse claim — it reads back Invalid with
-    // assertion.action.malformed, a verifier telling the truth about a claim-v2
-    // rule — where empty is a worse artefact.
-    expect($result['status'])->toBe(200, 'SPEC-011 permits a request with no actions assertion');
-})->group('SPEC-029', 'integration')
+const SPEC029_ACTIONS_REQUIRED = 'an actions assertion (c2pa.actions.v2) is required';
+
+it('refuses a request without an actions assertion, and records it as rejected', function (bool $omitKey, mixed $assertions) {
+    $result = spec029Sign($assertions, $omitKey);
+
+    expect($result['status'])->toBe(400, 'a request without an actions assertion was not refused')
+        ->and($result['error'])->toBe(SPEC029_ACTIONS_REQUIRED);
+
+    $record = spec029AuditRecordFor($result['cid']);
+
+    expect($record)->not->toBeNull('no audit record was written for the refusal');
+    expect($record['outcome'] ?? null)->toBe(
+        'rejected',
+        'outcome "failed" means the request reached the engine and spent a signing attempt',
+    );
+    expect($record['reason'] ?? null)->toBe(SPEC029_ACTIONS_REQUIRED);
+})->with([
+    'no extra_assertions key' => [true, null],
+    'an empty extra_assertions array' => [false, []],
+    'only a non-actions assertion' => [false, [['label' => 'org.example.note', 'data' => ['note' => 'SPEC-029']]]],
+])->group('SPEC-029', 'integration')->skip($skipUnlessContainer);
+
+// --- Am. 1 AC12: under the AI-marking policy, both forms, the same reason ----
+// Measured 2026-11-02 before the fix: with REQUIRE_AI_MARKING=true, a body
+// without the key answered 200 and was SIGNED — no AI marking, under the policy
+// that exists to refuse exactly that — because rejectAssertions() returned
+// before the policy check whenever the key was absent. `[]` answered 400 with
+// the policy reason. Only meaningful on a hardened service.
+
+it('refuses both forms under the AI-marking policy with the structural reason', function (bool $omitKey, mixed $assertions) {
+    $result = spec029Sign($assertions, $omitKey);
+
+    expect($result['status'])->toBe(400, 'signed without any AI marking under REQUIRE_AI_MARKING')
+        ->and($result['error'])->toBe(SPEC029_ACTIONS_REQUIRED);
+})->with([
+    'no extra_assertions key' => [true, null],
+    'an empty extra_assertions array' => [false, []],
+])->group('SPEC-029', 'integration')
     ->skip($skipUnlessReachable)
     ->skip(
-        fn () => (ServiceHarness::health()['require_ai_marking'] ?? false) === true
-            ? 'service requires an AI marking, which a request with no actions assertion cannot carry'
+        fn () => (ServiceHarness::health()['require_ai_marking'] ?? false) !== true
+            ? 'service does not require an AI marking; covered by the hardened CI profile'
             : false,
     );
 

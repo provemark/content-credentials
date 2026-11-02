@@ -66,7 +66,7 @@ The canonical assertion for "this asset is AI-generated":
 | `content`          | yes      | base64 of the raw file bytes             |
 | `mime_type`        | yes      | must be in `SUPPORTED_MIME`, else 400    |
 | `creator_name`     | no       | prepended to claim_generator; string, `MAX_CREATOR_NAME` (256) |
-| `extra_assertions` | no       | raw C2PA assertion objects, appended; vetted per SPEC-011 |
+| `extra_assertions` | yes      | raw C2PA assertion objects, appended; vetted per SPEC-011; must hold exactly one actions assertion (SPEC-029 Am. 1) |
 | `parent`           | conditional | `{content, mime_type}` of the source asset — the SPEC-028 ingredient |
 
 That is the whole body: `server.js` destructures exactly these five and ignores

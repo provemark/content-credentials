@@ -247,9 +247,9 @@ where a live service is required.
   - *(Regression guard: `markingSourceTypes()` is one of the four helpers being
     made total, and it is the one whose behaviour a policy decision hangs on.)*
 
-## Amendment 1: a request without an actions assertion is refused (draft)
+## Amendment 1: a request without an actions assertion is refused (approved 2026-11-02)
 
-Proposed 2026-11-02. Sources: NOTES Step 74 (the measurement on c2pa-node
+Proposed and approved by Maurice van Loon on 2026-11-02. Sources: NOTES Step 74 (the measurement on c2pa-node
 0.9.10) and Step 76.
 
 **Why.** *Out of scope* above excludes "requiring an actions assertion at all",
@@ -498,7 +498,10 @@ least one test; every source file maps back to this spec.
 | AC3 | `tests/Integration/ActionsStructureTest.php` :: "refuses a non-array actions value before the engine is reached" | `service/server.js` `rejectActionsShape()` array check |
 | AC4 | `tests/Integration/ActionsStructureTest.php` :: "refuses a malformed action entry" (4 datasets) | `service/server.js` `rejectActionsShape()` entry check |
 | AC5 | `tests/Integration/ActionsStructureTest.php` :: "refuses an actions assertion whose data is not an object" (3 datasets) | `service/server.js` `rejectActionsShape()` data check |
-| AC6 | `tests/Integration/ActionsStructureTest.php` :: "refuses an actions assertion with no actions key"; "refuses an empty actions array without signing anything"; "still signs a request carrying no actions assertion at all" | `service/server.js` `rejectActionsShape()` non-empty check |
+| AC6 | `tests/Integration/ActionsStructureTest.php` :: "refuses an actions assertion with no actions key"; "refuses an empty actions array without signing anything"; third case since Am. 1: see Am. 1 AC10 | `service/server.js` `rejectActionsShape()` non-empty check |
 | AC7 | `tests/Integration/ActionsStructureTest.php` :: "names the constraint without leaking internals or echoing the payload" | `service/server.js` `reject()` in `POST /v1/sign` |
 | AC8 | `tests/Integration/ActionsStructureTest.php` :: "exposes the actions helpers, and none of them throws on an accepted payload" | `service/server.js` `actionsOf()`, `module.exports`, `require.main` guard |
 | AC9 | `tests/Integration/ActionsStructureTest.php` :: "still accepts a manipulated manifest when the AI-marking policy is on" | `service/server.js` `markingSourceTypes()` via `actionsOf()` |
+| Am. 1 AC10 | `tests/Integration/ActionsStructureTest.php` :: "refuses a request without an actions assertion, and records it as rejected" (3 datasets: no key, `[]`, only a non-actions assertion); `UnauthenticatedBoundsTest.php` `spec030Post()` now sends an actions assertion | `service/server.js` `rejectAssertions()`: absent key treated as `[]`, `actionsCount === 0` check after the count |
+| Am. 1 AC11 | The AC10 test asserts the error text, the audit outcome `rejected` and the audit reason. Seen red 2026-11-02 against the pre-amendment service (all three datasets: 200) | — |
+| Am. 1 AC12 | `tests/Integration/ActionsStructureTest.php` :: "refuses both forms under the AI-marking policy with the structural reason" (2 datasets; runs only with `REQUIRE_AI_MARKING=true`, the `hardened` CI profile). Seen red 2026-11-02 before the fix: no key answered 200, `[]` answered the policy reason | `service/server.js` `rejectAssertions()`, check placed before the `REQUIRE_AI_MARKING` check |
