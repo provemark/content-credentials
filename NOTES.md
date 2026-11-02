@@ -130,3 +130,4 @@ Follow these before searching; most questions are already answered in one step.
 | **73** | 2026-10-11 | [Two findings from the Drupal module's review: a cut-off ingredient tree, and quadratic de-duplication](notes/step-73-two-findings-from-the-drupal-module-review.md) |
 | **74** | 2026-10-20 | [c2pa-node 0.9.10: the trust migration works, and signing lost its timestamp](notes/step-74-c2pa-node-0-9-10-and-the-lost-timestamp.md) |
 | **75** | 2026-10-22 | [c2patool's own `--allowed_list` confers no trust, reported upstream](notes/step-75-c2patool-allowed-list-reported-upstream.md) |
+| **76** | 2026-11-02 | [c2pa-node 0.9.11 not taken, and an audit step red for a week](notes/step-76-c2pa-node-0-9-11-not-taken-and-a-red-audit-step.md) |
