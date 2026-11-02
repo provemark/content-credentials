@@ -19,6 +19,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed: in the signing service, not in a tag
+
+- **`POST /v1/sign` refuses a request without an actions assertion** (SPEC-029
+  Amendment 1). A body without `extra_assertions`, with an empty array, or with
+  no `c2pa.actions` assertion now answers **400** with `an actions assertion
+  (c2pa.actions.v2) is required`, recorded as `rejected`, and nothing is signed.
+  Before, such a request was signed into a manifest every verifier reads as
+  `Invalid`, and on c2pa-rs 0.91 the engine refuses it after signing, which the
+  service would report as a 500. `ManifestBuilder` always emits the assertion,
+  so library users see no change. A hand-built `new Manifest($type, [])` now
+  gets a `SigningFailedException`.
+- **This closes a gap in `REQUIRE_AI_MARKING`.** With the policy on, a body
+  *without* the `extra_assertions` key was signed with no AI marking at all,
+  because the assertion checks returned early when the key was absent. An
+  empty array was refused correctly. Measured 2026-11-02; reachable only with
+  the service token.
+- The behaviour is in `service/`, so it arrives through `git pull` and a
+  rebuild. The matching documentation (`docs/service.md`, primer §3) is in
+  `docs/` and therefore in the next tag.
+
 ### Security: in the signing service, not in a tag
 
 - **The service's lockfile takes `body-parser` 2.4.0 and `qs` 6.17.1**, for

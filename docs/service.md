@@ -227,10 +227,16 @@ is signed. Tune with `MAX_ASSERTIONS`, `MAX_ASSERTION_BYTES`,
 
 An actions assertion must also have the **shape** of one: an object `data`
 carrying a **non-empty** array `data.actions` whose entries are objects. This is
-not tunable, because there is no legitimate value to tune it to. Sending no
-actions assertion at all remains allowed — that manifest reads back as `Invalid`
-with `assertion.action.malformed`, which is a verifier correctly reporting a
-claim-v2 rule, and it is your claim to make.
+not tunable, because there is no legitimate value to tune it to.
+
+A request must also **carry** an actions assertion (SPEC-029 Amendment 1). A
+body without `extra_assertions`, an empty array, or one holding no
+`c2pa.actions` assertion returns **400** with `an actions assertion
+(c2pa.actions.v2) is required`, and nothing is signed. Claim v2 requires one.
+Older engines signed such a manifest and every verifier then read it as
+`Invalid`; c2pa-rs 0.91 refuses it after signing, which surfaced as a 500. What
+the assertion *says* is still yours: any `digitalSourceType`, or the edited
+shape for manipulated content.
 
 An *empty* array is different, and it is why this constraint exists. Measured:
 it was the one malformed shape that got signed, and the resulting asset could

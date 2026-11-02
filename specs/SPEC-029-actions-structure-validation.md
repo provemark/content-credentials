@@ -247,6 +247,152 @@ where a live service is required.
   - *(Regression guard: `markingSourceTypes()` is one of the four helpers being
     made total, and it is the one whose behaviour a policy decision hangs on.)*
 
+## Amendment 1: a request without an actions assertion is refused (approved 2026-11-02)
+
+Proposed and approved by Maurice van Loon on 2026-11-02. Sources: NOTES Step 74 (the measurement on c2pa-node
+0.9.10) and Step 76.
+
+**Why.** *Out of scope* above excludes "requiring an actions assertion at all",
+and rests that on a measurement: a request with no actions assertion signs, and
+reads back `Invalid` with `assertion.action.malformed`. That measurement belongs
+to one engine. c2pa-rs 0.91 verifies a manifest after signing, by default
+(c2pa-rs #2277). A claim-v2 manifest with no actions assertion fails that check,
+so the engine refuses to produce it and the service answers **500** through its
+catch path *(measured on c2pa-node 0.9.10, NOTES Step 74; AC6's third case goes
+red there)*. A caller's mistake then reads as a server error, a signing slot is
+spent, and the audit reason is engine wording, which is what AC7 exists to
+prevent.
+
+The 0.90 behaviour that AC6 protects is not worth keeping either. What
+"degrading honestly" produces is a signature with this service's certificate on
+a manifest that every verifier calls `Invalid`. AC6 refuses the empty array and
+SPEC-028 AC13 refuses a supplied `c2pa.opened` for the same reason: a signature
+spent on an artefact no verifier accepts. The absent assertion is the last route
+to that result.
+
+**What this does not reopen.** SPEC-011 resolved "at most one, not required" on
+2026-08-05, and its reasoning was about **contents**: requiring
+`trainedAlgorithmicMedia` narrows the direction of a possible lie without making
+the attestation truer, and it would exclude the authenticity use case. That
+stands unchanged. This amendment requires only that an actions assertion
+**exists**, whatever its first action says: `c2pa.created` with any
+`digitalSourceType`, or the SPEC-028 edited shape. Claim v2 already requires
+that much (Domain rules: the first action must be `c2pa.created` or
+`c2pa.opened`). `REQUIRE_AI_MARKING` stays the only policy about contents. On
+approval, SPEC-011's resolved question gets one line pointing here.
+
+### Changes
+
+**AC6, third case, replaced.** The first two cases (`data: {}` and
+`actions: []`) are unchanged. The third becomes:
+
+- And given `extra_assertions: []`, and separately a body without an
+  `extra_assertions` key
+- Then HTTP **400** under AC10, and nothing is signed
+
+The note that "the three outcomes together are the criterion" is withdrawn. It
+guarded the permission this amendment removes.
+
+**New criteria:**
+
+- **AC10 — a request without an actions assertion is refused before signing**
+  *(error path)*
+  - Given a valid token and a request that passes every earlier check, whose
+    `extra_assertions` is absent, empty, or holds no assertion whose label
+    starts `c2pa.actions`
+  - When `/v1/sign` is called
+  - Then HTTP **400** with the error
+    `an actions assertion (c2pa.actions.v2) is required`, no `signed_content`,
+    and an audit record with `outcome: "rejected"` and that reason. No record
+    with `outcome: "failed"` exists for the request (AC3's technique)
+  - The check runs inside `rejectAssertions()`, after the "at most one" count.
+    So the media type, base64 and `creator_name` checks still answer first, and
+    the parent, brand and engine steps are never reached
+  - The answer is the same on c2pa-rs 0.90 and 0.91. This criterion does not
+    depend on the engine bump and may ship before it
+
+- **AC11 — the test asserts the reason, not the status**
+  - Given the AC10 test
+  - Then it asserts the error text and the audit reason, and it was seen red
+    against the code before this amendment (which answers 200)
+  - *(Step 74's lesson: on 0.9.10 a refusal test passed because the engine
+    refused for a different reason. A status code alone cannot tell this check
+    from the engine's.)*
+
+- **AC12 — under `REQUIRE_AI_MARKING`, both forms are refused, with the
+  structural reason** *(error path)*
+  - Given a service started with `REQUIRE_AI_MARKING=true`
+  - When a request with `extra_assertions: []` is signed, and separately one
+    without an `extra_assertions` key
+  - Then both answer **400** with the AC10 reason, not
+    `this service is configured to sign only AI markings`, and nothing is
+    signed
+  - *(Measured 2026-11-02 on the current service, c2pa-node 0.9.5, with
+    `REQUIRE_AI_MARKING=true`: `extra_assertions: []` answers 400 with the
+    policy reason, but **a body without the key answers 200 and is signed**. A
+    manifest without any AI marking, under a policy that exists to refuse
+    exactly that. The cause is the first line of `rejectAssertions()`:
+    `if (assertions === undefined) return null;` returns before the policy
+    check further down the same function. The `hardened` profile never saw it,
+    because every test there sends the key. SPEC-011 AC8's wording only covers
+    a request that carries an actions assertion, so this is a gap in that
+    criterion as much as in the code. It contradicts what the policy is for,
+    and the service's own answer to `[]`. It exists today, independent of this
+    amendment. AC10 closes it, because the requirement
+    check cannot be placed behind that early return; the test for the absent
+    key is the one that must be seen red first.)*
+
+**Unchanged:** AC1–AC5, AC7–AC9, the request and response shapes of
+`/v1/sign`, the content policy, and `/health`.
+
+### Who notices
+
+- **`ManifestBuilder` users: nobody.** Every builder entry point emits exactly
+  one actions assertion, and AC1 pins that.
+- **A hand-built `Manifest`.** Its constructor is public, so a caller can build
+  `new Manifest($type, [])` and sign it. Today that signs a manifest that reads
+  `Invalid`; afterwards `SigningServiceSigner` throws `SigningFailedException`
+  with the AC10 message. Nothing in `src/`, `tests/`, `docs/` or the README
+  builds one (searched 2026-11-02, only `ManifestBuilder` calls the
+  constructor). `src/` does not change.
+- **Direct callers of the service** that send no actions assertion, which is
+  what this amendment is about.
+
+### Existing tests that change
+
+- `ActionsStructureTest` :: "still signs a request carrying no actions assertion
+  at all" is replaced by the AC10/AC12 tests. The new ones do not skip under
+  `REQUIRE_AI_MARKING`.
+- `UnauthenticatedBoundsTest`'s `spec030Post()` sends no `extra_assertions` and
+  expects 200 for a legitimate signature (the `auth-limited` profile only). It
+  gets an actions assertion. Its 401, 413 and 429 expectations are reached
+  before `rejectAssertions()` and do not change.
+- Read and left alone: `MediaTypesTest` (three requests) and
+  `RemainingMediaTypesTest` (two) send `extra_assertions: []` but expect a
+  refusal from an earlier check (media type, base64, body size). Every other
+  caller of `/v1/sign` sends an actions assertion or goes through the library.
+- Measured on 0.9.10 (Step 74), where the engine already refuses these
+  requests: in the `defaults` profile, only AC6's third case and the SPEC-007
+  AC5 test (fixed since, #184) depended on signing without an actions
+  assertion. The other profiles were checked by reading only.
+
+### Docs
+
+- `docs/service.md`, *Assertion limits*: "Sending no actions assertion at all
+  remains allowed …" is replaced by the requirement and its reason.
+- `docs/c2pa-primer.md` §3: `extra_assertions` is marked required, as it must
+  carry the actions assertion.
+- `docs/` is in the dist and the behaviour is in `service/`, so a tag delivers
+  the docs and not the behaviour. The CHANGELOG says both halves, as for
+  SPEC-039 and SPEC-043.
+
+### Verification before merge
+
+AC10–AC12 green, and the AC10 test seen red first. The integration group green
+in every CI profile, `auth-limited` included. `bin/e2e.php` trusted with the
+Article 50 mark intact. Not required, but useful: on a local 0.9.10 build, a
+request without actions answers 400 with the AC10 reason instead of 500.
+
 ## API sketch
 
 Illustrative only. The change is confined to `service/server.js`; the request and
@@ -352,7 +498,10 @@ least one test; every source file maps back to this spec.
 | AC3 | `tests/Integration/ActionsStructureTest.php` :: "refuses a non-array actions value before the engine is reached" | `service/server.js` `rejectActionsShape()` array check |
 | AC4 | `tests/Integration/ActionsStructureTest.php` :: "refuses a malformed action entry" (4 datasets) | `service/server.js` `rejectActionsShape()` entry check |
 | AC5 | `tests/Integration/ActionsStructureTest.php` :: "refuses an actions assertion whose data is not an object" (3 datasets) | `service/server.js` `rejectActionsShape()` data check |
-| AC6 | `tests/Integration/ActionsStructureTest.php` :: "refuses an actions assertion with no actions key"; "refuses an empty actions array without signing anything"; "still signs a request carrying no actions assertion at all" | `service/server.js` `rejectActionsShape()` non-empty check |
+| AC6 | `tests/Integration/ActionsStructureTest.php` :: "refuses an actions assertion with no actions key"; "refuses an empty actions array without signing anything"; third case since Am. 1: see Am. 1 AC10 | `service/server.js` `rejectActionsShape()` non-empty check |
 | AC7 | `tests/Integration/ActionsStructureTest.php` :: "names the constraint without leaking internals or echoing the payload" | `service/server.js` `reject()` in `POST /v1/sign` |
 | AC8 | `tests/Integration/ActionsStructureTest.php` :: "exposes the actions helpers, and none of them throws on an accepted payload" | `service/server.js` `actionsOf()`, `module.exports`, `require.main` guard |
 | AC9 | `tests/Integration/ActionsStructureTest.php` :: "still accepts a manipulated manifest when the AI-marking policy is on" | `service/server.js` `markingSourceTypes()` via `actionsOf()` |
+| Am. 1 AC10 | `tests/Integration/ActionsStructureTest.php` :: "refuses a request without an actions assertion, and records it as rejected" (3 datasets: no key, `[]`, only a non-actions assertion); `UnauthenticatedBoundsTest.php` `spec030Post()` now sends an actions assertion | `service/server.js` `rejectAssertions()`: absent key treated as `[]`, `actionsCount === 0` check after the count |
+| Am. 1 AC11 | The AC10 test asserts the error text, the audit outcome `rejected` and the audit reason. Seen red 2026-11-02 against the pre-amendment service (all three datasets: 200) | — |
+| Am. 1 AC12 | `tests/Integration/ActionsStructureTest.php` :: "refuses both forms under the AI-marking policy with the structural reason" (2 datasets; runs only with `REQUIRE_AI_MARKING=true`, the `hardened` CI profile). Seen red 2026-11-02 before the fix: no key answered 200, `[]` answered the policy reason | `service/server.js` `rejectAssertions()`, check placed before the `REQUIRE_AI_MARKING` check |

@@ -520,7 +520,11 @@ function markActionsAsCreated(assertions) {
 }
 
 function rejectAssertions(assertions) {
-  if (assertions === undefined) return null;
+  // SPEC-029 Am. 1: an absent key is the same request as an empty array, and
+  // both are refused below. This used to `return null`, which skipped every
+  // later check, the AI-marking policy included: with REQUIRE_AI_MARKING=true a
+  // body without the key was signed without any marking (measured 2026-11-02).
+  if (assertions === undefined) assertions = [];
   if (!Array.isArray(assertions)) return 'extra_assertions must be an array';
   if (assertions.length > MAX_ASSERTIONS) {
     return `too many assertions (max ${MAX_ASSERTIONS})`;
@@ -560,6 +564,15 @@ function rejectAssertions(assertions) {
   // verifier-dependently. This is a correctness invariant, not a policy.
   if (actionsCount > 1) {
     return 'at most one c2pa.actions assertion is allowed';
+  }
+
+  // SPEC-029 Am. 1 AC10: and at least one. Claim v2 requires an actions
+  // assertion. On c2pa-rs 0.90 a manifest without one signs and reads back
+  // Invalid; on 0.91 the engine's verify-after-sign refuses it and the request
+  // ends in a 500. Either way a caller's mistake, so it is refused here, before
+  // the policy check below, whose reason would otherwise hide this one.
+  if (actionsCount === 0) {
+    return 'an actions assertion (c2pa.actions.v2) is required';
   }
 
   // SPEC-028 AC13: the c2pa.opened action belongs to the service. c2pa-rs

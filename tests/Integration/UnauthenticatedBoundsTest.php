@@ -87,6 +87,16 @@ function spec030Post(string $token, int $paddingBytes = 0): array
     $body = [
         'content' => base64_encode(ServiceHarness::fixtureBytes()),
         'mime_type' => 'image/png',
+        // SPEC-029 Am. 1: a legitimate signature carries an actions assertion;
+        // without one the service refuses with 400 before signing.
+        'extra_assertions' => [[
+            'label' => 'c2pa.actions.v2',
+            'data' => ['actions' => [[
+                'action' => 'c2pa.created',
+                'digitalSourceType' => 'http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia',
+                'softwareAgent' => ['name' => 'SPEC-030 bounds'],
+            ]]],
+        ]],
     ];
 
     if ($paddingBytes > 0) {
