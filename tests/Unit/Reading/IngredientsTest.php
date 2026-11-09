@@ -266,6 +266,15 @@ it('gives each ingredient the verdict of the SPEC-045 table', function (string $
     'c2pa-rs CIE-sig-CA' => ['spec045-c2pa-rs-CIE-sig-CA.jpg', [false, false]],
 ])->group('SPEC-045');
 
+// Amendment 5: the rogue row above is only worth having while the file itself
+// is trusted; an expired fixture made it pass for another reason.
+it('keeps a trusted file trusted over its untrusted ingredient', function (string $route) {
+    $report = spec045Read($route, 'spec045-c2patool027-rogue.png');
+
+    expect($report->isTrusted())->toBeTrue()
+        ->and($report->ingredients()[0]->isTrusted())->toBeFalse();
+})->with(spec045Routes())->group('SPEC-045');
+
 it('keeps the relationship verbatim', function () {
     $report = spec045Read('verifier', 'spec045-c2pa-rs-CIE-sig-CA.jpg');
 
