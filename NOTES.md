@@ -132,3 +132,4 @@ Follow these before searching; most questions are already answered in one step.
 | **75** | 2026-10-22 | [c2patool's own `--allowed_list` confers no trust, reported upstream](notes/step-75-c2patool-allowed-list-reported-upstream.md) |
 | **76** | 2026-11-02 | [c2pa-node 0.9.11 not taken, and an audit step red for a week](notes/step-76-c2pa-node-0-9-11-not-taken-and-a-red-audit-step.md) |
 | **77** | 2026-11-02 | [SPEC-029 Amendment 1, and a gap in `REQUIRE_AI_MARKING`](notes/step-77-spec-029-am1-and-a-policy-gap.md) |
+| **78** | 2026-11-09 | [An expired rogue fixture that kept passing (SPEC-045 Amendment 5)](notes/step-78-expired-rogue-fixture.md) |

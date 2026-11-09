@@ -285,6 +285,24 @@ to.
   level trusted, and the integration comparison includes that file.
 - The tested verifier range moves to `^0.6.1` (SPEC-042 Amendment 5).
 
+## Amendment 5 — a rogue fixture that is still what its row says (approved 2026-11-09)
+
+Test only; no code changes. `spec045-c2patool027-rogue.png` carried a rogue CA
+and signer valid for 30 days, until 2026-11-09 06:38:52 UTC. Since then the
+file reads `Invalid` (`signingCredential.expired`, no time-stamp) instead of a
+trusted file over an untrusted ingredient. AC3's table row still passed,
+because under Amendment 2 nothing below an untrusted report is trusted, so it
+kept passing for a reason it was not written for. The module, which copied
+the file, went red on it (content_credentials #3636349).
+
+- The fixture is replaced by the module's rebuild: the same construction with
+  a rogue CA and signer valid to 2036-11-05, re-signed with c2patool 0.27.22 and
+  the C2PA test signer, without a time-stamp. It expires with the test signer
+  on 2030-08-26.
+- A new test pins the precondition the row relies on: the file itself is
+  trusted and its ingredient is not, on every route. It was watched failing
+  on the expired file.
+
 ## Open questions
 
 Resolved at approval (maintainer, 2026-10-10):
@@ -302,7 +320,7 @@ Resolved at approval (maintainer, 2026-10-10):
 |----------------------|-----------------------------|----------------------|
 | AC1 | `tests/Unit/Reading/IngredientsTest.php` :: "reports the AI origin two ingredients down a C2PA Sign chain" (verifier, extension) | `src/Core/Reading/ManifestStoreParser.php` `parseIngredients()`; `src/Core/Reading/IngredientReport.php`; `src/Core/Reading/ManifestReport.php` `ingredients()` |
 | AC2 | `tests/Integration/IngredientEquivalenceTest.php` :: "reports the same ingredients through the service and the verifier", "reports the same ingredients through the service and ext-c2pa"; `tests/Integration/ServiceHarness.php` `accessors()` / `ingredientTree()` (so the SPEC-019 and SPEC-042 comparisons cover it); `tests/Unit/Reading/IngredientsTest.php` :: "reads a logo-bearing C2PA Sign chain through the verifier as c2pa-rs does" (Amendment 4, replacing the pinned exception), "trusts the same logo-bearing ingredient through c2pa-rs" | `src/Core/Reading/ManifestStoreParser.php` `ingredientDeltas()` |
-| AC3 | `tests/Unit/Reading/IngredientsTest.php` :: "gives each ingredient the verdict of the SPEC-045 table" (5 files × verifier, extension), "trusts a synthetic ingredient only when every AC3 condition holds" (7 cases), "keeps the relationship verbatim"; Amendment 1: "trusts the good synthetic chain when the writer recorded only allowed codes", "trusts no ingredient once a writer recorded a failure code anywhere" (6 cases), "looks for recorded codes in every manifest of the store, not only the active one"; Amendment 2: "trusts no ingredient of a report that is not trusted", "trusts no grandchild of an untrusted ingredient", "trusts a grandchild when every link above it is trusted", "counts neither of two deltas under the same key" (2 orders), "counts an unreadable failure in a delta as a failure" (4 cases, `null` from the second review), "counts a malformed delta as one of two under the same key" (2 cases), "reads a large writer record in bounded time", and the `graft` row of the table test; Amendment 3: "treats keys that differ only in the leading slash as one key" (2 orders), "still finds a delta written in the relative form", "trusts neither of two ingredient entries that share a label" | `src/Core/Reading/ManifestStoreParser.php` `ingredientTrusted()`, `recordedByWriter()`; Amendment 1: `RECORDABLE_CODES`, `recordsHideNothing()`; Amendment 2: `fromArray()` (the report's trust as the first link), `parseIngredients()` `$aboveTrusted`, `recordHidesNothing()`, `ingredientDeltas()`; Amendment 3: `normalisedUri()`, `parseIngredients()` `$labelCounts` |
+| AC3 | `tests/Unit/Reading/IngredientsTest.php` :: "gives each ingredient the verdict of the SPEC-045 table" (5 files × verifier, extension), "trusts a synthetic ingredient only when every AC3 condition holds" (7 cases), "keeps the relationship verbatim"; Amendment 1: "trusts the good synthetic chain when the writer recorded only allowed codes", "trusts no ingredient once a writer recorded a failure code anywhere" (6 cases), "looks for recorded codes in every manifest of the store, not only the active one"; Amendment 2: "trusts no ingredient of a report that is not trusted", "trusts no grandchild of an untrusted ingredient", "trusts a grandchild when every link above it is trusted", "counts neither of two deltas under the same key" (2 orders), "counts an unreadable failure in a delta as a failure" (4 cases, `null` from the second review), "counts a malformed delta as one of two under the same key" (2 cases), "reads a large writer record in bounded time", and the `graft` row of the table test; Amendment 3: "treats keys that differ only in the leading slash as one key" (2 orders), "still finds a delta written in the relative form", "trusts neither of two ingredient entries that share a label"; Amendment 5: "keeps a trusted file trusted over its untrusted ingredient" (verifier, extension) | `src/Core/Reading/ManifestStoreParser.php` `ingredientTrusted()`, `recordedByWriter()`; Amendment 1: `RECORDABLE_CODES`, `recordsHideNothing()`; Amendment 2: `fromArray()` (the report's trust as the first link), `parseIngredients()` `$aboveTrusted`, `recordHidesNothing()`, `ingredientDeltas()`; Amendment 3: `normalisedUri()`, `parseIngredients()` `$labelCounts` |
 | AC4 | `tests/Unit/Reading/IngredientsTest.php` :: "does not trust any ingredient when the reader has no anchors", "does not trust an ingredient without a manifest, or without its own delta", "does not trust an ingredient without a manifest even under a good delta" | `src/Core/Reading/ManifestStoreParser.php` `parseIngredients()`, `ingredientTrusted()` |
 | AC5 | `tests/Unit/Reading/IngredientsTest.php` :: "stops at a manifest that names itself", "stops at a cycle through an ancestor", "reports an ingredient naming a label that is not in the store as having no manifest", "reports no deeper than depth 8", "reports no more than 64 ingredients in total", "shares the 64 budget across a deep and wide tree" | `src/Core/Reading/ManifestStoreParser.php` `MAX_INGREDIENT_DEPTH`, `MAX_INGREDIENTS`, `parseIngredients()` |
 | AC6 | `tests/Unit/Reading/IngredientsTest.php` :: "degrades malformed ingredient data instead of throwing" (5 cases), "treats an ingredient with a non-string relationship as having none, and still judges it", "reports no ingredients for an empty report" | `src/Core/Reading/ManifestStoreParser.php` `parseIngredients()`, `codesIn()`, `ingredientDeltas()` |
@@ -336,3 +354,7 @@ Amendment 4 (verifier 0.6.1): the pinned logo test turned red on 0.6.1 as
 designed and was replaced by an agreement test; the logo fixture joined the
 integration comparison (`c2pasign logo`). `composer check` 519 passed;
 integration against the local service with trust settings 214 passed.
+
+Amendment 5 (expired rogue fixture): the new precondition test was run red
+on the expired `spec045-c2patool027-rogue.png` (2 failed: verifier,
+extension) and green on the rebuild; the SPEC-045 group 80 passed.
