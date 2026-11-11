@@ -209,6 +209,47 @@ compatible brands (AC3).
   `### Service` heading — as the c2pa-node 0.9.3 bump did — or something louder,
   is a release decision. **Non-blocking.**
 
+## Amendments
+
+### Amendment 1 — no `ftyp` box is refused, not left to the engine (2026-11-11)
+
+**Approved by Maurice van Loon, 2026-11-11.** Found by the c2pa-node 0.10.1
+bump (c2pa-rs 0.90.22 → 0.91.10, NOTES Step 79). AC5 said "if a future
+measurement contradicts it, this criterion is the one to revisit"; this is that
+measurement.
+
+**Measured 2026-11-11.** `fixture.mov` with its `ftyp` box stripped, declared
+`video/quicktime`:
+
+- c2pa-rs 0.90.22 refused it (`type is unsupported`, HTTP 500), which is what
+  the AC5 test asserted.
+- c2pa-rs 0.91.10 signs it, HTTP 200: the output starts with a `uuid` box
+  (the manifest) and still has no `ftyp`. The service's own read-back accepts
+  it, and c2patool 0.28.6 reads it `Valid` with `assertion.bmffHash.match`.
+- c2patool 0.27.22 cannot open it (`expected box type "ftyp" at offset 4,
+  found uuid`), and neither can `provemark/c2pa-verifier` (`unsupported file
+  type`), which is the pure-PHP reader of this package.
+
+So the engine now produces a credential that part of the readers this package
+names cannot open. That is SPEC-039's own defect class — a success the reader
+cannot use — and it was refused before, so refusing it takes nothing away
+from any caller.
+
+**AC5 is replaced by:**
+
+- **AC5 — an asset with no `ftyp` box is refused**
+  - Given input declared `video/mp4`, `video/quicktime` or `image/avif` in
+    which no `ftyp` box is found within the first `MAX_BOXES_SCANNED` boxes
+  - When it is posted to `/v1/sign`, as `content` or as `parent`
+  - Then the response is **400** saying that no `ftyp` box was found, naming
+    the parent when it is the parent, and nothing is signed
+  - *This departs from the deny-list's discipline for one case: "no brand
+    found" now means "refuse". The deny-list itself is unchanged; it still
+    refuses only the brands it names.*
+
+AC7's malformed inputs also find no `ftyp` box, so they are now refused by
+this rule; their criterion (400, no throw, nothing written) is unchanged.
+
 ## Traceability
 
 All fourteen tests carry `->group('SPEC-039', 'integration')` and need the
@@ -224,13 +265,17 @@ failed, 6 passed** — the six that pass either way are the AC2/AC3 fixtures, AC
 AC9 and AC10, which assert that nothing was broken rather than that something was
 fixed.
 
+Amendment 1, verified 2026-11-11 on c2pa-node 0.10.1: the two new tests red
+against the unchanged service (**200**, the engine signed), then **15 passed** in
+the group after the change.
+
 | Acceptance criterion | Test (file :: name / group) | Source (file/symbol) |
 |----------------------|-----------------------------|----------------------|
 | AC1 | `tests/Integration/IsobmffBrandTest.php` :: "refuses a JPEG XL container declared as video/mp4", "refuses a JPEG XL container declared as video/quicktime", "refuses a JPEG XL container declared as image/avif" | `service/server.js` `rejectForeignBrand()`, `DENIED_BMFF_BRANDS` |
 | AC2 | `tests/Integration/IsobmffBrandTest.php` :: "still signs fixture.mp4, whose major brand is isom", "still signs fixture.mov, whose major brand is qt" | `service/server.js` `DENIED_BMFF_BRANDS` — a deny-list, so an unlisted brand is never refused |
 | AC3 | `tests/Integration/IsobmffBrandTest.php` :: "still signs fixture.avif, which carries mif1 among its compatible brands" | `service/server.js` `majorBrand()` — reads `offset + 8 .. offset + 12` only, never the compatible brands |
 | AC4 | `tests/Integration/IsobmffBrandTest.php` :: "finds the ftyp box behind the JXL signature box rather than at offset four" | `service/server.js` `majorBrand()`, `MAX_BOXES_SCANNED` |
-| AC5 | `tests/Integration/IsobmffBrandTest.php` :: "leaves an asset with no ftyp box to the engine instead of refusing it" | `service/server.js` `majorBrand()` returns null → `rejectForeignBrand()` returns null |
+| AC5 (Am. 1) | `tests/Integration/IsobmffBrandTest.php` :: "refuses an asset with no ftyp box instead of leaving it to the engine", "refuses a parent asset with no ftyp box" | `service/server.js` `majorBrand()` returns null → `rejectForeignBrand()` returns the "has no ftyp box" reason |
 | AC6 | `tests/Integration/IsobmffBrandTest.php` :: "refuses a JPEG XL container offered as the parent asset" | `service/server.js` `brandProblem`, parent branch in `POST /v1/sign` |
 | AC7 | `tests/Integration/IsobmffBrandTest.php` :: "refuses a box header that runs past the end of the buffer", "refuses a first box shorter than its own header" | `service/server.js` `majorBrand()` bounds: `size < 8`, `offset + size > buf.length`, `MAX_BOXES_SCANNED` |
 | AC8 | `tests/Integration/IsobmffBrandTest.php` :: "names the brand printably and carries a correlation id" | `service/server.js` `rejectForeignBrand()` printable render, `reject()` audit record |
