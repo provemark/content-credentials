@@ -177,13 +177,13 @@ it('finds the ftyp box behind the JXL signature box rather than at offset four',
     expect($status)->toBe(400);
 })->skip($skipUnlessReachable)->group('SPEC-039', 'integration');
 
-// --- AC5: no ftyp at all means nothing to deny -----------------------------
+// --- AC5 (Amendment 1): no ftyp box is refused -----------------------------
 
-it('leaves an asset with no ftyp box to the engine instead of refusing it', function () {
-    // A QuickTime file need not carry ftyp. Measured: with the box stripped the
-    // engine answers `type is unsupported` — its own message, a 500, not our
-    // 400. Asserting that specific string is what distinguishes "the deny-list
-    // stayed out of the way" from "nothing happened".
+/**
+ * `fixture.mov` with its leading `ftyp` box removed.
+ */
+function cc39MovWithoutFtyp(): string
+{
     $mov = (string) file_get_contents(__DIR__.'/../Fixtures/fixture.mov');
     $header = unpack('Nlength', substr($mov, 0, 4));
     $length = is_array($header) ? $header['length'] : 0;
@@ -192,10 +192,43 @@ it('leaves an asset with no ftyp box to the engine instead of refusing it', func
     expect(substr($mov, 4, 4))->toBe('ftyp')
         ->and($ftypLength)->toBeGreaterThan(7);
 
-    [$status, $body] = cc39Sign(substr($mov, $ftypLength), 'video/quicktime');
+    return substr($mov, $ftypLength);
+}
 
-    expect($status)->toBe(500)
-        ->and(cc39Error($body))->toContain('signing failed');
+it('refuses an asset with no ftyp box instead of leaving it to the engine', function () {
+    // Measured (Amendment 1): c2pa-rs 0.90 refused this with its own 500,
+    // c2pa-rs 0.91 signs it into a file c2patool 0.27 and the pure-PHP verifier
+    // cannot open. The 400 and the wording are ours, so this cannot pass on
+    // either engine's own answer.
+    [$status, $body] = cc39Sign(cc39MovWithoutFtyp(), 'video/quicktime');
+
+    expect($status)->toBe(400)
+        ->and(cc39Error($body))->toContain('no ftyp box')
+        ->and(cc39Error($body))->toContain('video/quicktime')
+        ->and(cc39Error($body))->not->toContain('parent');
+})->skip($skipUnlessReachable)->group('SPEC-039', 'integration');
+
+it('refuses a parent asset with no ftyp box', function () {
+    [$status, $body] = cc39Post('/v1/sign', [
+        'content' => base64_encode((string) file_get_contents(__DIR__.'/../Fixtures/fixture.mov')),
+        'mime_type' => 'video/quicktime',
+        'parent' => [
+            'content' => base64_encode(cc39MovWithoutFtyp()),
+            'mime_type' => 'video/quicktime',
+        ],
+        'extra_assertions' => [[
+            'label' => 'c2pa.actions.v2',
+            'data' => ['actions' => [[
+                'action' => 'c2pa.edited',
+                'digitalSourceType' => 'http://cv.iptc.org/newscodes/digitalsourcetype/compositeWithTrainedAlgorithmicMedia',
+                'softwareAgent' => ['name' => 'SPEC-039 probe'],
+            ]]],
+        ]],
+    ]);
+
+    expect($status)->toBe(400)
+        ->and(cc39Error($body))->toContain('parent')
+        ->and(cc39Error($body))->toContain('no ftyp box');
 })->skip($skipUnlessReachable)->group('SPEC-039', 'integration');
 
 // --- AC6: the parent ingredient is checked too ------------------------------

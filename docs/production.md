@@ -59,10 +59,14 @@ anchors cover reads back as `Trusted` with `isTrusted() === true`.
 
 The service **refuses to start** if the document is unreadable, does not parse,
 or could not actually verify — `verify.verify_trust` plus a non-empty
-`trust.trust_anchors` or `trust.allowed_list`. That last check matters:
-`verify_trust` without trust material verifies nothing *silently*, producing
-reads indistinguishable from having configured nothing at all. Failing at
-startup is what stops you believing trust is on when it is not.
+`trust.trust_anchors`. That last check matters: `verify_trust` without trust
+material verifies nothing *silently*, producing reads indistinguishable from
+having configured nothing at all. Failing at startup is what stops you
+believing trust is on when it is not. For the same reason it refuses an
+`allowed_list` without `trust_anchors` beside it, a `trust.anchors` block (the
+form the pure-PHP reader takes, see below; the service would drop it unread),
+and any key under `trust` or `verify` it does not pass on to the engine
+(SPEC-014 Amendment 1).
 
 The bundled anchors trust only the c2pa-rs **test** certificates. Replace them
 with the trust list your verifier uses before production.
@@ -109,13 +113,16 @@ lists name signing certificates directly rather than the CAs above them — the
 IPTC [Origin Verified News Publishers List](https://iptc.org/verified-news-publishers-list/)
 (`https://trust.iptc.org/end-entity-list.pem`, one certificate per publisher)
 is the current example. `allowed_list` trusts each certificate in it as-is: no
-chain is built, so it needs neither anchors nor an EKU configuration, and it
-combines with `trust_anchors` in the same document. Measured with c2patool
-0.27.22: a signing certificate placed in `allowed_list` reads
-`signingCredential.trusted` with `trust_anchors` empty, and still does with the
-official anchors loaded beside it; a certificate on neither reads
-`signingCredential.untrusted`. Add `--rawfile publishers end-entity-list.pem`
-to the command above and `allowed_list: $publishers` to the `trust` object.
+chain is built for it. **On the service it needs `trust_anchors` beside it**:
+since c2pa-rs 0.91 an allowed list on its own confers no trust, so the service
+refuses such a document at startup. With anchors beside it — the official list,
+as built above — a signing certificate in `allowed_list` reads `Trusted` even
+when the anchors do not cover it, and a certificate on neither reads `Valid`
+with `signingCredential.untrusted` (SPEC-014 AC10). Add
+`--rawfile publishers end-entity-list.pem` to the command above and
+`allowed_list: $publishers` to the `trust` object. (c2patool 0.27.22 still
+trusted an allowed list with `trust_anchors` empty; c2patool 0.28 and the
+service no longer do.)
 
 With the pure-PHP reader (`CONTENTAUTH_READER=verifier`, SPEC-042) the flat
 `trust.allowed_list` above is **refused**: `c2patool` 0.28 and c2pa-rs 0.91 moved

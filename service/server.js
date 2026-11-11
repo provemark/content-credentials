@@ -402,11 +402,13 @@ const MAX_BOXES_SCANNED = 4;
 /**
  * The major brand of the first `ftyp` box, or null when there is none to find.
  *
- * Null means "nothing to deny" — a QuickTime file need not carry ftyp at all
- * (SPEC-039 AC5). Box sizes are attacker-controlled arithmetic, so every step
- * is bounded by the buffer length and by MAX_BOXES_SCANNED. Sizes 0 (to end of
- * file) and 1 (64-bit largesize) are not walked: they are legal but rare, and
- * giving up is the deny-list's correct answer.
+ * Null means no ftyp box was found, and the caller refuses the asset (SPEC-039
+ * Amendment 1: c2pa-rs 0.91 signs such a file into one that c2patool 0.27 and
+ * the pure-PHP verifier cannot open). Box sizes are attacker-controlled
+ * arithmetic, so every step is bounded by the buffer length and by
+ * MAX_BOXES_SCANNED. Sizes 0 (to end of file) and 1 (64-bit largesize) are not
+ * walked ahead of ftyp: they are legal but rare there, and refusing is the
+ * fail-closed answer.
  *
  * @param {Buffer} buf
  * @returns {string|null}
@@ -444,7 +446,12 @@ const rejectForeignBrand = (buf, mime, label) => {
   if (!BMFF_TYPES.has(mime)) return null;
 
   const brand = majorBrand(buf);
-  if (brand === null || !DENIED_BMFF_BRANDS.has(brand)) return null;
+  if (brand === null) {
+    return label === 'parent'
+      ? `parent asset declared "${cap(mime, 64)}" has no ftyp box`
+      : `asset declared "${cap(mime, 64)}" has no ftyp box`;
+  }
+  if (!DENIED_BMFF_BRANDS.has(brand)) return null;
 
   // The brand is four bytes off an attacker-supplied asset and ends up in an
   // operator's terminal. Render it printably (SPEC-006 AC8, one layer earlier).

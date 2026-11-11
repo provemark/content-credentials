@@ -87,10 +87,13 @@ it('still runs on the engine version the specification audit was made against', 
     // 0.90.22, six engine releases in one bump): specVersion still emitted as
     // `2.4.0`, the actions assertion still lands in created_assertions and
     // still reads back `created: true`, and the auto thumbnail still lands in
-    // gathered_assertions (upstream c2pa-rs #2106, unchanged).
+    // gathered_assertions (upstream c2pa-rs #2106, unchanged). Re-audited on
+    // 2026-11-11 for 0.9.5 -> 0.10.1 (c2pa-rs 0.90.22 -> 0.91.10, the first
+    // 0.91 engine taken): the same three hold, read with c2patool 0.27.22
+    // from a file the rebuilt service signed (NOTES Step 79).
     //
     // Reads a committed file rather than a running service on purpose: a check
     // conditioned on a profile or a local binary would report `skipped`
     // everywhere and never go red, which is the failure this criterion replaced.
-    expect($pinned)->toBe('0.9.5', 'engine bumped — re-run the SPEC-035 audit before declaring 2.4.0 still true');
+    expect($pinned)->toBe('0.10.1', 'engine bumped — re-run the SPEC-035 audit before declaring 2.4.0 still true');
 })->group('SPEC-035');

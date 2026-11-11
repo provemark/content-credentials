@@ -21,6 +21,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed: in the signing service, not in a tag
 
+- **The signing service runs `@contentauth/c2pa-node` 0.10.1** (c2pa-rs
+  0.91.10, was 0.9.5 / c2pa-rs 0.90.22). The release carries the fix for
+  contentauth/c2pa-js#244: from 0.9.8 to 0.9.11 the async signing path signed
+  **without** an RFC 3161 time-stamp and without an error, even against an
+  unreachable TSA, which is why those versions were not taken. Measured on
+  0.10.1: a signature carries a validated time-stamp again, and a dead TSA
+  makes the engine itself fail the request (SPEC-007 AC5). `specVersion` is
+  still declared `2.4.0` (SPEC-035, re-audited).
+- **Trust settings now reach the engine through a `Context`** (SPEC-014
+  Amendment 1); c2pa-rs 0.92 removes the path the service used before. The
+  document format is unchanged, but the service now **refuses to start** on
+  three shapes that this engine would accept and then verify nothing with: an
+  `allowed_list` without `trust_anchors` beside it, a `trust.anchors` block,
+  and a key under `trust` or `verify` it does not pass on. An operator whose
+  document holds only an `allowed_list` (the IPTC publishers list, say) has to
+  add `trust_anchors`; `docs/production.md` shows how.
+- **An ISOBMFF asset without an `ftyp` box is refused with 400** (SPEC-039
+  Amendment 1). c2pa-rs 0.90 refused it with a 500; c2pa-rs 0.91 signs it into
+  a file that c2patool 0.27 and the pure-PHP reader cannot open. The refusal
+  names the parent when it is the parent.
 - **`POST /v1/sign` refuses a request without an actions assertion** (SPEC-029
   Amendment 1). A body without `extra_assertions`, with an empty array, or with
   no `c2pa.actions` assertion now answers **400** with `an actions assertion

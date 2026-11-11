@@ -386,3 +386,13 @@ least one test; every source file maps back to this spec.
 | AC6 | `tests/Integration/TrustVerificationTest.php` :: "reports trust verification status on /health" | `service/server.js` `GET /health` |
 | AC7 | `tests/Integration/TrustVerificationTest.php` :: "still reads a manifest-less asset as an empty report under trust verification" | `service/server.js` `/v1/read` null-reader guard (SPEC-010) |
 | AC8 | `tests/Unit/TrustSettingsDocumentTest.php` :: "does not enable any option that would make a read hit the network", "carries trust material that would actually verify" | `certs/c2pa-trust.settings.json` |
+| AC5 (Am. 1) | `tests/Integration/TrustDocumentShapeTest.php` :: "refuses an allowed list without anchors beside it, pointing at the docs", "refuses a document carrying the trust.anchors form", "refuses a document whose verify_trust is not true", "starts with the trust document this repository ships" | `service/server.js` `loadTrustSettings()` |
+| AC9 (Am. 1) | `tests/Integration/TrustDocumentShapeTest.php` :: "refuses a key under verify that it does not map, naming it", "refuses a camelCase key under trust, naming it", "accepts every key it maps" | `service/server.js` `toContextSettings()`, `readerContext` |
+| AC10 (Am. 1) | `tests/Integration/TrustDocumentShapeTest.php` :: "reads Trusted when the allowed list beside foreign anchors names the signer" | `service/server.js` `readerContext` |
+| AC11 (Am. 1) | `tests/Integration/TrustDocumentShapeTest.php` :: "reads Trusted under covering anchors and untrusted under foreign ones", "reads Trusted when user_anchors cover the signer beside foreign trust_anchors" | `service/server.js` `readerContext` |
+
+Amendment 1 verified 2026-11-11 on c2pa-node 0.10.1 (c2pa-rs 0.91.10): the
+`TrustDocumentShapeTest` cases green in the default profile; AC1 through
+`php bin/e2e.php` with `CONTENTAUTH_TRUST_SETTINGS` set (`isTrusted: true`,
+time-stamp present, c2patool `signingCredential.trusted`). Seen red on 0.9.5
+when written (NOTES Step 74: 4 red, 10 green on 0.9.10).
