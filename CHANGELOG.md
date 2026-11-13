@@ -19,6 +19,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-11-13
+
+A patch release: the verifier range moves to 0.11. No API change.
+
 ### Changed
 
 - **The verifier range moves to 0.11** (SPEC-042 Amendment 12; `require-dev`
@@ -2186,7 +2190,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.20.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.20.1...main
+[0.20.1]: https://github.com/provemark/content-credentials/releases/tag/v0.20.1
 [0.20.0]: https://github.com/provemark/content-credentials/releases/tag/v0.20.0
 [0.19.6]: https://github.com/provemark/content-credentials/releases/tag/v0.19.6
 [0.19.5]: https://github.com/provemark/content-credentials/releases/tag/v0.19.5
