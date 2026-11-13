@@ -47,15 +47,30 @@ not a 0.21.0.
   and are not touched here. The two errors this step first caused (the
   old test name in the traceability rows) are fixed.
 
-## Left
+## Released
 
-Each on Maurice's word:
-1. approve Amendment 12 (done);
-2. the feature PR, then the "Release 0.20.1" PR, then tag `v0.20.1` on the
-   merge commit, the GitHub Release and Packagist. No branch-alias PR is
-   needed: `0.20-dev` stays.
+All on Maurice's word ("goedgekeurd, maak de PR's en tag maar"), on
+2026-11-13:
 
-After that, the Drupal module can take verifier 0.11 without a code
-change. Its README, CHANGELOG known issues and project page still say
-`provemark/c2pa-verifier:^0.10`; that is a docs change there, not a code
-change.
+- **Amendment 12** approved.
+- **#209**, *SPEC-042 Amendment 12: the verifier range at 0.11*: CI 20/20,
+  squash-merged as `b0caa54`.
+- **#210**, *Release 0.20.1: the verifier range at 0.11* (the CHANGELOG
+  heading and links only): CI 20/20, merged as `e602dfc`.
+- **Tag `v0.20.1`**, annotated, on `e602dfc`. GitHub Release `v0.20.1`,
+  with the CHANGELOG section as its text.
+- **Packagist** lists `v0.20.1` with `conflict` `<0.11 || >=0.12`.
+- **No branch-alias PR.** `dev-main` stays `0.20-dev`.
+
+## Afterwards, in the Drupal module
+
+- **A fresh `drupal/recommended-project`** with
+  `provemark/c2pa-verifier:^0.11` resolved this package's 0.20.1 and
+  verifier 0.11.0. The module's release smoke test passed on its
+  1.0.0-alpha6 with no change to the module.
+- **The module asks for `^0.11`** (its #3637949, `8b1b2cd` on `1.0.x`,
+  its SPEC-013 Amendment 7 and SPEC-016 Amendment 6, CI 9/9). The
+  install sentence, the missing-package message, the README,
+  `require-dev` and the project page changed. Its requirement on this
+  package stays `^0.20`. A site that asks for verifier `^0.10` keeps
+  0.20.0.
