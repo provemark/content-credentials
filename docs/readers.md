@@ -317,6 +317,15 @@ else differs:
   settings document gives none. Keeping the document, and recording which
   file it belongs to, is yours to do. A refused or unreadable asset throws the
   same `ReadFailedException` as `read()`.
+- **A validation time: `readVerified($asset, $time)`.** By default a read is
+  judged at the clock. Given a `\DateTimeInterface`, the verifier judges the
+  signer, the chain and any OCSP response at that time wherever no trusted
+  time-stamp gives the signing time (SPEC-047; the verifier's SPEC-073). The
+  `VerificationReport` keeps the time, and its crJSON writes it in UTC: what
+  a conformance harness, which is given a time per asset, needs. A time
+  whose UTC year lies outside 0001–9999 cannot be written as RFC 3339 and is
+  refused with `InvalidValidationTimeException` before anything is read.
+  `read()` stays at the clock.
 - **A stapled `revoked` is believed in one case the service does not.** A
   signer issued directly by a trust anchor, whose file carries only its own
   certificate and a stapled OCSP response saying `revoked`, is `Invalid` here

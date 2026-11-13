@@ -19,6 +19,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A validation time for the verifier read** (SPEC-047).
+  `C2paVerifierReader::readVerified($asset, $validationTime)` takes an
+  optional `\DateTimeInterface` and passes it to the verifier, which judges
+  at it wherever no trusted time-stamp gives the signing time. Without it the
+  read is judged at the clock, as before; `read()` and `ReaderInterface` do
+  not change. A time whose UTC year lies outside 0001–9999 is refused with
+  the new `InvalidValidationTimeException` before anything is read, because
+  RFC 3339 cannot write it and the verifier's crJSON would carry it as it
+  is. For a conformance harness, which is given a time per asset.
+
 ## [0.20.1] - 2026-11-13
 
 A patch release: the verifier range moves to 0.11. No API change.
