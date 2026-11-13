@@ -134,4 +134,4 @@ Follow these before searching; most questions are already answered in one step.
 | **77** | 2026-11-02 | [SPEC-029 Amendment 1, and a gap in `REQUIRE_AI_MARKING`](notes/step-77-spec-029-am1-and-a-policy-gap.md) |
 | **78** | 2026-11-09 | [An expired rogue fixture that kept passing (SPEC-045 Amendment 5)](notes/step-78-expired-rogue-fixture.md) |
 | **79** | 2026-11-11 | [c2pa-node 0.10.1 taken: the time-stamp is back (SPEC-039 Amendment 1)](notes/step-79-c2pa-node-0-10-1-taken.md) |
-| **80** | 2026-11-13 | [The verifier range moves to 0.11 (SPEC-042 Amendment 12), 0.20.1 prepared](notes/step-80-verifier-0-11-range.md) |
+| **80** | 2026-11-13 | [The verifier range moves to 0.11 (SPEC-042 Amendment 12), 0.20.1 released](notes/step-80-verifier-0-11-range.md) |
