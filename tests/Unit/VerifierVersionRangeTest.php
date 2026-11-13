@@ -47,13 +47,14 @@ it('refuses every verifier version outside the tested range', function () {
         ->toBe(sprintf('<%s || >=0.%d', $floor, $minor + 1));
 })->group('SPEC-042');
 
-it('tests against the verifier that writes the evidence down as a document', function () {
-    // SPEC-042 Amendment 11, SPEC-046 AC6: 0.10 is the range. 0.10.0 adds
-    // evidenceToArray() and evidenceToJson(), which readVerified() exists to
-    // hand on, and carries the fixes of a security review (six wrongly Trusted
-    // kinds of file). 0.9.x stays out: one minor, as this package measured it.
-    expect(spec042ComposerSection('require-dev')['provemark/c2pa-verifier'] ?? null)->toBe('^0.10')
-        ->and(spec042ComposerSection('conflict')['provemark/c2pa-verifier'] ?? null)->toBe('<0.10 || >=0.11');
+it('tests against the verifier that verifies the box hash in a JPEG', function () {
+    // SPEC-042 Amendment 12: 0.11 is the range. 0.11.0 verifies the general
+    // box hash in a JPEG (its SPEC-090), as Microsoft Bing Image Creator
+    // writes every file, and reads JUMBF URIs without the leading slash (its
+    // SPEC-042). Five StatusCode cases, none of which this package matches
+    // on. 0.10.x stays out: one minor, as this package measured it.
+    expect(spec042ComposerSection('require-dev')['provemark/c2pa-verifier'] ?? null)->toBe('^0.11')
+        ->and(spec042ComposerSection('conflict')['provemark/c2pa-verifier'] ?? null)->toBe('<0.11 || >=0.12');
 })->group('SPEC-042', 'SPEC-046');
 
 it('keeps the verifier out of require', function () {

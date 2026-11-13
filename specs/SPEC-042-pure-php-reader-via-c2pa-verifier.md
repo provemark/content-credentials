@@ -521,6 +521,35 @@ service: 52 passed, 4 skipped, as with 0.9.0). The new pin was seen red
 on the old `composer.json` first. No criterion changes. AC9's test takes the
 new pin.
 
+## Amendment 12 (2026-11-13, approved by Maurice van Loon the same day)
+
+The verifier released 0.11.0 on 2026-11-13, a minor: its public contract
+grows from 212 to 217 symbols, five `StatusCode` cases for the general box
+hash, nothing removed or renamed. A JPEG whose hard binding is
+`c2pa.hash.boxes` is now verified (its SPEC-090) instead of refused by name,
+and a JUMBF URI written without the leading slash is read from the store's
+root (its SPEC-042). Microsoft Bing Image Creator writes every file this
+way, so through this package's verifier route such a file was `Invalid`
+whatever it held, and is now judged. This package's reader matches on no
+`StatusCode` case, so nothing in its code changes.
+
+**The range moves to 0.11**: `require-dev` is `"provemark/c2pa-verifier":
+"^0.11"` and `conflict` is `"<0.11 || >=0.12"`, one minor as before.
+`conflict` refused 0.11 until now, and a consumer of both packages (the
+Drupal module) cannot take the verifier's minor while it does. A host that
+asks for verifier `^0.10` keeps this package's 0.20.0, which Composer still
+offers. `VerifierVersionRangeTest` pins it ("tests against the verifier that
+verifies the box hash in a JPEG"), in place of Amendment 11's pin.
+
+Measured on 2026-11-13 with 0.11.0 installed, before any other change:
+`composer check` (Pint, PHPStan, Deptrac, and 529 tests passed, 7 skipped)
+with one failure, Amendment 11's pin, as it should; and the integration
+tests that use the verifier (`VerifierReaderEquivalenceTest`,
+`IngredientEquivalenceTest`, `RemoteManifestFetchTest` against the running
+service: 52 passed, 4 skipped, as with 0.10.0). The new pin was seen red
+on the old `composer.json` first. No criterion changes. AC9's test takes the
+new pin.
+
 ## API sketch
 
 ```php
@@ -583,5 +612,5 @@ required); 11 verifier comparisons ran in each.
 | AC6 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "refuses trust settings the verifier refuses, at construction", "verifies without trust when no settings are given", "treats empty settings as no settings" | `src/Core/Reading/C2paVerifierReader.php` `buildSettings()`; `src/Core/Reading/Exception/TrustSettingsRejectedException.php` |
 | AC7 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "reports itself available when the verifier is installed", "names the package to install when the verifier is absent" | `src/Core/Reading/C2paVerifierReader.php` `isAvailable()`, `__construct()`; `src/Core/Reading/Exception/VerifierMissingException.php` |
 | AC8 | `tests/Unit/Laravel/ReaderSelectionTest.php` :: "binds the pure-PHP reader when the mode is verifier", "reports verifier as the mode, configured and resolved", "passes the configured settings file to the pure-PHP reader", "treats an empty settings value as no trust, not as an error", "refuses a settings path that does not exist, when the reader is resolved", "refuses a settings file the verifier refuses, when the reader is resolved", "names verifier among the accepted modes when refusing", "does not resolve auto to the verifier, though it is installed" | `src/Laravel/ReaderFactory.php` `MODES`, `make()`, `verifierSettings()`; `config/content-credentials.php` `verifier_settings` |
-| AC9 | `tests/Unit/VerifierVersionRangeTest.php` :: "refuses every verifier version outside the tested range", "tests against the verifier that writes the evidence down as a document" (Amendment 11; Amendments 7 to 10's pins before it), "keeps the verifier out of require"; `tests/Integration/VerifierReaderEquivalenceTest.php` :: "agrees with the service reader through the verifier", "agrees with the in-process reader through the verifier" | `.github/workflows/ci.yml` steps "Assert the verifier comparison ran (SPEC-042)" and "Assert the verifier-extension comparison ran (SPEC-042)" (counted 0 on a skipped run, 11 on a real one); `composer.json` `require-dev`, `conflict` (ADR-0007 addendum); `docs/adr/ADR-0007-the-verifier-as-an-optional-reader.md` |
+| AC9 | `tests/Unit/VerifierVersionRangeTest.php` :: "refuses every verifier version outside the tested range", "tests against the verifier that verifies the box hash in a JPEG" (Amendment 11; Amendments 7 to 10's pins before it), "keeps the verifier out of require"; `tests/Integration/VerifierReaderEquivalenceTest.php` :: "agrees with the service reader through the verifier", "agrees with the in-process reader through the verifier" | `.github/workflows/ci.yml` steps "Assert the verifier comparison ran (SPEC-042)" and "Assert the verifier-extension comparison ran (SPEC-042)" (counted 0 on a skipped run, 11 on a real one); `composer.json` `require-dev`, `conflict` (ADR-0007 addendum); `docs/adr/ADR-0007-the-verifier-as-an-optional-reader.md` |
 | AC10 | `tests/Unit/Reading/C2paVerifierReaderTest.php` :: "adds little to peak memory when reading a large asset", "fails with ReadFailedException when the copy cannot spill to disk" | `src/Core/Reading/C2paVerifierReader.php` `IN_MEMORY_BYTES`, `read()` (Amendment 3) |
