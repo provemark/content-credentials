@@ -19,6 +19,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The verifier range moves to 0.11** (SPEC-042 Amendment 12; `require-dev`
+  `^0.11`, `conflict` `<0.11 || >=0.12`). `provemark/c2pa-verifier` 0.11.0
+  is a minor:
+  - it verifies the general box hash in a JPEG (`c2pa.hash.boxes`), as
+    Microsoft Bing Image Creator writes every file;
+  - it reads JUMBF URIs written without the leading slash.
+
+  No code changes here. On the verifier route, such a JPEG was `Invalid`
+  whatever it held and is now judged, so it can be `Valid` or `Trusted`.
+  A host on verifier 0.10.x keeps 0.20.0 until it asks for `^0.11`.
+
 ### Changed: in the signing service, not in a tag
 
 - **The signing service runs `@contentauth/c2pa-node` 0.10.1** (c2pa-rs
