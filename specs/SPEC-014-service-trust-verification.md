@@ -131,6 +131,9 @@ criteria in the integration group (they need a live service).
     same `isTrusted() === false` as a correctly-configured service reading an
     untrusted asset — the two are indistinguishable from the outside, which is
     exactly the silent failure this spec exists to prevent
+  - *Amendment 1 replaces this criterion's Given: an allowed list without
+    anchors beside it, and a `trust.anchors` block, are refused too. The text
+    in force is Amendment 1's AC5, below.*
 
 - **AC6 — trust status is observable**
   - Given any configuration
@@ -152,6 +155,34 @@ criteria in the integration group (they need a live service).
   - When an asset is read
   - Then the service makes no outbound network request, so a read cannot be
     delayed or failed by a third party
+
+- **AC9 — every key the service passes on reaches the engine** (Amendment 1)
+  - Given a settings document
+  - When the service starts
+  - Then each key under `trust` and `verify` is either mapped to its camelCase
+    `Context` key (`trust_anchors → trustAnchors`, `trust_config →
+    trustConfig`, `allowed_list → allowedList`, `verify_trust → verifyTrust`,
+    and the keys SPEC-043 sets) or the service exits non-zero naming the key
+  - Rationale: a `Context` drops an unknown key without a word; that is how
+    item 2 above happened. Refusing is the only behaviour an operator can
+    notice.
+
+- **AC10 — an allowed list beside anchors still confers trust** (Amendment 1)
+  - Given trust settings whose anchors do **not** cover the signing
+    certificate, and whose `allowed_list` contains it
+  - When a correctly signed asset is read
+  - Then the verdict is `Trusted`, as AC1
+  - And with the certificate on neither, `Valid` +
+    `signingCredential.untrusted`, as AC2
+  - Rationale: this is the IPTC configuration once AC5 requires anchors. That
+    `toWireSettings()` attaching `allowedList` to each anchor entry gives this
+    verdict is **reasoned from the source, not measured**; this criterion is
+    what measures it.
+
+- **AC11 — the Step 67 table, pinned** (Amendment 1)
+  - Given the bump to the `Context` path
+  - Then AC1 and AC2 hold through `new Context(mapped)`, and a test fails if
+    the document reaches the engine unmapped (option 2 of Step 67)
 
 ## Amendment 1 — the trust document reaches the engine through a `Context`, and an allowed list alone is refused (approved 2026-10-20)
 
