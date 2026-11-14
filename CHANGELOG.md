@@ -19,6 +19,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-14
+
+A minor release: a refusal on the verifier route carries the verifier's
+report (SPEC-046 Amendment 1), so that a conformance harness can answer in
+crJSON for a file whose store the verifier refuses. A public class is added
+and `ReadFailedException` loses `final`; existing calls and catches keep
+working unchanged. The verifier range stays at 0.11; tested against 0.11.2.
+A project that requires `^0.21` must move to `^0.22` to use the new class.
+
 ### Added
 
 - **A refusal on the verifier route carries the verifier's report**
@@ -2228,7 +2237,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.21.0...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.22.0...main
+[0.22.0]: https://github.com/provemark/content-credentials/releases/tag/v0.22.0
 [0.21.0]: https://github.com/provemark/content-credentials/releases/tag/v0.21.0
 [0.20.1]: https://github.com/provemark/content-credentials/releases/tag/v0.20.1
 [0.20.0]: https://github.com/provemark/content-credentials/releases/tag/v0.20.0
