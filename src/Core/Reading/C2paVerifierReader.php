@@ -11,6 +11,7 @@ use Provemark\ContentCredentials\Core\Reading\Exception\InvalidValidationTimeExc
 use Provemark\ContentCredentials\Core\Reading\Exception\ReadFailedException;
 use Provemark\ContentCredentials\Core\Reading\Exception\TrustSettingsRejectedException;
 use Provemark\ContentCredentials\Core\Reading\Exception\VerifierMissingException;
+use Provemark\ContentCredentials\Core\Reading\Exception\VerifierRefusalException;
 use Provemark\ContentCredentials\Core\Signing\Asset;
 use Provemark\ContentCredentials\Core\Support\ServiceError;
 
@@ -104,6 +105,7 @@ final class C2paVerifierReader implements ReaderInterface
      *
      * @throws InvalidValidationTimeException when the time's UTC year lies outside 0001–9999, before anything is read
      * @throws ReadFailedException as read() does, with the same message; never half a result
+     * @throws VerifierRefusalException a ReadFailedException carrying the verifier's report, where it answered and the answer was refused (SPEC-046 Amendment 1)
      */
     public function readVerified(Asset $asset, ?\DateTimeInterface $validationTime = null): VerifiedRead
     {
@@ -162,7 +164,16 @@ final class C2paVerifierReader implements ReaderInterface
             throw new ReadFailedException('Could not read the asset: the verifier report was not an object.');
         }
 
-        return new VerifiedRead(VerifierOutcome::toManifestReport($report), $verification);
+        try {
+            $manifestReport = VerifierOutcome::toManifestReport($report);
+        } catch (ReadFailedException $e) {
+            // SPEC-046 Amendment 1: the verifier answered, and the mapping refused its answer. The
+            // refusal carries that answer, so that a caller can still write it down (crJSON, for a
+            // conformance harness); the message is the mapping's, word for word.
+            throw new VerifierRefusalException($e->getMessage(), $verification, $e);
+        }
+
+        return new VerifiedRead($manifestReport, $verification);
     }
 
     /**

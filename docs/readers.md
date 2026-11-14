@@ -316,7 +316,11 @@ else differs:
   trust lists only when they come as `TrustSettings::fromTrustLists()`; a
   settings document gives none. Keeping the document, and recording which
   file it belongs to, is yours to do. A refused or unreadable asset throws the
-  same `ReadFailedException` as `read()`.
+  same `ReadFailedException` as `read()`. Where the verifier answered and
+  its answer was refused (a store it refused, a file it could not read), it
+  is a `VerifierRefusalException`, whose `verification` is that report: its
+  `toCrJson()` writes the failure, for a harness that answers in crJSON
+  (SPEC-046 Amendment 1).
 - **A validation time: `readVerified($asset, $time)`.** By default a read is
   judged at the clock. Given a `\DateTimeInterface`, the verifier judges the
   signer, the chain and any OCSP response at that time wherever no trusted
