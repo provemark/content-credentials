@@ -7,6 +7,7 @@ namespace Provemark\ContentCredentials\Core\Reading;
 use Provemark\C2paVerifier\Trust\TrustSettings;
 use Provemark\C2paVerifier\Verifier\Verifier;
 use Provemark\ContentCredentials\Core\Manifest\MediaType;
+use Provemark\ContentCredentials\Core\Reading\Exception\InvalidValidationTimeException;
 use Provemark\ContentCredentials\Core\Reading\Exception\ReadFailedException;
 use Provemark\ContentCredentials\Core\Reading\Exception\TrustSettingsRejectedException;
 use Provemark\ContentCredentials\Core\Reading\Exception\VerifierMissingException;
@@ -28,7 +29,8 @@ use Provemark\ContentCredentials\Core\Support\ServiceError;
  *
  * readVerified() gives the verifier's own report of the same read next to the
  * ManifestReport (SPEC-046), and a caller may hand in a Verifier configured
- * its own way, such as one with a revocation source.
+ * its own way, such as one with a revocation source. It also takes the time
+ * to judge at (SPEC-047), which read() leaves at the clock.
  */
 final class C2paVerifierReader implements ReaderInterface
 {
@@ -97,10 +99,18 @@ final class C2paVerifierReader implements ReaderInterface
      * verify() call (SPEC-046): one read, so the evidence it carries is the evidence of the
      * verdict the ManifestReport shows.
      *
+     * @param  \DateTimeInterface|null  $validationTime  the time to judge at where no trusted timestamp
+     *                                                   gives one (verifier SPEC-073; SPEC-047); null is the clock
+     *
+     * @throws InvalidValidationTimeException when the time's UTC year lies outside 0001–9999, before anything is read
      * @throws ReadFailedException as read() does, with the same message; never half a result
      */
-    public function readVerified(Asset $asset): VerifiedRead
+    public function readVerified(Asset $asset, ?\DateTimeInterface $validationTime = null): VerifiedRead
     {
+        if ($validationTime !== null) {
+            self::checkTime($validationTime);
+        }
+
         if (! self::supports($asset->mediaType)) {
             throw new ReadFailedException(sprintf(
                 'Media type %s is not supported by this reader: provemark/c2pa-verifier cannot read it. '
@@ -134,7 +144,7 @@ final class C2paVerifierReader implements ReaderInterface
 
             // Through JSON rather than toArray(), so the parser sees exactly
             // what was measured: the report as the verifier serialises it.
-            $verification = $this->verifier->verify($stream, $this->settings);
+            $verification = $this->verifier->verify($stream, $this->settings, $validationTime);
             $json = $verification->toJson();
             $report = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
         } catch (ReadFailedException $e) {
@@ -153,6 +163,23 @@ final class C2paVerifierReader implements ReaderInterface
         }
 
         return new VerifiedRead(VerifierOutcome::toManifestReport($report), $verification);
+    }
+
+    /**
+     * SPEC-047 AC5: RFC 3339 writes years 0001–9999 only; the verifier's command line refuses
+     * the rest (its SPEC-073 amendment 2), its API does not, and would put the time in crJSON as is.
+     */
+    private static function checkTime(\DateTimeInterface $time): void
+    {
+        $utc = \DateTimeImmutable::createFromInterface($time)->setTimezone(new \DateTimeZone('UTC'));
+        $year = (int) $utc->format('Y');
+
+        if ($year < 1 || $year > 9999) {
+            throw new InvalidValidationTimeException(sprintf(
+                'The validation time %s cannot be written as RFC 3339: its UTC year must lie within 0001–9999.',
+                $utc->format('Y-m-d\TH:i:s\Z'),
+            ));
+        }
     }
 
     private static function buildSettings(?string $json): ?TrustSettings
