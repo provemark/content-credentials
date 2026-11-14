@@ -137,3 +137,4 @@ Follow these before searching; most questions are already answered in one step.
 | **80** | 2026-11-13 | [The verifier range moves to 0.11 (SPEC-042 Amendment 12), 0.20.1 released](notes/step-80-verifier-0-11-range.md) |
 | **81** | 2026-11-13 | [A validation time for the verifier read (SPEC-047)](notes/step-81-a-validation-time.md) |
 | **82** | 2026-11-14 | [0.21.0 prepared and released (SPEC-047), tested against verifier 0.11.2](notes/step-82-release-0-21-0.md) |
+| **83** | 2026-11-14 | [A refusal on the verifier route carries the verifier's report (SPEC-046 Amendment 1)](notes/step-83-a-refusal-carries-its-report.md) |

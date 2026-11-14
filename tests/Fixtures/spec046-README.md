@@ -20,3 +20,17 @@ then about P; answered with `spec046-p-good.der` for P, the evidence lists
 it as `fetched`, `chosen`, `good`, and the status
 `signingCredential.ocsp.notRevoked` is added. Its `nextUpdate` is
 2036-10-06, so the tests do not age before then.
+
+## Amendment 1
+
+Copied on 2026-11-14 from `provemark/c2pa-verifier` v0.11.2,
+`tests/Fixtures/jumbf/child-overruns.png` (MIT, the same maintainer; first
+committed there in its step 10). A PNG whose `c2pa.hash.data` superbox
+has its LBox raised from 195 to 205, so it runs past its parent and the
+verifier refuses the store. Verifier
+0.11.2 gives an `Invalid` report with `general.error`, and its crJSON holds
+`manifests: []` and a root `validationResults` with that failure.
+
+| file | source | SHA-256 |
+|---|---|---|
+| `spec046-child-overruns.png` | `jumbf/child-overruns.png` | `71a4e0dbf6df2ffb383629c9af1ed02975089414c9f5f35941f50ead89283bba` |

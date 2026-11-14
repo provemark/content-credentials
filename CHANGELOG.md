@@ -19,6 +19,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A refusal on the verifier route carries the verifier's report**
+  (SPEC-046 Amendment 1). Where the verifier answered and this package
+  refused its answer (a store it refused, or a file it could not read),
+  `readVerified()` and `read()` throw `VerifierRefusalException`, a
+  `ReadFailedException` with `public readonly VerificationReport
+  $verification`. The message is unchanged. A caller can still write that
+  report down: its crJSON holds `manifests: []` and a root
+  `validationResults` with the failure (verifier 0.11.1). This is for a
+  conformance harness, which answers in crJSON for every asset.
+
+### Changed
+
+- **`ReadFailedException` is no longer `final`**, so that
+  `VerifierRefusalException` can extend it. A caller that catches
+  `ReadFailedException` sees no difference.
+
 ## [0.21.0] - 2026-11-14
 
 A minor release: the pure-PHP reader's verified read takes a validation

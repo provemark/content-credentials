@@ -8,8 +8,10 @@ use Provemark\C2paVerifier\Verifier\Verifier;
 use Provemark\ContentCredentials\Core\Manifest\MediaType;
 use Provemark\ContentCredentials\Core\Reading\C2paVerifierReader;
 use Provemark\ContentCredentials\Core\Reading\Exception\ReadFailedException;
+use Provemark\ContentCredentials\Core\Reading\Exception\VerifierRefusalException;
 use Provemark\ContentCredentials\Core\Reading\ManifestReport;
 use Provemark\ContentCredentials\Core\Reading\VerifiedRead;
+use Provemark\ContentCredentials\Core\Reading\VerifierOutcome;
 use Provemark\ContentCredentials\Core\Signing\Asset;
 
 /*
@@ -190,3 +192,60 @@ it('AC8: anything but null, a string or a TrustSettings is a TypeError from PHP 
         expect((new C2paVerifierReader($none))->read(spec046Parent())->validationState()?->value)->toBe('Valid');
     }
 })->group('SPEC-046');
+
+// SPEC-046 Amendment 1: where the verifier answered, its report goes with the refusal.
+function spec046RefusalOf(callable $read): ?ReadFailedException
+{
+    try {
+        $read();
+    } catch (ReadFailedException $e) {
+        return $e;
+    }
+
+    return null;
+}
+
+it('AC5 (Amendment 1): a refusal the verifier answered carries its report; one it did not stays a plain ReadFailedException', function (Asset $asset, bool $answered) {
+    $reader = new C2paVerifierReader;
+
+    foreach ([fn () => $reader->readVerified($asset), fn () => $reader->read($asset)] as $read) {
+        $e = spec046RefusalOf($read);
+
+        expect($e)->toBeInstanceOf(ReadFailedException::class);
+        if (! $answered) {
+            expect($e !== null ? get_class($e) : null)->toBe(ReadFailedException::class);
+
+            continue;
+        }
+        expect($e)->toBeInstanceOf(VerifierRefusalException::class);
+        $verification = $e instanceof VerifierRefusalException ? $e->verification : null;
+        $doc = json_decode((string) $verification?->toCrJson(), true, 512, JSON_THROW_ON_ERROR);
+        $root = is_array($doc) ? ($doc['validationResults'] ?? null) : null;
+        $active = is_array($root) ? ($root['activeManifest'] ?? null) : null;
+
+        expect($verification?->result->state->value)->toBe('Invalid')
+            ->and(is_array($doc) ? ($doc['manifests'] ?? null) : null)->toBe([])
+            ->and(is_array($active) ? ($active['failure'] ?? []) : [])->not->toBe([]);
+    }
+})->with([
+    'TIFF' => [fn () => new Asset((string) file_get_contents(dirname(__DIR__, 2).'/Fixtures/signed-spec042.tiff'), MediaType::Tiff), false],
+    'SVG' => [fn () => new Asset((string) file_get_contents(dirname(__DIR__, 2).'/Fixtures/signed-spec042.svg'), MediaType::Svg), false],
+    'truncated' => [fn () => new Asset(substr(spec046Fixture('cs-parent.png'), 0, 20000), MediaType::Png), true],
+    'a refused store' => [fn () => new Asset(spec046Fixture('child-overruns.png'), MediaType::Png), true],
+])->group('SPEC-046');
+
+it('AC9: the report carried is the one refused', function (Asset $asset) {
+    $e = spec046RefusalOf(fn () => (new C2paVerifierReader)->readVerified($asset));
+    expect($e)->toBeInstanceOf(VerifierRefusalException::class);
+    $verification = $e instanceof VerifierRefusalException ? $e->verification : null;
+
+    // through JSON, as readVerified() maps it
+    $report = json_decode((string) $verification?->toJson(), true, 512, JSON_THROW_ON_ERROR);
+    $mapped = spec046RefusalOf(fn () => VerifierOutcome::toManifestReport(is_array($report) ? $report : []));
+
+    expect($mapped)->toBeInstanceOf(ReadFailedException::class)
+        ->and($e?->getMessage())->toBe($mapped?->getMessage());
+})->with([
+    'truncated' => fn () => new Asset(substr(spec046Fixture('cs-parent.png'), 0, 20000), MediaType::Png),
+    'a refused store' => fn () => new Asset(spec046Fixture('child-overruns.png'), MediaType::Png),
+])->group('SPEC-046');

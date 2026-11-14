@@ -124,6 +124,106 @@ it a verifier configured differently, such as one with a revocation source
   - Then PHP's own `TypeError` is thrown; a blank string and null still
     mean "without trust".
 
+- **AC9 — the report carried is the one refused** *(error path; added by
+  Amendment 1, which also extends AC5 — the full text is there)*
+  - Given the truncated asset and `spec046-child-overruns.png`
+  - When `readVerified()` is called
+  - Then it throws `VerifierRefusalException`, whose message equals the
+    message the mapping gives for its `verification`; no `VerifiedRead` is
+    built from a refused report.
+
+## Amendment 1 (2026-11-14, approved by Maurice van Loon the same day: "goedgekeurd, open vragen zoals voorgesteld")
+
+Asked by the Drupal module's SPEC-046, *A conformance harness*, open
+question 1, which Maurice van Loon decided on 2026-11-14 ("goedgekeurd,
+open vragen zoals voorgesteld"): a library amendment first.
+
+**The finding.** AC5 says a refusal from `readVerified()` is the same
+`ReadFailedException` as from `read()`, with no `VerifiedRead`. Where the
+verifier *did* answer, its `VerificationReport` exists at that point, and
+the refusal drops it. Measured on 2026-11-14 with 0.21.0 and verifier
+0.11.2, on three of the verifier's own fixtures:
+
+- `avi/lbox-differs.avi`: "Could not read the asset: LBox 13464 differs
+  from the chunk length 13463 (C2PA chunk at offset 11700)";
+- `jumbf/child-overruns.png`: "… box at offset 32831 ends at 33036, past
+  its parent, which ends at 33026";
+- `absence/created-empty.png`: "… claim: created_assertions is not a
+  non-empty list".
+
+For each, the verifier writes crJSON: `manifests: []` and a root
+`validationResults` carrying the failure. This is verifier SPEC-075
+amendment 4, released in 0.11.1 so that a harness reading crJSON alone
+tells "does not verify" from "no Content Credentials". The module's
+harness reads through this package, as an upload does. Today it gets
+nothing to write for these files. Under the conformance tool's trust
+setup there are 57 such fixtures (verifier step 535).
+
+**The change.**
+
+- `ReadFailedException` loses `final`.
+- A new `final class VerifierRefusalException extends
+  ReadFailedException` carries `public readonly VerificationReport
+  $verification`.
+- `readVerified()` throws it wherever `verify()` returned a report and the
+  mapping (`VerifierOutcome::toManifestReport()`) refused it. The message
+  is the same as before, word for word.
+- Everything else stays a plain `ReadFailedException`:
+  - a media type the reader refuses (no `verify()`);
+  - no temporary stream;
+  - an exception out of `verify()`;
+  - and, since verifier 0.11.2, a validation time it refuses. That last
+    one is in any case caught earlier, as SPEC-047's
+    `InvalidValidationTimeException`.
+- `read()` is `readVerified()->report`, so it throws the same subclass.
+  A caller that catches `ReadFailedException` sees no difference.
+
+**AC5 (amended) — a refusal is a refusal, never half a result; where the
+verifier answered, its report goes with it** *(error path)*
+
+- Given an asset of a type the reader refuses (TIFF, SVG); the truncated
+  asset; and a copy of the verifier's `jumbf/child-overruns.png`
+- When `readVerified($asset)` and `read($asset)` are called
+- Then each throws a `ReadFailedException` with the same message as
+  before, and returns no `VerifiedRead`:
+  - for the TIFF and SVG it is exactly that class;
+  - for the truncated asset and `child-overruns.png` it is a
+    `VerifierRefusalException`, whose `verification` is the report of that
+    one `verify()` call. Its state is `Invalid`; `toCrJson()` holds
+    `manifests: []` and a root `validationResults.activeManifest.failure`
+    that is not empty.
+
+**AC9 (new) — the report carried is the one refused** *(error path)*
+
+- Given the refused fixtures above
+- When `readVerified()` is called
+- Then the exception's message equals the message the mapping gives for
+  `verification->toArray()`. Nothing in `ManifestReport` changes, and no
+  `VerifiedRead` is built from a refused report.
+
+**Not changed:** `ReaderInterface`, `SigningServiceReader`,
+`ExtC2paReader`, `ManifestReport` and the verifier range (`^0.11`).
+`VerifierRefusalException` names a verifier class, as `VerifiedRead`
+does. PHP loads it only when a refusal is thrown on this route, so a host
+without the verifier is unaffected (ADR-0007).
+
+**Open questions.**
+
+1. **Subclass, or a property on `ReadFailedException`** (blocking).
+   - *Proposal:* the subclass. `ReadFailedException` is thrown by every
+     reader, and a property naming a verifier class on it would put that
+     class in front of the service and extension routes.
+   - *Alternative:* `?VerificationReport $verification` on
+     `ReadFailedException` itself, null on the other routes. *Status 2026-11-14: decided as proposed.*
+2. **The name** (not blocking). *Proposal:* `VerifierRefusalException`.
+   *Alternatives:* `RefusedReadException`, `ReadRefusedException`. *Status 2026-11-14: decided as proposed.*
+3. **Release** (not blocking).
+   - *Proposal:* 0.22.0, a minor: a public class is added and a `final` is
+     removed. The module asks for `^0.22` in its harness issue, in place of
+     the `^0.21` it would have taken.
+   - *Alternative:* 0.21.1. It breaks nothing, but this package has not
+     carried an API addition in a patch before (0.19.6, 0.20.1). *Status 2026-11-14: decided as proposed.*
+
 ## API sketch
 
 ```php
@@ -201,3 +301,12 @@ Filled 2026-10-29. AC8 was green before the implementation: PHP refused a non-st
 | AC6 | `tests/Unit/VerifierVersionRangeTest.php` :: "tests against the verifier that verifies the box hash in a JPEG" | `composer.json` `require-dev`, `conflict`; SPEC-042 Amendment 11; `docs/adr/ADR-0007-the-verifier-as-an-optional-reader.md` |
 | AC7 | `tests/Unit/Reading/VerifiedReadTest.php` :: "AC7: lists given as TrustSettings::fromTrustLists() are named in the evidence" | `src/Core/Reading/C2paVerifierReader.php` `__construct()` `string|TrustSettings|null` |
 | AC8 | `tests/Unit/Reading/VerifiedReadTest.php` :: "AC8: anything but null, a string or a TrustSettings is a TypeError from PHP itself; blank and null mean without trust" | `src/Core/Reading/C2paVerifierReader.php` `__construct()`, `buildSettings()` |
+| AC5 (Amendment 1) | `tests/Unit/Reading/VerifiedReadTest.php` :: "AC5 (Amendment 1): a refusal the verifier answered carries its report; one it did not stays a plain ReadFailedException" | `src/Core/Reading/C2paVerifierReader.php` `readVerified()`; `src/Core/Reading/Exception/VerifierRefusalException.php`; `src/Core/Reading/Exception/ReadFailedException.php` (no longer `final`); `tests/Fixtures/spec046-child-overruns.png` |
+| AC9 (Amendment 1) | `tests/Unit/Reading/VerifiedReadTest.php` :: "AC9: the report carried is the one refused" | `src/Core/Reading/C2paVerifierReader.php` `readVerified()` |
+
+Amendment 1 (step 83): the six new cases red first, 4 of 6; the TIFF and
+SVG cases were green, as guards of what held before. AC5's original test is
+unchanged and green. Mutations, each failing: the refusal rethrown without
+its report (4 red), the message changed (2 red, AC9). `composer check`:
+exit 0, 545 passed, 7 skipped, 18 deprecated (the same 18); spec-check
+clean.
