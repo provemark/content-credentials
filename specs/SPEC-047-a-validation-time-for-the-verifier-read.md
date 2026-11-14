@@ -216,3 +216,10 @@ and its revocation source is not asked about a signer that is not trusted.
 AC5's "records nothing" is therefore the weaker check the test names.
 `composer check`: exit 0, 539 passed, 7 skipped, 18 deprecated (the same
 18 as step 80).
+
+Re-measured on verifier 0.11.2 (2026-11-14, at the 0.21.0 release): the
+mutation that survived, the check after `verify()`, now fails 2 of 9.
+Verifier 0.11.2 refuses such a time itself (its SPEC-073 amendment 3), and
+the library maps that to `ReadFailedException`, not to
+`InvalidValidationTimeException`. On verifier 0.11.0 and 0.11.1, which
+`^0.11` still allows, it survives as described above.
