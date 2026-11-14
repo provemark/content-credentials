@@ -136,4 +136,4 @@ Follow these before searching; most questions are already answered in one step.
 | **79** | 2026-11-11 | [c2pa-node 0.10.1 taken: the time-stamp is back (SPEC-039 Amendment 1)](notes/step-79-c2pa-node-0-10-1-taken.md) |
 | **80** | 2026-11-13 | [The verifier range moves to 0.11 (SPEC-042 Amendment 12), 0.20.1 released](notes/step-80-verifier-0-11-range.md) |
 | **81** | 2026-11-13 | [A validation time for the verifier read (SPEC-047)](notes/step-81-a-validation-time.md) |
-| **82** | 2026-11-14 | [0.21.0 prepared (SPEC-047), tested against verifier 0.11.2](notes/step-82-release-0-21-0.md) |
+| **82** | 2026-11-14 | [0.21.0 prepared and released (SPEC-047), tested against verifier 0.11.2](notes/step-82-release-0-21-0.md) |
