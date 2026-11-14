@@ -19,6 +19,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-14
+
+A minor release: the pure-PHP reader's verified read takes a validation
+time (SPEC-047), for a conformance harness that is given one per asset.
+Existing calls to `C2paVerifierReader` keep working unchanged. The verifier
+range stays at 0.11; this release was tested against 0.11.2. A project that
+requires `^0.20` must move to `^0.21` to use the new parameter.
+
 ### Added
 
 - **A validation time for the verifier read** (SPEC-047).
@@ -2202,7 +2210,8 @@ spike. `composer check` (Pint + PHPStan level max + Pest + Deptrac) is green.
 - Documentation: `specs/`, `docs/adr/` (ADR-0001 PSR-18 injection, ADR-0002 HTTP
   client discovery), `docs/c2pa-primer.md`, and `NOTES.md`.
 
-[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.20.1...main
+[Unreleased]: https://github.com/provemark/content-credentials/compare/v0.21.0...main
+[0.21.0]: https://github.com/provemark/content-credentials/releases/tag/v0.21.0
 [0.20.1]: https://github.com/provemark/content-credentials/releases/tag/v0.20.1
 [0.20.0]: https://github.com/provemark/content-credentials/releases/tag/v0.20.0
 [0.19.6]: https://github.com/provemark/content-credentials/releases/tag/v0.19.6
