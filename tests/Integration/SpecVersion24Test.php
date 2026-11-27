@@ -169,17 +169,20 @@ it('declares 2.4.0 and emits manifests shaped for it', function () {
 
 // --- AC5: the inherited thumbnail exception is pinned ------------------------
 
-it('still carries the upstream thumbnail, and documents the exception', function () {
-    // Asserted PRESENT, not absent. This is a departure we inherit from c2pa-rs
-    // (#2106): the generator makes this thumbnail, yet places it in
-    // gathered_assertions, which the specification defines as the field for
-    // assertions sourced from elsewhere. Keeping it is deliberate — see AC5 —
-    // and the alarm for upstream fixing it is SPEC-035 AC7's engine pin.
+it('still carries the thumbnail, and documents where the exception ended', function () {
+    // Asserted PRESENT, not absent. Up to c2pa-rs 0.91 the generator made this
+    // thumbnail yet placed it in gathered_assertions, the field for assertions
+    // sourced from elsewhere (c2pa-rs #2106). The SPEC-035 AC7 re-audit for
+    // c2pa-rs 0.92.2 found it in created_assertions (Amendment 1). Keeping it
+    // was deliberate, and it still is.
     expect(spec036Manifest())->toHaveKey('thumbnail');
 
-    // The exception is only honest if it is written down where a reader looks.
-    $docs = (string) file_get_contents(dirname(__DIR__, 2).'/docs/readers.md');
-    expect($docs)->toContain('gathered_assertions');
+    // The note stays, in the past tense: services not yet rebuilt, and assets
+    // signed earlier, still carry the old placement. The phrase names the
+    // engine on which it ended, so the old note fails this check.
+    $docs = (string) preg_replace('/\s+/', ' ', (string) file_get_contents(dirname(__DIR__, 2).'/docs/readers.md'));
+    expect($docs)->toContain('gathered_assertions')
+        ->and($docs)->toContain('ended with c2pa-rs 0.92.2');
 })->group('SPEC-036', 'integration')->skip($spec036SkipUnlessReachable);
 
 // --- AC6: the older in-process reader still finds the marking ----------------

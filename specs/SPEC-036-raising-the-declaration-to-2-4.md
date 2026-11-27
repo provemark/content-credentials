@@ -282,6 +282,40 @@ const SPEC_VERSION = '2.4.0';
   free of the same question the thumbnail raised, only that this one is arguable
   and unlegislated. *Non-blocker*.
 
+## Amendment 1 — the thumbnail exception ended with c2pa-rs 0.92 (approved 2026-11-27)
+
+Approved by Maurice van Loon on 2026-11-27. Source: the SPEC-035 AC7
+re-audit for c2pa-node 0.10.1 → 0.12.2 (c2pa-rs 0.91.10 → 0.92.2), commit
+the bump commit on branch `c2pa-node-0.12.2`.
+
+**Why.** AC5 pins a departure we inherit: the auto-generated thumbnail in
+`gathered_assertions`. AC5 named SPEC-035 AC7 as the alarm for upstream
+fixing it, and that alarm has now gone off. *Measured* with c2patool 0.27.22
+`--detailed`, on a file the rebuilt service signed:
+`created_assertions` = `c2pa.actions.v2`, `c2pa.thumbnail.claim`,
+`c2pa.hash.data`, and `gathered_assertions` is empty. On 0.10.1 the thumbnail
+was still in `gathered_assertions` (NOTES Step 79). c2pa-rs #2106 is still
+**open** on 2026-11-27. Which upstream change moved the thumbnail was not
+found, so that link is *not established*.
+
+**What changes.**
+
+- **AC5** becomes: given an asset signed through this package, the
+  auto-generated thumbnail is **present**, and `docs/readers.md` states that
+  the exception held up to c2pa-node 0.10.1 (c2pa-rs 0.91) and ended with
+  0.12.2 (c2pa-rs 0.92.2). The note stays, rewritten in the past tense, because
+  a deployment that has not rebuilt its service still emits the old placement,
+  and assets signed earlier keep it for good.
+- The test keeps asserting presence, and the docs check moves from
+  `gathered_assertions` to a phrase naming the engine on which the exception
+  ended. That way it fails against the old note.
+- `docs/c2pa-primer.md` §1 and §11 get the same correction. `docs/` is in the
+  dist, so the corrected text reaches users with the next tag.
+- No service code changes. `builder.thumbnail.enabled` stays untouched.
+
+**Not changed.** AC1–AC4 and AC6 hold as measured: `specVersion` is `2.4.0`,
+and the actions assertion is in `created_assertions` with `created: true`.
+
 ## Traceability
 
 Filled when status becomes `implemented`. Every acceptance criterion maps to at
@@ -293,5 +327,5 @@ least one test; every source file maps back to this spec.
 | AC2 | `tests/Integration/SpecVersion24Test.php` :: it marks it as created on the manipulated path, keeping the ingredient reference | `service/server.js` — `markActionsAsCreated()`; the ingredient reference is c2pa-rs's |
 | AC3 | `tests/Integration/SpecVersion24Test.php` :: it declares 2.4.0 and emits manifests shaped for it; `tests/Integration/SpecVersionTest.php` :: it satisfies every requirement of the version it declares (row 8) | `service/server.js` — `SPEC_VERSION` |
 | AC4 | `tests/Integration/SpecVersionTest.php` :: it satisfies every requirement of the version it declares — the docblock states the scope | `tests/Integration/SpecVersionTest.php` — the guard's docblock |
-| AC5 | `tests/Integration/SpecVersion24Test.php` :: it still carries the upstream thumbnail, and documents the exception | `docs/readers.md` — the inherited-exception note |
+| AC5 (Amendment 1) | `tests/Integration/SpecVersion24Test.php` :: it still carries the thumbnail, and documents where the exception ended | `docs/readers.md` — the inherited-exception note, in the past tense; `docs/c2pa-primer.md` §1, §11 |
 | AC6 | `tests/Integration/SpecVersion24Test.php` :: it keeps the Article 50 marking readable by the extension, on an older engine | `src/Core/Reading/ExtC2paReader.php` — unchanged; this criterion guards it against regression |
