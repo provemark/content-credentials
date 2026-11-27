@@ -207,13 +207,13 @@ it('reads the engine output of a timestamped asset as timestamped, and of an unt
     $result = spec007am1Node(<<<'JS'
     const m = require('/app/server.js');
     if (typeof m.carriesValidatedTimestamp !== 'function') { console.log(JSON.stringify({ missing: true })); return; }
-    const { Reader } = require('/app/node_modules/@contentauth/c2pa-node');
+    const { Reader, Context } = require('/app/node_modules/@contentauth/c2pa-node');
     const assets = JSON.parse(require('fs').readFileSync(0, 'utf8'));
     (async () => {
       const out = {};
       for (const [name, b64] of Object.entries(assets)) {
         const reader = await Reader.fromAsset({ buffer: Buffer.from(b64, 'base64'), mimeType: 'image/png' },
-          { verify: { remote_manifest_fetch: false } });
+          new Context({ verify: { remoteManifestFetch: false } }));
         out[name] = m.carriesValidatedTimestamp(reader ? reader.json() : null);
       }
       console.log(JSON.stringify({ missing: false, out }));
