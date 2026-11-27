@@ -19,6 +19,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The documented thumbnail exception has ended** (SPEC-036 Amendment 1).
+  `docs/readers.md` and the primer (§1, §11) said the engine places its
+  generated thumbnail in `gathered_assertions`. On c2pa-rs 0.92.2 it lands in
+  `created_assertions`. The note now says the exception held up to c2pa-node
+  0.10.1 and ended with 0.12.2. A service that has not been rebuilt, and
+  assets signed earlier, still show the old placement.
+
+### Changed: in the signing service, not in a tag
+
+- **The signing service runs `@contentauth/c2pa-node` 0.12.2** (c2pa-rs
+  0.92.2, was 0.10.1 / c2pa-rs 0.91.10). c2pa-rs 0.92 removes the flat
+  `trust.trust_anchors`. The service already passes trust through a `Context`
+  (SPEC-014 Amendment 1), and measured on 0.12.2 trust still holds: `Trusted`
+  with the test anchors, and the integration suite passes with trust on and
+  off. A signature still carries a validated time-stamp, a dead TSA still makes
+  the engine fail the request, and `specVersion` is still declared `2.4.0`
+  (SPEC-035, re-audited). Supersedes Dependabot's 0.12.1 PR.
+
 ## [0.22.0] - 2026-11-14
 
 A minor release: a refusal on the verifier route carries the verifier's

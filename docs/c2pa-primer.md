@@ -31,8 +31,8 @@ destructuring at the top of `app.post('/v1/sign')`.
 - Claim v2 REQUIRES an actions assertion whose **first action is
   `c2pa.created` or `c2pa.opened`**; anything else →
   `assertion.action.malformed: "first action must be created or opened"`.
-- c2pa-node auto-adds a `c2pa.thumbnail.claim` assertion. Expected; harmless —
-  but see §11 for where it lands, which is not where it belongs.
+- c2pa-node auto-adds a `c2pa.thumbnail.claim` assertion. Expected; harmless.
+  Where it lands depends on the engine: see §11.
 - A claim v2 splits assertions into **`created_assertions`** and
   **`gathered_assertions`**, and which one an assertion lands in is a claim
   about who stands behind it. See §11.
@@ -339,13 +339,17 @@ against what the manifest actually does: `claim_generator_info` is an open map.
 Both are claims, and a green verdict is not evidence for either. Assert structure
 directly.
 
-⚠️ **The auto-generated thumbnail lands in `gathered_assertions`**, though the
-generator made it. That contradicts what the field means, at 2.3 as much as at
-2.4, and it is c2pa-rs's default — every tool built on it, `c2patool` included.
-Tracked upstream as [c2pa-rs #2106](https://github.com/contentauth/c2pa-rs/issues/2106),
-whose fix moves the thumbnail rather than removing it. Suppressible via
-`builder.thumbnail.enabled: false`, which leaves `gathered_assertions` absent
-entirely — deliberately not done; see SPEC-036 AC5.
+⚠️ **Up to c2pa-rs 0.91, the auto-generated thumbnail landed in
+`gathered_assertions`**, though the generator made it. That contradicts what the
+field means, at 2.3 as much as at 2.4, and it was c2pa-rs's default — every tool
+built on it, `c2patool` included. Tracked upstream as
+[c2pa-rs #2106](https://github.com/contentauth/c2pa-rs/issues/2106). **On
+c2pa-rs 0.92.2 (c2pa-node 0.12.2) it lands in `created_assertions`**, and
+`gathered_assertions` is empty (measured 2026-11-27 with `c2patool --detailed`
+on a file the service signed; #2106 was still open that day). A service not yet
+rebuilt still emits the old placement, and assets signed earlier keep it. We
+never suppressed the thumbnail (`builder.thumbnail.enabled: false`); see
+SPEC-036 AC5 and its Amendment 1.
 
 **Where the created/gathered split is visible.** Only through
 `c2patool --detailed`. Neither `POST /v1/read` nor `ExtC2paReader` surfaces those
